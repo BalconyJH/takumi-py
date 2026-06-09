@@ -1,0 +1,3 @@
+[submodule "takumilib"]
+	path = takumilib
+	url = https://github.com/kane50613/takumi.git

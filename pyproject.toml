@@ -1,0 +1,207 @@
+[project]
+name = "takumi-py"
+version = "0.1.0"
+description = "Python bindings for the Takumi Rust renderer"
+readme = "README.md"
+authors = [
+    { name = "BalconyJH", email = "balconyjh@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1.6",
+    "msgpack>=1.1.2",
+    "pydantic>=2.13.4",
+    "selectolax>=0.4.10",
+    "typing-extensions>=4.0",
+]
+
+[tool.maturin]
+module-name = "takumi_py._core"
+python-packages = ["takumi_py"]
+python-source = "python"
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.rs" }, { file = "python/**/*.py" }, { file = "Cargo.toml" }, { file = "Cargo.lock" }]
+
+[tool.uv.sources]
+mike = { git = "https://github.com/squidfunk/mike.git" }
+
+[tool.pytest.ini_options]
+addopts = "--cov=takumi_py --cov-report=term-missing"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["takumi_py"]
+omit = [
+    "python/takumi_py/_core.*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.$",
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py310"
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "html-fixtures",
+    "node_modules",
+    "png-output",
+    "site-packages",
+    "takumilib",
+    "target",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "N",
+    "UP",
+    "YTT",
+    "S",
+    "BLE",
+    "FBT",
+    "B",
+    "A",
+    "COM",
+    "C4",
+    "DTZ",
+    "T10",
+    "FA",
+    "ISC",
+    "ICN",
+    "PIE",
+    "T20",
+    "PYI",
+    "Q",
+    "RSE",
+    "RET",
+    "SLOT",
+    "SIM",
+    "TID",
+    "ARG",
+    "PTH",
+    "PD",
+    "PGH",
+    "PL",
+    "TRY",
+    "FLY",
+    "PERF",
+    "FURB",
+    "RUF",
+]
+ignore = [
+    "A002",
+    "BLE001",
+    "COM812",
+    "E501",
+    "FBT001",
+    "FBT002",
+    "ISC001",
+    "N815",
+    "N818",
+    "PGH003",
+    "PLC0414",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR2004",
+    "PYI041",
+    "RET502",
+    "RET503",
+    "RUF009",
+    "S101",
+    "SIM108",
+    "PLC0415",
+    "TRY003",
+    "TRY004",
+    "TRY300",
+    "TRY301",
+    "UP035",
+]
+flake8-quotes = { inline-quotes = "double", multiline-quotes = "double" }
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+
+[tool.ruff.lint.flake8-builtins]
+builtins-ignorelist = ["id"]
+
+[tool.ruff.lint.isort]
+length-sort = false
+force-sort-within-sections = true
+known-first-party = ["takumi_py", "tests"]
+extra-standard-library = ["typing_extensions"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.ty.rules]
+deprecated = "ignore"
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.13.3",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.16",
+]
+docs = [
+    "mdformat>=1.0.0",
+    "mdformat-mkdocs>=4.4.2",
+    "mike",
+    "mkdocstrings-python>=2.0.1",
+    "zensical>=0.0.41",
+]
