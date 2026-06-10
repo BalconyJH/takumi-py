@@ -10,8 +10,7 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "jinja2>=3.1.6",
-    "msgpack>=1.1.2",
-    "pydantic>=2.13.4",
+    "msgspec>=0.21.1",
     "selectolax>=0.4.10",
     "typing-extensions>=4.0",
 ]
@@ -198,6 +197,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.16",
+    "ty>=0.0.46",
 ]
 docs = [
     "mdformat>=1.0.0",

@@ -1,4 +1,6 @@
-from takumi_py import Renderer
+import pytest
+
+from takumi_py import NodeValidationError, Renderer, validate_node
 
 
 def test_render_node_returns_png_bytes() -> None:
@@ -26,3 +28,20 @@ def test_compiled_node_can_render_repeatedly() -> None:
 
     assert first.startswith(b"\x89PNG")
     assert second.startswith(b"\x89PNG")
+
+
+def test_validate_node_accepts_nested_container() -> None:
+    node = validate_node(
+        {
+            "type": "container",
+            "children": [{"type": "text", "text": "hello"}],
+        }
+    )
+
+    assert node["type"] == "container"
+    assert node["children"][0]["type"] == "text"
+
+
+def test_validate_node_rejects_invalid_child() -> None:
+    with pytest.raises(NodeValidationError):
+        validate_node({"type": "container", "children": [{"type": "text"}]})

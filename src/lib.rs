@@ -19,6 +19,9 @@ fn _core(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("NodeDecodeError", py.get_type::<errors::NodeDecodeError>())?;
     module.add("StyleSheetError", py.get_type::<errors::StyleSheetError>())?;
     module.add("RenderError", py.get_type::<errors::RenderError>())?;
+    module.add("ResourceError", py.get_type::<errors::ResourceError>())?;
+    module.add("FontError", py.get_type::<errors::FontError>())?;
+    module.add("AnimationError", py.get_type::<errors::AnimationError>())?;
     module.add(
         "UnsupportedFormatError",
         py.get_type::<errors::UnsupportedFormatError>(),

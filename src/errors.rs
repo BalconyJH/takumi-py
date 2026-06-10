@@ -6,4 +6,7 @@ create_exception!(_core, NodeValidationError, TakumiError);
 create_exception!(_core, NodeDecodeError, TakumiError);
 create_exception!(_core, StyleSheetError, TakumiError);
 create_exception!(_core, RenderError, TakumiError);
+create_exception!(_core, ResourceError, TakumiError);
+create_exception!(_core, FontError, TakumiError);
+create_exception!(_core, AnimationError, TakumiError);
 create_exception!(_core, UnsupportedFormatError, TakumiError);
