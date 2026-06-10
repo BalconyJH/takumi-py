@@ -34,6 +34,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ env.RELEASE_TAG }}
+          submodules: recursive
 
       - name: Validate tag and main ancestry
         id: release-ref
@@ -91,6 +92,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ needs.validate-release-ref.outputs.sha }}
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
@@ -157,6 +159,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ needs.validate-release-ref.outputs.sha }}
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
@@ -190,6 +193,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ needs.validate-release-ref.outputs.sha }}
+          submodules: recursive
 
       - name: Build sdist
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
