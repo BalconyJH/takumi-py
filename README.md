@@ -86,3 +86,11 @@ png = renderer.render(
 The Python test suite includes generated HTML fixtures from the upstream Takumi
 core test suite. These tests exercise the Python HTML adapter against the same
 static fixture corpus while keeping known CSS parser limitations explicit.
+
+## License
+
+`takumi-py` is licensed under GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+This repository includes `takumi` as a git submodule. `takumi` is licensed
+separately under `MIT OR Apache-2.0`; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

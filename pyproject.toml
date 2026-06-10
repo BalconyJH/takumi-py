@@ -3,6 +3,7 @@ name = "takumi-py"
 version = "0.1.0"
 description = "Python bindings for the Takumi Rust renderer"
 readme = "README.md"
+license = "GPL-3.0-or-later"
 authors = [
     { name = "BalconyJH", email = "balconyjh@gmail.com" }
 ]
