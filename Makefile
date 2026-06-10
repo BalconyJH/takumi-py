@@ -1,6 +1,6 @@
 UV ?= uv
 PYTEST ?= $(UV) run pytest
-TY ?= $(UV) tool run ty
+TY ?= $(UV) run ty
 
 .DEFAULT_GOAL := help
 
@@ -44,17 +44,17 @@ test: ensure-uv ## Run pytest.
 .PHONY: ruff-format ruff-check lint ty typecheck cargo-fmt cargo-check check
 ruff-format: ensure-uv ## Format Python files with Ruff.
 	@echo "==> Formatting Python files with Ruff"
-	$(UV) run ruff format python tests
+	$(UV) run ruff format python tests examples
 
 ruff-check: ensure-uv ## Run Ruff lint checks.
 	@echo "==> Running Ruff checks"
-	$(UV) run ruff check python tests pyproject.toml
+	$(UV) run ruff check python tests examples pyproject.toml
 
 lint: ruff-check ## Alias for ruff-check.
 
 ty: ensure-uv ## Run ty type checking.
 	@echo "==> Running ty"
-	$(TY) check python tests
+	$(TY) check python tests examples
 
 typecheck: ty ## Alias for ty.
 

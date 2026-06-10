@@ -34,6 +34,23 @@ repos:
         require_serial: true
         priority: 1
 
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt --check
+        entry: cargo fmt --check
+        language: system
+        files: ^src/.*[.]rs$
+        pass_filenames: false
+        priority: 1
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check
+        language: system
+        files: ^(Cargo[.]toml|Cargo[.]lock|src/.*[.]rs)$
+        pass_filenames: false
+        priority: 1
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:

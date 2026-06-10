@@ -1,0 +1,253 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to publish, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release-ref:
+    name: Validate release ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release-ref.outputs.tag }}
+      sha: ${{ steps.release-ref.outputs.sha }}
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Validate tag and main ancestry
+        id: release-ref
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${RELEASE_TAG}"
+          if [[ ! "${tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([.-].*)?$ ]]; then
+            echo "Release tag must look like vX.Y.Z, got ${tag}" >&2
+            exit 1
+          fi
+
+          package_version="$(python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          match = re.search(
+              r'^version = "([^"]+)"$',
+              Path("pyproject.toml").read_text(),
+              re.MULTILINE,
+          )
+          if match is None:
+              raise SystemExit("project.version is missing from pyproject.toml")
+          print(match.group(1))
+          PY
+          )"
+          expected_tag="v${package_version}"
+          if [[ "${tag}" != "${expected_tag}" ]]; then
+            echo "Release tag ${tag} does not match project version ${package_version}" >&2
+            exit 1
+          fi
+
+          git fetch --force origin main:refs/remotes/origin/main
+          tag_commit="$(git rev-list -n 1 "${tag}")"
+          if ! git merge-base --is-ancestor "${tag_commit}" origin/main; then
+            echo "Release tag ${tag} points to ${tag_commit}, which is not on origin/main" >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "sha=${tag_commit}" >> "${GITHUB_OUTPUT}"
+
+  release-check:
+    name: Release checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - validate-release-ref
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ needs.validate-release-ref.outputs.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked --dev
+
+      - name: Check Ruff formatting
+        run: uv run ruff format --check python tests examples
+
+      - name: Run Ruff lint
+        run: uv run ruff check python tests examples pyproject.toml
+
+      - name: Run ty
+        run: uv run ty check python tests examples
+
+      - name: Run pytest
+        run: uv run pytest
+
+      - name: Check Rust formatting
+        run: cargo fmt --check
+
+      - name: Check Rust crate
+        run: cargo check
+
+  wheels:
+    name: Build wheels (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 45
+    needs:
+      - validate-release-ref
+      - release-check
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64
+            manylinux: "2014"
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64
+            manylinux: "2014"
+          - name: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64
+          - name: macos-aarch64
+            runner: macos-latest
+            target: aarch64
+          - name: windows-x64
+            runner: windows-latest
+            target: x64
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ needs.validate-release-ref.outputs.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: ".python-version"
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
+        with:
+          maturin-version: v1.13.3
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux || 'auto' }}
+          args: --release --locked --out dist --compatibility pypi
+          sccache: true
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: distributions-${{ matrix.platform.name }}
+          path: dist
+
+  sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - validate-release-ref
+      - release-check
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ needs.validate-release-ref.outputs.sha }}
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
+        with:
+          command: sdist
+          maturin-version: v1.13.3
+          args: --out dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: distributions-sdist
+          path: dist
+
+  pypi-publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - wheels
+      - sdist
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          path: dist
+          pattern: distributions-*
+          merge-multiple: true
+
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b
+        with:
+          packages-dir: dist
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - validate-release-ref
+      - pypi-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          path: dist
+          pattern: distributions-*
+          merge-multiple: true
+
+      - name: Create release and upload distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate-release-ref.outputs.tag }}
+        run: |
+          gh release create "${RELEASE_TAG}" dist/* \
+            --verify-tag \
+            --title "${RELEASE_TAG}" \
+            --generate-notes
