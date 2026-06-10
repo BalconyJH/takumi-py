@@ -2,6 +2,8 @@ from pathlib import Path
 
 from takumi_py import Renderer
 
+OUTPUT_DIR = Path(__file__).resolve().parent / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 html = """
 <div class="card">
@@ -28,4 +30,6 @@ h1 {
 </style>
 """
 
-Path("out.png").write_bytes(Renderer().render_html(html, width=1200, height=630))
+(OUTPUT_DIR / "html.png").write_bytes(
+    Renderer().render_html(html, width=1200, height=630)
+)

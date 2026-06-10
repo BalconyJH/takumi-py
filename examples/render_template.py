@@ -2,8 +2,11 @@ from pathlib import Path
 
 from takumi_py import TemplateRenderer
 
+EXAMPLES_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = EXAMPLES_DIR / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
-renderer = TemplateRenderer("examples/templates")
+renderer = TemplateRenderer(EXAMPLES_DIR / "templates")
 png = renderer.render(
     "card.html.jinja",
     {
@@ -14,4 +17,4 @@ png = renderer.render(
     height=630,
 )
 
-Path("out.png").write_bytes(png)
+(OUTPUT_DIR / "template.png").write_bytes(png)
