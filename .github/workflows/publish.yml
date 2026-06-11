@@ -230,19 +230,21 @@ jobs:
           packages-dir: dist
 
   github-release:
-    name: Create GitHub Release
+    name: Publish to GitHub Releases
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs:
       - validate-release-ref
-      - pypi-publish
+      - wheels
+      - sdist
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
-          ref: ${{ needs.validate-release-ref.outputs.sha }}
+          fetch-depth: 0
+          ref: ${{ needs.validate-release-ref.outputs.tag }}
 
       - name: Download distributions
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
@@ -256,7 +258,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.validate-release-ref.outputs.tag }}
         run: |
-          gh release create "${RELEASE_TAG}" dist/* \
-            --verify-tag \
-            --title "${RELEASE_TAG}" \
-            --generate-notes
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" dist/* --clobber
+          else
+            gh release create "${RELEASE_TAG}" dist/* \
+              --verify-tag \
+              --title "${RELEASE_TAG}" \
+              --generate-notes
+          fi
