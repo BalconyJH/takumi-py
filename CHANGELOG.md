@@ -3,14 +3,39 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project uses semantic versioning with Python-compatible prerelease
+identifiers.
 
 ## [Unreleased]
 
+## [0.2.0rc1] - 2026-07-05
+
+### Added
+
+- Add Takumi v2 SVG rendering through `render_svg_node`, `render_svg_html`, `render_svg_template`, and `render_svg_compiled`.
+- Add per-render `images`, `font_families`, `lang`, and `lossless` options.
+- Add `register_font` and `register_fonts` as the v2 font registration APIs.
+- Add explicit `stylesheets` parameters to HTML render, measure, SVG, and template calls.
+- Add `HtmlOptions` for Rust-backed HTML parser presets, Tailwind attribute mapping, and maximum parse depth.
+- Add `ImageResource.cache`, v2 `FontResource` descriptor fields, typed node `lang`, `CompiledNode.resource_urls()`, and structured keyframe inputs across render APIs.
+
 ### Changed
 
+- Migrate the native renderer from Takumi 1.7 to Takumi 2.0.0-rc.5.
+- Use Takumi v2's explicit `Fonts`, `ImageCache`, per-render images, and new raster output format model.
+- Route HTML parsing through Takumi's Rust `from_html` parser instead of the Python `selectolax` adapter.
+- Refresh README and runnable examples around explicit HTML stylesheets, resource descriptors, parser options, and structured keyframes.
+- Make ordinary CI run the full project check suite, including pytest and Cargo checks.
 - Publish PyPI distributions and GitHub Release artifacts in parallel after wheel and sdist builds complete.
 - Limit the release wheel matrix to Linux x86_64, Linux aarch64, macOS arm64, and Windows x64.
+
+### Deprecated
+
+- Deprecate `fetched_resources`, `load_font`, `load_fonts`, `persistent_images`, `put_persistent_image`, and `clear_image_store` in favor of per-render `images` and `register_font(s)`.
+
+### Removed
+
+- Remove the Python-side HTML parser and the runtime `selectolax` dependency.
 
 ### Fixed
 
@@ -43,5 +68,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the experimental `pack_node()` API and `codec="msgpack"` compile path.
 - Removed unused benchmark scripts.
 
-[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.2.0rc1...HEAD
+[0.2.0rc1]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.2.0rc1
 [0.1.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.1.0
