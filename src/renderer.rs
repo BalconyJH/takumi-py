@@ -1,41 +1,66 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use image::RgbaImage;
 use pyo3::{
     Bound, Py, PyAny, PyRef, PyResult, Python,
     exceptions::PyValueError,
     prelude::*,
     types::{PyBytes, PyDict, PyList},
 };
+use serde::Deserialize;
 use takumi::{
-    GlobalContext,
-    layout::{Viewport, node::Node, style::StyleSheet},
-    rendering::{
-        AnimatedGifOptions, AnimatedPngOptions, AnimatedWebpOptions, AnimationFrame,
-        MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun, SequentialScene,
-        encode_animated_gif, encode_animated_png, encode_animated_webp, measure_layout, render,
-        render_sequence_animation, render_sequence_at_time, write_image,
+    encode_animated_gif, encode_animated_png, encode_animated_webp, from_html, measure,
+    prelude::{
+        AnimatedGifOptions, AnimatedPngOptions, AnimatedWebpOptions, AnimationFrame, Bitmap,
+        FontResource, Fonts, FromHtmlOptions, GenericFamily, ImageCacheMode, ImageSource,
+        KeyframesRule, MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun,
+        Node, RenderOptions as CoreRenderOptions, SequentialScene, StylePresets, StyleSheet,
+        SvgOptions, Viewport,
     },
-    resources::{font::FontResource, image::ImageSource},
+    render, render_animation as render_sequence_animation, render_svg, write_image,
 };
+use takumi_core::{Language, resources::image::ImageCache};
+
+use parley::{FontStyle, FontWeight, fontique::FontInfoOverride};
 
 use crate::{
     errors::{
-        AnimationError, FontError, NodeDecodeError, RenderError, ResourceError, StyleSheetError,
+        AnimationError, FontError, HtmlParseError, NodeDecodeError, RenderError, ResourceError,
+        StyleSheetError,
     },
     options::{AnimationOutputFormat, DitheringAlgorithm, OutputFormat},
 };
 
-type ImageResourceInput = (String, Vec<u8>);
+type ImageResourceInput = (String, Vec<u8>, String);
+type FontResourceInput = (
+    Vec<u8>,
+    Option<String>,
+    Option<f64>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 type RawAnimationFrameInput = (Vec<u8>, u32, u32, u32);
+
+#[derive(Deserialize)]
+struct KeyframesInput {
+    #[serde(deserialize_with = "takumi_core::keyframes::deserialize_keyframes")]
+    keyframes: Vec<KeyframesRule>,
+}
 
 #[pyclass(module = "takumi_py._core")]
 pub struct CompiledNode {
     node: Node,
+}
+
+#[pymethods]
+impl CompiledNode {
+    pub fn resource_urls(&self) -> Vec<String> {
+        self.node.resource_urls().map(str::to_owned).collect()
+    }
 }
 
 #[pyclass(module = "takumi_py._core")]
@@ -54,7 +79,9 @@ struct RenderSettings {
     draw_debug_border: bool,
     time_ms: u64,
     dithering: DitheringAlgorithm,
-    fetched_resources: Vec<ImageResourceInput>,
+    images: Vec<ImageResourceInput>,
+    font_families: Option<Vec<String>>,
+    lang: Option<String>,
 }
 
 impl RenderSettings {
@@ -66,6 +93,8 @@ impl RenderSettings {
         let device_pixel_ratio =
             validate_positive_f64("device_pixel_ratio", input.device_pixel_ratio)? as f32;
         let time_ms = validate_non_negative_i64("time_ms", input.time_ms)?;
+        let mut images = input.fetched_resources.unwrap_or_default();
+        images.extend(input.images.unwrap_or_default());
 
         Ok(Self {
             width: input.width,
@@ -75,7 +104,9 @@ impl RenderSettings {
             draw_debug_border: input.draw_debug_border,
             time_ms,
             dithering: DitheringAlgorithm::parse(input.dithering)?,
-            fetched_resources: input.fetched_resources.unwrap_or_default(),
+            images,
+            font_families: input.font_families,
+            lang: input.lang,
         })
     }
 
@@ -83,6 +114,16 @@ impl RenderSettings {
         Viewport::new((self.width, self.height))
             .with_font_size(self.font_size)
             .with_device_pixel_ratio(self.device_pixel_ratio)
+    }
+
+    fn svg_viewport(&self) -> Viewport {
+        Viewport::new((self.width, self.height)).with_font_size(self.font_size)
+    }
+
+    fn lang(&self) -> Option<Language> {
+        self.lang
+            .as_deref()
+            .and_then(|lang| Language::parse(lang).ok())
     }
 }
 
@@ -95,11 +136,16 @@ struct RenderSettingsInput<'a> {
     time_ms: i64,
     dithering: &'a str,
     fetched_resources: Option<Vec<ImageResourceInput>>,
+    images: Option<Vec<ImageResourceInput>>,
+    font_families: Option<Vec<String>>,
+    lang: Option<String>,
 }
 
 #[pyclass(module = "takumi_py._core")]
 pub struct NativeRenderer {
-    context: Arc<RwLock<GlobalContext>>,
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
 }
 
 #[pymethods]
@@ -108,32 +154,54 @@ impl NativeRenderer {
     #[pyo3(signature = (*, load_default_fonts=true, fonts=None, persistent_images=None))]
     pub fn new(
         load_default_fonts: bool,
-        fonts: Option<Vec<Vec<u8>>>,
+        fonts: Option<Vec<FontResourceInput>>,
         persistent_images: Option<Vec<ImageResourceInput>>,
     ) -> PyResult<Self> {
-        let mut context = GlobalContext::default();
+        let mut font_store = Fonts::default();
 
         if load_default_fonts {
-            load_default_font(&mut context)?;
+            load_default_font(&mut font_store)?;
         }
 
         for font in fonts.unwrap_or_default() {
-            load_font_bytes(&mut context, font)?;
+            drop(register_font_input(&mut font_store, font)?);
         }
 
-        for (src, data) in persistent_images.unwrap_or_default() {
-            let image = decode_image_resource(&data)?;
-            context.persistent_image_store.insert(src, image);
+        let image_cache = Arc::new(ImageCache::default());
+        let mut legacy_images = HashMap::new();
+        for (src, data, cache) in persistent_images.unwrap_or_default() {
+            let image =
+                decode_image_resource(&image_cache, &data, parse_image_cache_mode(&cache)?)?;
+            legacy_images.insert(Arc::from(src), image);
         }
 
         Ok(Self {
-            context: Arc::new(RwLock::new(context)),
+            fonts: Arc::new(RwLock::new(font_store)),
+            image_cache,
+            legacy_images: Arc::new(RwLock::new(legacy_images)),
         })
     }
 
     pub fn compile_node_py(&self, node: Bound<'_, PyAny>) -> PyResult<CompiledNode> {
         let node = serde_pyobject::from_pyobject(node)
             .map_err(|error| NodeDecodeError::new_err(error.to_string()))?;
+        Ok(CompiledNode { node })
+    }
+
+    #[pyo3(signature = (html, *, presets="chromium", tailwind_property=None, max_depth=None))]
+    pub fn compile_html(
+        &self,
+        py: Python<'_>,
+        html: &str,
+        presets: &str,
+        tailwind_property: Option<String>,
+        max_depth: Option<usize>,
+    ) -> PyResult<CompiledNode> {
+        let source = html.to_owned();
+        let options = html_options(presets, tailwind_property, max_depth)?;
+        let node = py
+            .detach(move || from_html(&source, options).map_err(|error| error.to_string()))
+            .map_err(HtmlParseError::new_err)?;
         Ok(CompiledNode { node })
     }
 
@@ -156,29 +224,53 @@ impl NativeRenderer {
         }
     }
 
-    pub fn load_font(&self, data: Vec<u8>) -> PyResult<()> {
-        let mut context = self.write_context()?;
-        load_font_bytes(&mut context, data)
+    pub fn compile_keyframes(&self, keyframes: Bound<'_, PyAny>) -> PyResult<CompiledStyleSheet> {
+        let input: KeyframesInput = serde_pyobject::from_pyobject(keyframes)
+            .map_err(|error| StyleSheetError::new_err(error.to_string()))?;
+
+        Ok(CompiledStyleSheet {
+            css: String::new(),
+            stylesheet: StyleSheet::from(input.keyframes),
+            lossy: false,
+        })
     }
 
-    pub fn load_fonts(&self, fonts: Vec<Vec<u8>>) -> PyResult<()> {
-        let mut context = self.write_context()?;
+    pub fn register_font(&self, font: FontResourceInput) -> PyResult<Vec<String>> {
+        let mut fonts = self.write_fonts()?;
+        register_font_input(&mut fonts, font)
+    }
+
+    pub fn register_fonts(&self, fonts: Vec<FontResourceInput>) -> PyResult<Vec<String>> {
+        let mut registered = Vec::new();
+        let mut font_store = self.write_fonts()?;
         for font in fonts {
-            load_font_bytes(&mut context, font)?;
+            registered.extend(register_font_input(&mut font_store, font)?);
         }
+        Ok(registered)
+    }
+
+    pub fn load_font(&self, font: FontResourceInput) -> PyResult<()> {
+        drop(self.register_font(font)?);
         Ok(())
     }
 
-    pub fn put_persistent_image(&self, src: String, data: Vec<u8>) -> PyResult<()> {
-        let image = decode_image_resource(&data)?;
-        let context = self.read_context()?;
-        context.persistent_image_store.insert(src, image);
+    pub fn load_fonts(&self, fonts: Vec<FontResourceInput>) -> PyResult<()> {
+        drop(self.register_fonts(fonts)?);
+        Ok(())
+    }
+
+    #[pyo3(signature = (src, data, cache="auto"))]
+    pub fn put_persistent_image(&self, src: String, data: Vec<u8>, cache: &str) -> PyResult<()> {
+        let image =
+            decode_image_resource(&self.image_cache, &data, parse_image_cache_mode(cache)?)?;
+        let mut images = self.write_legacy_images()?;
+        images.insert(Arc::from(src), image);
         Ok(())
     }
 
     pub fn clear_image_store(&self) -> PyResult<()> {
-        let context = self.read_context()?;
-        context.persistent_image_store.clear();
+        let mut images = self.write_legacy_images()?;
+        images.clear();
         Ok(())
     }
 
@@ -194,8 +286,12 @@ impl NativeRenderer {
         time_ms=0,
         dithering="none",
         fetched_resources=None,
+        images=None,
+        font_families=None,
+        lang=None,
         format="png",
-        quality=None
+        quality=None,
+        lossless=None
     ))]
     pub fn render_compiled(
         &self,
@@ -210,8 +306,12 @@ impl NativeRenderer {
         time_ms: i64,
         dithering: &str,
         fetched_resources: Option<Vec<ImageResourceInput>>,
+        images: Option<Vec<ImageResourceInput>>,
+        font_families: Option<Vec<String>>,
+        lang: Option<String>,
         format: &str,
         quality: Option<u8>,
+        lossless: Option<bool>,
     ) -> PyResult<Py<PyBytes>> {
         validate_quality(quality)?;
 
@@ -225,13 +325,28 @@ impl NativeRenderer {
             time_ms,
             dithering,
             fetched_resources,
+            images,
+            font_families,
+            lang,
         })?;
         let node = node.node.clone();
         let stylesheet = merge_stylesheets(stylesheets.unwrap_or_default())?;
-        let context = Arc::clone(&self.context);
+        let fonts = Arc::clone(&self.fonts);
+        let image_cache = Arc::clone(&self.image_cache);
+        let legacy_images = Arc::clone(&self.legacy_images);
 
         let output = py.detach(move || {
-            render_to_vec(context, node, stylesheet, settings, output_format, quality)
+            render_to_vec(
+                fonts,
+                image_cache,
+                legacy_images,
+                node,
+                stylesheet,
+                settings,
+                output_format,
+                quality,
+                lossless,
+            )
         })?;
 
         Ok(PyBytes::new(py, &output).unbind())
@@ -248,7 +363,10 @@ impl NativeRenderer {
         draw_debug_border=false,
         time_ms=0,
         dithering="none",
-        fetched_resources=None
+        fetched_resources=None,
+        images=None,
+        font_families=None,
+        lang=None
     ))]
     pub fn measure_compiled(
         &self,
@@ -263,6 +381,9 @@ impl NativeRenderer {
         time_ms: i64,
         dithering: &str,
         fetched_resources: Option<Vec<ImageResourceInput>>,
+        images: Option<Vec<ImageResourceInput>>,
+        font_families: Option<Vec<String>>,
+        lang: Option<String>,
     ) -> PyResult<Py<PyAny>> {
         let settings = RenderSettings::new(RenderSettingsInput {
             width,
@@ -273,14 +394,86 @@ impl NativeRenderer {
             time_ms,
             dithering,
             fetched_resources,
+            images,
+            font_families,
+            lang,
         })?;
         let node = node.node.clone();
         let stylesheet = merge_stylesheets(stylesheets.unwrap_or_default())?;
-        let context = Arc::clone(&self.context);
+        let fonts = Arc::clone(&self.fonts);
+        let image_cache = Arc::clone(&self.image_cache);
+        let legacy_images = Arc::clone(&self.legacy_images);
 
-        let measured = py.detach(move || measure_to_node(context, node, stylesheet, settings))?;
+        let measured = py.detach(move || {
+            measure_to_node(
+                fonts,
+                image_cache,
+                legacy_images,
+                node,
+                stylesheet,
+                settings,
+            )
+        })?;
 
         measured_node_to_py(py, &measured)
+    }
+
+    #[pyo3(signature = (
+        node,
+        *,
+        stylesheets=None,
+        width=1200,
+        height=630,
+        font_size=16.0,
+        time_ms=0,
+        fetched_resources=None,
+        images=None,
+        font_families=None,
+        lang=None
+    ))]
+    pub fn render_svg_compiled(
+        &self,
+        py: Python<'_>,
+        node: PyRef<'_, CompiledNode>,
+        stylesheets: Option<Vec<PyRef<'_, CompiledStyleSheet>>>,
+        width: Option<u32>,
+        height: Option<u32>,
+        font_size: f64,
+        time_ms: i64,
+        fetched_resources: Option<Vec<ImageResourceInput>>,
+        images: Option<Vec<ImageResourceInput>>,
+        font_families: Option<Vec<String>>,
+        lang: Option<String>,
+    ) -> PyResult<String> {
+        let settings = RenderSettings::new(RenderSettingsInput {
+            width,
+            height,
+            font_size,
+            device_pixel_ratio: 1.0,
+            draw_debug_border: false,
+            time_ms,
+            dithering: "none",
+            fetched_resources,
+            images,
+            font_families,
+            lang,
+        })?;
+        let node = node.node.clone();
+        let stylesheet = merge_stylesheets(stylesheets.unwrap_or_default())?;
+        let fonts = Arc::clone(&self.fonts);
+        let image_cache = Arc::clone(&self.image_cache);
+        let legacy_images = Arc::clone(&self.legacy_images);
+
+        py.detach(move || {
+            render_svg_to_string(
+                fonts,
+                image_cache,
+                legacy_images,
+                node,
+                stylesheet,
+                settings,
+            )
+        })
     }
 
     #[pyo3(signature = (
@@ -295,8 +488,12 @@ impl NativeRenderer {
         draw_debug_border=false,
         dithering="none",
         fetched_resources=None,
+        images=None,
+        font_families=None,
+        lang=None,
         format="png",
-        quality=None
+        quality=None,
+        lossless=None
     ))]
     pub fn render_sequence_at_time_compiled(
         &self,
@@ -311,8 +508,12 @@ impl NativeRenderer {
         draw_debug_border: bool,
         dithering: &str,
         fetched_resources: Option<Vec<ImageResourceInput>>,
+        images: Option<Vec<ImageResourceInput>>,
+        font_families: Option<Vec<String>>,
+        lang: Option<String>,
         format: &str,
         quality: Option<u8>,
+        lossless: Option<bool>,
     ) -> PyResult<Py<PyBytes>> {
         validate_scenes(&scenes)?;
         let sequence_time_ms = validate_non_negative_i64("time_ms", time_ms)?;
@@ -328,20 +529,28 @@ impl NativeRenderer {
             time_ms: 0,
             dithering,
             fetched_resources,
+            images,
+            font_families,
+            lang,
         })?;
         let scenes = clone_scene_nodes(scenes);
         let stylesheet = merge_stylesheets(stylesheets.unwrap_or_default())?;
-        let context = Arc::clone(&self.context);
+        let fonts = Arc::clone(&self.fonts);
+        let image_cache = Arc::clone(&self.image_cache);
+        let legacy_images = Arc::clone(&self.legacy_images);
 
         let output = py.detach(move || {
             render_sequence_at_time_to_vec(
-                context,
+                fonts,
+                image_cache,
+                legacy_images,
                 scenes,
                 stylesheet,
                 settings,
                 sequence_time_ms,
                 output_format,
                 quality,
+                lossless,
             )
         })?;
 
@@ -359,9 +568,13 @@ impl NativeRenderer {
         draw_debug_border=false,
         dithering="none",
         fetched_resources=None,
+        images=None,
+        font_families=None,
+        lang=None,
         fps=30,
         format="webp",
         quality=None,
+        lossless=None,
         loop_count=None,
         webp_blend=true,
         webp_dispose=false,
@@ -379,9 +592,13 @@ impl NativeRenderer {
         draw_debug_border: bool,
         dithering: &str,
         fetched_resources: Option<Vec<ImageResourceInput>>,
+        images: Option<Vec<ImageResourceInput>>,
+        font_families: Option<Vec<String>>,
+        lang: Option<String>,
         fps: u32,
         format: &str,
         quality: Option<u8>,
+        lossless: Option<bool>,
         loop_count: Option<u16>,
         webp_blend: bool,
         webp_dispose: bool,
@@ -402,10 +619,14 @@ impl NativeRenderer {
             time_ms: 0,
             dithering,
             fetched_resources,
+            images,
+            font_families,
+            lang,
         })?;
         let encoder_settings = AnimationEncoderSettings {
             format: animation_format,
             quality,
+            lossless,
             loop_count,
             webp_blend,
             webp_dispose,
@@ -413,10 +634,21 @@ impl NativeRenderer {
         };
         let scenes = clone_scene_nodes(scenes);
         let stylesheet = merge_stylesheets(stylesheets.unwrap_or_default())?;
-        let context = Arc::clone(&self.context);
+        let fonts = Arc::clone(&self.fonts);
+        let image_cache = Arc::clone(&self.image_cache);
+        let legacy_images = Arc::clone(&self.legacy_images);
 
         let output = py.detach(move || {
-            render_animation_to_vec(context, scenes, stylesheet, settings, fps, encoder_settings)
+            render_animation_to_vec(
+                fonts,
+                image_cache,
+                legacy_images,
+                scenes,
+                stylesheet,
+                settings,
+                fps,
+                encoder_settings,
+            )
         })?;
 
         Ok(PyBytes::new(py, &output).unbind())
@@ -427,6 +659,7 @@ impl NativeRenderer {
         *,
         format="webp",
         quality=None,
+        lossless=None,
         loop_count=None,
         webp_blend=true,
         webp_dispose=false,
@@ -438,6 +671,7 @@ impl NativeRenderer {
         frames: Vec<RawAnimationFrameInput>,
         format: &str,
         quality: Option<u8>,
+        lossless: Option<bool>,
         loop_count: Option<u16>,
         webp_blend: bool,
         webp_dispose: bool,
@@ -449,6 +683,7 @@ impl NativeRenderer {
         let encoder_settings = AnimationEncoderSettings {
             format: AnimationOutputFormat::parse(format)?,
             quality,
+            lossless,
             loop_count,
             webp_blend,
             webp_dispose,
@@ -465,16 +700,14 @@ impl NativeRenderer {
 }
 
 impl NativeRenderer {
-    fn read_context(&self) -> PyResult<std::sync::RwLockReadGuard<'_, GlobalContext>> {
-        self.context
-            .read()
-            .map_err(|error| RenderError::new_err(format!("renderer lock poisoned: {error}")))
+    fn write_fonts(&self) -> PyResult<RwLockWriteGuard<'_, Fonts>> {
+        write_lock(&self.fonts, "renderer font lock poisoned")
     }
 
-    fn write_context(&self) -> PyResult<std::sync::RwLockWriteGuard<'_, GlobalContext>> {
-        self.context
-            .write()
-            .map_err(|error| RenderError::new_err(format!("renderer lock poisoned: {error}")))
+    fn write_legacy_images(
+        &self,
+    ) -> PyResult<RwLockWriteGuard<'_, HashMap<Arc<str>, ImageSource>>> {
+        write_lock(&self.legacy_images, "renderer image lock poisoned")
     }
 }
 
@@ -482,165 +715,332 @@ impl NativeRenderer {
 struct AnimationEncoderSettings {
     format: AnimationOutputFormat,
     quality: Option<u8>,
+    lossless: Option<bool>,
     loop_count: Option<u16>,
     webp_blend: bool,
     webp_dispose: bool,
     webp_speed: Option<u8>,
 }
 
-fn load_default_font(context: &mut GlobalContext) -> PyResult<()> {
+fn read_lock<'a, T>(lock: &'a RwLock<T>, message: &str) -> PyResult<RwLockReadGuard<'a, T>> {
+    lock.read()
+        .map_err(|error| RenderError::new_err(format!("{message}: {error}")))
+}
+
+fn write_lock<'a, T>(lock: &'a RwLock<T>, message: &str) -> PyResult<RwLockWriteGuard<'a, T>> {
+    lock.write()
+        .map_err(|error| RenderError::new_err(format!("{message}: {error}")))
+}
+
+fn load_default_font(fonts: &mut Fonts) -> PyResult<()> {
     const MANROPE: &[u8] =
         include_bytes!("../takumilib/assets/fonts/manrope/manrope-latin-wght-normal.woff2");
 
-    load_font_resource(context, FontResource::new(MANROPE))
+    drop(register_font_resource(fonts, FontResource::new(MANROPE))?);
+    Ok(())
 }
 
-fn load_font_bytes(context: &mut GlobalContext, data: Vec<u8>) -> PyResult<()> {
-    load_font_resource(context, FontResource::new(data))
+fn register_font_input(fonts: &mut Fonts, input: FontResourceInput) -> PyResult<Vec<String>> {
+    let (data, name, weight, style, subset_of, generic_family) = input;
+    let style = match style.as_deref() {
+        Some(style) => Some(
+            FontStyle::parse_css(style)
+                .ok_or_else(|| FontError::new_err(format!("unsupported font style {style:?}")))?,
+        ),
+        None => None,
+    };
+    let mut resource = FontResource::new(data).override_info(FontInfoOverride {
+        family_name: name.as_deref(),
+        width: None,
+        style,
+        weight: weight.map(|weight| FontWeight::new(weight as f32)),
+        axes: None,
+    });
+
+    if let Some(generic_family) = generic_family {
+        resource = resource.generic_family(parse_generic_family(&generic_family)?);
+    }
+
+    if let Some(logical) = subset_of {
+        resource = resource.subset_of(logical);
+    }
+
+    register_font_resource(fonts, resource)
 }
 
-fn load_font_resource(context: &mut GlobalContext, font: FontResource<'_>) -> PyResult<()> {
-    context
-        .font_context
-        .load_and_store(font)
-        .map_err(|error| FontError::new_err(format!("failed to load font: {error}")))
+fn register_font_resource(fonts: &mut Fonts, font: FontResource<'_>) -> PyResult<Vec<String>> {
+    let families = fonts
+        .register(font)
+        .map_err(|error| FontError::new_err(format!("failed to register font: {error}")))?;
+    Ok(families.into_iter().map(|family| family.name).collect())
 }
 
-fn decode_image_resource(data: &[u8]) -> PyResult<ImageSource> {
-    ImageSource::from_bytes(data).map_err(|error| {
+fn parse_generic_family(value: &str) -> PyResult<GenericFamily> {
+    match value {
+        "serif" => Ok(GenericFamily::SERIF),
+        "sans-serif" => Ok(GenericFamily::SANS_SERIF),
+        "monospace" => Ok(GenericFamily::MONOSPACE),
+        "cursive" => Ok(GenericFamily::CURSIVE),
+        "fantasy" => Ok(GenericFamily::FANTASY),
+        "system-ui" => Ok(GenericFamily::SYSTEM_UI),
+        "ui-serif" => Ok(GenericFamily::UI_SERIF),
+        "ui-sans-serif" => Ok(GenericFamily::UI_SANS_SERIF),
+        "ui-monospace" => Ok(GenericFamily::UI_MONOSPACE),
+        "ui-rounded" => Ok(GenericFamily::UI_ROUNDED),
+        "emoji" => Ok(GenericFamily::EMOJI),
+        "math" => Ok(GenericFamily::MATH),
+        "fangsong" => Ok(GenericFamily::FANG_SONG),
+        other => Err(FontError::new_err(format!(
+            "unsupported generic font family {other:?}"
+        ))),
+    }
+}
+
+fn parse_image_cache_mode(value: &str) -> PyResult<ImageCacheMode> {
+    match value {
+        "auto" => Ok(ImageCacheMode::Auto),
+        "none" => Ok(ImageCacheMode::None),
+        other => Err(PyValueError::new_err(format!(
+            "unsupported image cache mode {other:?}"
+        ))),
+    }
+}
+
+fn html_options(
+    presets: &str,
+    tailwind_property: Option<String>,
+    max_depth: Option<usize>,
+) -> PyResult<FromHtmlOptions> {
+    let presets = match presets {
+        "chromium" => StylePresets::chromium(),
+        "none" => StylePresets::empty(),
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unsupported HTML style presets {other:?}"
+            )));
+        }
+    };
+
+    let mut options = FromHtmlOptions::default().with_presets(presets);
+    if let Some(tailwind_property) = tailwind_property {
+        options = options.with_tailwind_property(tailwind_property);
+    }
+    if let Some(max_depth) = max_depth {
+        options = options.with_max_depth(max_depth);
+    }
+
+    Ok(options)
+}
+
+fn decode_image_resource(
+    image_cache: &ImageCache,
+    data: &[u8],
+    mode: ImageCacheMode,
+) -> PyResult<ImageSource> {
+    image_cache.get_or_decode(data, mode).map_err(|error| {
         ResourceError::new_err(format!("failed to decode image resource: {error}"))
     })
 }
 
-fn decode_fetched_resources(
+fn decode_render_images(
+    image_cache: &ImageCache,
+    legacy_images: &RwLock<HashMap<Arc<str>, ImageSource>>,
     resources: Vec<ImageResourceInput>,
 ) -> PyResult<HashMap<Arc<str>, ImageSource>> {
-    resources
-        .into_iter()
-        .map(|(src, data)| decode_image_resource(&data).map(|image| (Arc::from(src), image)))
-        .collect()
+    let mut images = read_lock(legacy_images, "renderer image lock poisoned")?.clone();
+
+    for (src, data, cache) in resources {
+        let image = decode_image_resource(image_cache, &data, parse_image_cache_mode(&cache)?)?;
+        images.insert(Arc::from(src), image);
+    }
+
+    Ok(images)
 }
 
 fn merge_stylesheets(stylesheets: Vec<PyRef<'_, CompiledStyleSheet>>) -> PyResult<StyleSheet> {
-    match stylesheets.as_slice() {
-        [] => Ok(StyleSheet::default()),
-        [stylesheet] => Ok(stylesheet.stylesheet.clone()),
-        _ => {
-            if stylesheets.iter().any(|stylesheet| stylesheet.lossy) {
-                let css = stylesheets
-                    .iter()
-                    .map(|stylesheet| stylesheet.css.clone())
-                    .collect::<Vec<_>>();
-                Ok(StyleSheet::parse_owned_list_loosy(css))
-            } else {
-                let css = stylesheets
-                    .iter()
-                    .map(|stylesheet| stylesheet.css.as_str())
-                    .collect::<Vec<_>>();
-                StyleSheet::parse_list(css)
-                    .map_err(|error| StyleSheetError::new_err(error.to_string()))
-            }
-        }
+    let (css_stylesheets, structured_stylesheets): (Vec<_>, Vec<_>) = stylesheets
+        .into_iter()
+        .partition(|stylesheet| !stylesheet.css.is_empty());
+
+    let mut stylesheet = if css_stylesheets.is_empty() {
+        StyleSheet::default()
+    } else if css_stylesheets.len() == 1 && structured_stylesheets.is_empty() {
+        return Ok(css_stylesheets[0].stylesheet.clone());
+    } else if css_stylesheets.iter().any(|stylesheet| stylesheet.lossy) {
+        let css = css_stylesheets
+            .iter()
+            .map(|stylesheet| stylesheet.css.clone())
+            .collect::<Vec<_>>();
+        StyleSheet::parse_owned_list_loosy(css)
+    } else {
+        let css = css_stylesheets
+            .iter()
+            .map(|stylesheet| stylesheet.css.as_str())
+            .collect::<Vec<_>>();
+        StyleSheet::parse_list(css).map_err(|error| StyleSheetError::new_err(error.to_string()))?
+    };
+
+    for structured in structured_stylesheets {
+        stylesheet
+            .keyframes
+            .extend(structured.stylesheet.keyframes.clone());
     }
+
+    Ok(stylesheet)
 }
 
 fn render_to_vec(
-    context: Arc<RwLock<GlobalContext>>,
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
     node: Node,
     stylesheet: StyleSheet,
     settings: RenderSettings,
     format: OutputFormat,
     quality: Option<u8>,
+    lossless: Option<bool>,
 ) -> PyResult<Vec<u8>> {
-    let image = render_to_image(context, node, stylesheet, settings)?;
-    encode_static_image(image, format, quality)
+    let image = render_to_bitmap(
+        fonts,
+        image_cache,
+        legacy_images,
+        node,
+        stylesheet,
+        settings,
+    )?;
+    encode_static_image(image, format, quality, lossless)
 }
 
-fn render_to_image(
-    context: Arc<RwLock<GlobalContext>>,
+fn render_to_bitmap(
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
     node: Node,
     stylesheet: StyleSheet,
     settings: RenderSettings,
-) -> PyResult<RgbaImage> {
-    let fetched_resources = decode_fetched_resources(settings.fetched_resources.clone())?;
-    let context = context
-        .read()
-        .map_err(|error| RenderError::new_err(format!("renderer lock poisoned: {error}")))?;
+) -> PyResult<Bitmap> {
+    let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
+    let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
+    let lang = settings.lang();
 
     render(
-        takumi::rendering::RenderOptions::builder()
+        CoreRenderOptions::builder()
             .viewport(settings.viewport())
             .draw_debug_border(settings.draw_debug_border)
-            .fetched_resources(fetched_resources)
+            .images(images)
             .stylesheet(stylesheet)
             .time_ms(settings.time_ms)
             .dithering(settings.dithering.into())
             .node(node)
-            .global(&context)
+            .fonts(&fonts)
+            .font_families(settings.font_families)
+            .lang(lang)
+            .build(),
+    )
+    .map_err(|error| RenderError::new_err(error.to_string()))
+}
+
+fn render_svg_to_string(
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
+    node: Node,
+    stylesheet: StyleSheet,
+    settings: RenderSettings,
+) -> PyResult<String> {
+    let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
+    let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
+    let lang = settings.lang();
+
+    render_svg(
+        SvgOptions::builder()
+            .viewport(settings.svg_viewport())
+            .images(images)
+            .stylesheet(stylesheet)
+            .time_ms(settings.time_ms)
+            .node(node)
+            .fonts(&fonts)
+            .font_families(settings.font_families)
+            .lang(lang)
             .build(),
     )
     .map_err(|error| RenderError::new_err(error.to_string()))
 }
 
 fn measure_to_node(
-    context: Arc<RwLock<GlobalContext>>,
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
     node: Node,
     stylesheet: StyleSheet,
     settings: RenderSettings,
 ) -> PyResult<CoreMeasuredNode> {
-    let fetched_resources = decode_fetched_resources(settings.fetched_resources.clone())?;
-    let context = context
-        .read()
-        .map_err(|error| RenderError::new_err(format!("renderer lock poisoned: {error}")))?;
+    let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
+    let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
+    let lang = settings.lang();
 
-    measure_layout(
-        takumi::rendering::RenderOptions::builder()
+    measure(
+        CoreRenderOptions::builder()
             .viewport(settings.viewport())
             .draw_debug_border(settings.draw_debug_border)
-            .fetched_resources(fetched_resources)
+            .images(images)
             .stylesheet(stylesheet)
             .time_ms(settings.time_ms)
             .dithering(settings.dithering.into())
             .node(node)
-            .global(&context)
+            .fonts(&fonts)
+            .font_families(settings.font_families)
+            .lang(lang)
             .build(),
     )
     .map_err(|error| RenderError::new_err(error.to_string()))
 }
 
 fn render_sequence_at_time_to_vec(
-    context: Arc<RwLock<GlobalContext>>,
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
     scenes: Vec<(Node, u32)>,
     stylesheet: StyleSheet,
-    settings: RenderSettings,
+    mut settings: RenderSettings,
     time_ms: u64,
     format: OutputFormat,
     quality: Option<u8>,
+    lossless: Option<bool>,
 ) -> PyResult<Vec<u8>> {
-    let fetched_resources = decode_fetched_resources(settings.fetched_resources.clone())?;
-    let context = context
-        .read()
-        .map_err(|error| RenderError::new_err(format!("renderer lock poisoned: {error}")))?;
-    let scenes = build_sequence_scenes(&context, scenes, stylesheet, settings, fetched_resources);
-    let image = render_sequence_at_time(&scenes, time_ms)
-        .map_err(|error| RenderError::new_err(error.to_string()))?;
+    let Some((node, local_time_ms)) = select_scene_at_time(scenes, time_ms) else {
+        return Err(RenderError::new_err(
+            "expected at least one animation scene",
+        ));
+    };
+    settings.time_ms = local_time_ms;
 
-    encode_static_image(image, format, quality)
+    render_to_vec(
+        fonts,
+        image_cache,
+        legacy_images,
+        node,
+        stylesheet,
+        settings,
+        format,
+        quality,
+        lossless,
+    )
 }
 
 fn render_animation_to_vec(
-    context: Arc<RwLock<GlobalContext>>,
+    fonts: Arc<RwLock<Fonts>>,
+    image_cache: Arc<ImageCache>,
+    legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
     scenes: Vec<(Node, u32)>,
     stylesheet: StyleSheet,
     settings: RenderSettings,
     fps: u32,
     encoder_settings: AnimationEncoderSettings,
 ) -> PyResult<Vec<u8>> {
-    let fetched_resources = decode_fetched_resources(settings.fetched_resources.clone())?;
-    let context = context
-        .read()
-        .map_err(|error| RenderError::new_err(format!("renderer lock poisoned: {error}")))?;
-    let scenes = build_sequence_scenes(&context, scenes, stylesheet, settings, fetched_resources);
+    let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
+    let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
+    let scenes = build_sequence_scenes(&fonts, scenes, stylesheet, settings, images);
     let frames = render_sequence_animation(&scenes, fps)
         .map_err(|error| RenderError::new_err(error.to_string()))?;
 
@@ -648,11 +1048,11 @@ fn render_animation_to_vec(
 }
 
 fn build_sequence_scenes<'g>(
-    context: &'g GlobalContext,
+    fonts: &'g Fonts,
     scenes: Vec<(Node, u32)>,
     stylesheet: StyleSheet,
     settings: RenderSettings,
-    fetched_resources: HashMap<Arc<str>, ImageSource>,
+    images: HashMap<Arc<str>, ImageSource>,
 ) -> Vec<SequentialScene<'g>> {
     scenes
         .into_iter()
@@ -660,14 +1060,16 @@ fn build_sequence_scenes<'g>(
             SequentialScene::builder()
                 .duration_ms(duration_ms)
                 .options(
-                    takumi::rendering::RenderOptions::builder()
+                    CoreRenderOptions::builder()
                         .viewport(settings.viewport())
                         .draw_debug_border(settings.draw_debug_border)
-                        .fetched_resources(fetched_resources.clone())
+                        .images(images.clone())
                         .stylesheet(stylesheet.clone())
                         .dithering(settings.dithering.into())
                         .node(node)
-                        .global(context)
+                        .fonts(fonts)
+                        .font_families(settings.font_families.clone())
+                        .lang(settings.lang())
                         .build(),
                 )
                 .build()
@@ -675,17 +1077,44 @@ fn build_sequence_scenes<'g>(
         .collect()
 }
 
+fn select_scene_at_time(scenes: Vec<(Node, u32)>, time_ms: u64) -> Option<(Node, u64)> {
+    if scenes.is_empty() {
+        return None;
+    }
+
+    let total_duration = scenes
+        .iter()
+        .map(|(_, duration_ms)| u64::from(*duration_ms))
+        .sum::<u64>();
+    let clamped_time_ms = time_ms.min(total_duration.saturating_sub(1));
+    let mut elapsed_ms = 0_u64;
+    let mut last = None;
+
+    for (node, duration_ms) in scenes {
+        let next_elapsed_ms = elapsed_ms + u64::from(duration_ms);
+        let local_fallback = u64::from(duration_ms.saturating_sub(1));
+        if clamped_time_ms < next_elapsed_ms {
+            return Some((node, clamped_time_ms - elapsed_ms));
+        }
+        elapsed_ms = next_elapsed_ms;
+        last = Some((node, local_fallback));
+    }
+
+    last
+}
+
 fn encode_static_image(
-    image: RgbaImage,
+    image: Bitmap,
     format: OutputFormat,
     quality: Option<u8>,
+    lossless: Option<bool>,
 ) -> PyResult<Vec<u8>> {
-    let Some(image_format) = format.image_format() else {
+    let Some(image_format) = format.image_format(quality, lossless)? else {
         return Ok(image.into_raw());
     };
 
     let mut buffer = Vec::new();
-    write_image(Cow::Owned(image), &mut buffer, image_format, quality)
+    write_image(&image, &mut buffer, image_format)
         .map_err(|error| RenderError::new_err(error.to_string()))?;
 
     Ok(buffer)
@@ -702,6 +1131,7 @@ fn encode_animation_frames(
             options.blend = settings.webp_blend;
             options.dispose = settings.webp_dispose;
             options.loop_count = settings.loop_count;
+            options.lossless = webp_lossless(settings.quality, settings.lossless)?;
             if let Some(quality) = settings.quality {
                 options.quality = quality;
             }
@@ -710,12 +1140,22 @@ fn encode_animation_frames(
                 .map_err(|error| AnimationError::new_err(error.to_string()))?;
         }
         AnimationOutputFormat::Apng => {
+            if settings.lossless.is_some() {
+                return Err(PyValueError::new_err(
+                    "lossless is only supported when format is 'webp'",
+                ));
+            }
             let mut options = AnimatedPngOptions::default();
             options.loop_count = settings.loop_count;
             encode_animated_png(&frames, &mut buffer, options)
                 .map_err(|error| AnimationError::new_err(error.to_string()))?;
         }
         AnimationOutputFormat::Gif => {
+            if settings.lossless.is_some() {
+                return Err(PyValueError::new_err(
+                    "lossless is only supported when format is 'webp'",
+                ));
+            }
             let mut options = AnimatedGifOptions::default();
             options.loop_count = settings.loop_count;
             encode_animated_gif(Cow::Owned(frames), &mut buffer, options)
@@ -723,6 +1163,15 @@ fn encode_animation_frames(
         }
     }
     Ok(buffer)
+}
+
+fn webp_lossless(quality: Option<u8>, lossless: Option<bool>) -> PyResult<bool> {
+    if lossless == Some(true) && quality.is_some() {
+        return Err(PyValueError::new_err(
+            "quality cannot be set when lossless WebP is requested",
+        ));
+    }
+    Ok(lossless.unwrap_or(quality.is_none()))
 }
 
 fn raw_frames_to_animation_frames(
@@ -733,7 +1182,7 @@ fn raw_frames_to_animation_frames(
         .map(|(data, width, height, duration_ms)| {
             validate_dimension("width", width)?;
             validate_dimension("height", height)?;
-            let image = RgbaImage::from_raw(width, height, data).ok_or_else(|| {
+            let image = Bitmap::from_raw(width, height, data).ok_or_else(|| {
                 AnimationError::new_err("raw frame buffer size does not match width * height * 4")
             })?;
             Ok(AnimationFrame::new(image, duration_ms))
