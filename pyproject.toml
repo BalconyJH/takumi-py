@@ -1,6 +1,6 @@
 [project]
 name = "takumi-py"
-version = "0.1.0"
+version = "0.2.0rc1"
 description = "Python bindings for the Takumi Rust renderer"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -11,7 +11,6 @@ requires-python = ">=3.10"
 dependencies = [
     "jinja2>=3.1.6",
     "msgspec>=0.21.1",
-    "selectolax>=0.4.10",
     "typing-extensions>=4.0",
 ]
 
@@ -200,9 +199,7 @@ dev = [
     "ty>=0.0.46",
 ]
 docs = [
-    "mdformat>=1.0.0",
-    "mdformat-mkdocs>=4.4.2",
     "mike",
-    "mkdocstrings-python>=2.0.1",
-    "zensical>=0.0.41",
+    "mkdocstrings-python>=2.0.5",
+    "zensical>=0.0.46",
 ]
