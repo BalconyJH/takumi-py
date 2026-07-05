@@ -14,7 +14,6 @@ LOGO_SVG = b"""
 """
 
 renderer = Renderer()
-renderer.put_persistent_image(ImageResource("memory://takumi-logo", LOGO_SVG))
 
 png = renderer.render_node(
     {
@@ -37,13 +36,14 @@ png = renderer.render_node(
             },
             {
                 "type": "text",
-                "text": "Persistent image",
+                "text": "Per-render image",
                 "style": {"fontSize": "36px", "color": "black"},
             },
         ],
     },
     width=None,
     height=None,
+    images=[ImageResource("memory://takumi-logo", LOGO_SVG, cache="none")],
 )
 
 (OUTPUT_DIR / "resources.png").write_bytes(png)

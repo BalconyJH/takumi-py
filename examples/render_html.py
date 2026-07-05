@@ -10,8 +10,10 @@ html = """
   <h1>Hello</h1>
   <p>Generated from HTML</p>
 </div>
+"""
 
-<style>
+stylesheets = [
+    """
 .card {
   width: 1200px;
   height: 630px;
@@ -27,9 +29,14 @@ h1 {
   font-size: 80px;
   margin: 0;
 }
-</style>
 """
+]
 
 (OUTPUT_DIR / "html.png").write_bytes(
-    Renderer().render_html(html, width=1200, height=630)
+    Renderer().render_html(
+        html,
+        stylesheets=stylesheets,
+        width=1200,
+        height=630,
+    )
 )

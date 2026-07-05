@@ -9,7 +9,10 @@ renderer = Renderer()
 
 html = """
 <div class="box"></div>
-<style>
+"""
+
+stylesheets = [
+    """
 @keyframes fade {
   from { opacity: 0; transform: scale(0.7); }
   to { opacity: 1; transform: scale(1); }
@@ -20,11 +23,17 @@ html = """
   background: black;
   animation: fade 1000ms both;
 }
-</style>
 """
+]
 
 (OUTPUT_DIR / "animation-frame.png").write_bytes(
-    renderer.render_html(html, width=160, height=160, time_ms=500)
+    renderer.render_html(
+        html,
+        stylesheets=stylesheets,
+        width=160,
+        height=160,
+        time_ms=500,
+    )
 )
 
 webp = renderer.render_animation(
