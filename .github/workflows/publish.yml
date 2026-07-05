@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Git tag to publish, for example v0.1.0"
+        description: "Git tag to publish, for example v0.2.0rc1"
         required: true
         type: string
 
@@ -43,8 +43,8 @@ jobs:
           set -euo pipefail
 
           tag="${RELEASE_TAG}"
-          if [[ ! "${tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([.-].*)?$ ]]; then
-            echo "Release tag must look like vX.Y.Z, got ${tag}" >&2
+          if [[ ! "${tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+[A-Za-z0-9.-]*$ ]]; then
+            echo "Release tag must start with vX.Y.Z, got ${tag}" >&2
             exit 1
           fi
 
@@ -107,23 +107,8 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --dev
 
-      - name: Check Ruff formatting
-        run: uv run ruff format --check python tests examples
-
-      - name: Run Ruff lint
-        run: uv run ruff check python tests examples pyproject.toml
-
-      - name: Run ty
-        run: uv run ty check python tests examples
-
-      - name: Run pytest
-        run: uv run pytest
-
-      - name: Check Rust formatting
-        run: cargo fmt --check
-
-      - name: Check Rust crate
-        run: cargo check
+      - name: Run checks
+        run: make check
 
   wheels:
     name: Build wheels (${{ matrix.platform.name }})

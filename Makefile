@@ -36,15 +36,23 @@ install-prek: ensure-uv ## Install prek and git hooks.
 prepare: sync-all install-prek ## Prepare local dev environment.
 	@echo "==> Environment prepared"
 
-.PHONY: test
-test: ensure-uv ## Run pytest.
+.PHONY: develop test
+develop: ensure-uv ## Build and install the native extension in editable mode.
+	@echo "==> Building native extension"
+	$(UV) run maturin develop
+
+test: develop ## Run pytest.
 	@echo "==> Running pytest"
 	$(PYTEST)
 
-.PHONY: ruff-format ruff-check lint ty typecheck cargo-fmt cargo-check check
+.PHONY: ruff-format ruff-format-check ruff-check lint ty typecheck cargo-fmt cargo-check check
 ruff-format: ensure-uv ## Format Python files with Ruff.
 	@echo "==> Formatting Python files with Ruff"
 	$(UV) run ruff format python tests examples
+
+ruff-format-check: ensure-uv ## Check Python formatting with Ruff.
+	@echo "==> Checking Python formatting with Ruff"
+	$(UV) run ruff format --check python tests examples
 
 ruff-check: ensure-uv ## Run Ruff lint checks.
 	@echo "==> Running Ruff checks"
@@ -66,4 +74,4 @@ cargo-check: ## Check Rust crate.
 	@echo "==> Checking Rust crate"
 	cargo check
 
-check: ruff-format ruff-check ty test cargo-fmt cargo-check ## Run format, lint, type checks, tests, and Rust checks.
+check: ruff-format-check ruff-check ty test cargo-fmt cargo-check ## Run format, lint, type checks, tests, and Rust checks.

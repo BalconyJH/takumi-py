@@ -16,9 +16,9 @@ concurrency:
 
 jobs:
   quality:
-    name: Ruff and ty
+    name: Check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
@@ -36,13 +36,7 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --locked --dev --no-install-project
+        run: uv sync --locked --dev
 
-      - name: Check Ruff formatting
-        run: uv run ruff format --check python tests examples
-
-      - name: Run Ruff lint
-        run: uv run ruff check python tests examples pyproject.toml
-
-      - name: Run ty
-        run: uv run ty check python tests examples
+      - name: Run checks
+        run: make check
