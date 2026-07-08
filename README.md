@@ -128,7 +128,7 @@ png = Renderer().render_html(
 )
 ```
 
-Compiled nodes expose Takumi's resource discovery API:
+Compiled nodes expose Takumi's image URL discovery API:
 
 ```python
 compiled = Renderer().compile_node(
@@ -138,9 +138,10 @@ compiled = Renderer().compile_node(
 print(compiled.resource_urls())
 ```
 
-`resource_urls()` follows Takumi's native discovery semantics and reports
-HTTP(S) resource references from image nodes and styles. It does not report
-already-provided `memory://` resources or byte buffers.
+`resource_urls()` follows Takumi's native image URL discovery semantics and
+reports HTTP(S) image references from image nodes and styles. It does not fetch
+those resources and does not report already-provided `memory://` resources or
+byte buffers.
 
 ## Measure
 
@@ -198,6 +199,11 @@ png = renderer.render_node(
 `put_persistent_image`, and `clear_image_store` remain available as deprecated
 compatibility shims for the v0.2 line. New code should pass `images` per render
 and use `register_font` / `register_fonts`.
+
+`register_font` returns the family names registered by Takumi. Pass that list as
+`font_families` when you want a render call to use those families as its
+fallback stack. `lang` accepts a BCP-47 language tag and is forwarded to
+Takumi's locale-aware text shaping.
 
 `ImageResource.cache` accepts `"auto"` or `"none"` and is forwarded to Takumi's
 native image cache. Tuple resources like `("memory://logo", data)` remain
@@ -344,8 +350,9 @@ renderer-level global context to explicit per-render resources:
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
   `subset_of`, and `generic_family`.
 - `HtmlOptions` exposes Takumi's Rust `from_html` parser options.
-- `CompiledNode.resource_urls()` exposes Takumi's URL discovery for HTTP(S)
-  resource references.
+- `CompiledNode.resource_urls()` wraps Takumi's image URL discovery and reports
+  HTTP(S) image/style references for callers that want to prepare resources
+  before rendering.
 - Pass `keyframes=...` or `RenderOptions(keyframes=...)` to use Takumi's
   structured keyframe input without embedding `@keyframes` CSS text.
 - WebP defaults to lossless when neither `quality` nor `lossless` is specified.
