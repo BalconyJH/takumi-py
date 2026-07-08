@@ -21,7 +21,7 @@ identifiers.
 
 ### Changed
 
-- Migrate the native renderer from Takumi 1.7 to Takumi 2.0.0-rc.5.
+- Migrate the native renderer from Takumi 1.7 to Takumi 2.0.0-rc.14.
 - Use Takumi v2's explicit `Fonts`, `ImageCache`, per-render images, and new raster output format model.
 - Route HTML parsing through Takumi's Rust `from_html` parser instead of the Python `selectolax` adapter.
 - Refresh README and runnable examples around explicit HTML stylesheets, resource descriptors, parser options, and structured keyframes.

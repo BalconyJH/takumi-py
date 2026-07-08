@@ -12,19 +12,19 @@ use pyo3::{
 };
 use serde::Deserialize;
 use takumi::{
-    encode_animated_gif, encode_animated_png, encode_animated_webp, from_html, measure,
+    from_html, measure,
     prelude::{
         AnimatedGifOptions, AnimatedPngOptions, AnimatedWebpOptions, AnimationFrame, Bitmap,
-        FontResource, Fonts, FromHtmlOptions, GenericFamily, ImageCacheMode, ImageSource,
-        KeyframesRule, MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun,
-        Node, RenderOptions as CoreRenderOptions, SequentialScene, StylePresets, StyleSheet,
-        SvgOptions, Viewport,
+        DEFAULT_MAX_DEPTH, FontFamily, FontOverride, FontResource, FontStyle, Fonts, FromCssStr,
+        FromHtmlOptions, GenericFamily, ImageCacheMode, ImageSource, KeyframesRule, Lang,
+        MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun, Node,
+        RenderOptions as CoreRenderOptions, SequentialScene, StylePresets, StyleSheet, SvgOptions,
+        Viewport,
     },
-    render, render_animation as render_sequence_animation, render_svg, write_image,
+    render, render_animation as render_sequence_animation, render_svg, write_animated_gif,
+    write_animated_png, write_animated_webp, write_image,
 };
-use takumi_core::{Language, resources::image::ImageCache};
-
-use parley::{FontStyle, FontWeight, fontique::FontInfoOverride};
+use takumi_core::resources::image::ImageCache;
 
 use crate::{
     errors::{
@@ -59,7 +59,7 @@ pub struct CompiledNode {
 #[pymethods]
 impl CompiledNode {
     pub fn resource_urls(&self) -> Vec<String> {
-        self.node.resource_urls().map(str::to_owned).collect()
+        self.node.image_urls().map(str::to_owned).collect()
     }
 }
 
@@ -67,6 +67,7 @@ impl CompiledNode {
 pub struct CompiledStyleSheet {
     css: String,
     stylesheet: StyleSheet,
+    keyframes: Vec<KeyframesRule>,
     lossy: bool,
 }
 
@@ -120,10 +121,12 @@ impl RenderSettings {
         Viewport::new((self.width, self.height)).with_font_size(self.font_size)
     }
 
-    fn lang(&self) -> Option<Language> {
-        self.lang
-            .as_deref()
-            .and_then(|lang| Language::parse(lang).ok())
+    fn lang(&self) -> Option<Lang> {
+        self.lang.as_deref().and_then(|lang| Lang::parse(lang).ok())
+    }
+
+    fn font_family(&self) -> Option<FontFamily> {
+        self.font_families.clone().map(FontFamily::from_names)
     }
 }
 
@@ -212,6 +215,7 @@ impl NativeRenderer {
         Ok(CompiledStyleSheet {
             css: css.to_owned(),
             stylesheet,
+            keyframes: Vec::new(),
             lossy: false,
         })
     }
@@ -220,6 +224,7 @@ impl NativeRenderer {
         CompiledStyleSheet {
             css: css.to_owned(),
             stylesheet: StyleSheet::parse_loosy(css),
+            keyframes: Vec::new(),
             lossy: true,
         }
     }
@@ -230,7 +235,8 @@ impl NativeRenderer {
 
         Ok(CompiledStyleSheet {
             css: String::new(),
-            stylesheet: StyleSheet::from(input.keyframes),
+            stylesheet: StyleSheet::from(input.keyframes.clone()),
+            keyframes: input.keyframes,
             lossy: false,
         })
     }
@@ -744,17 +750,17 @@ fn register_font_input(fonts: &mut Fonts, input: FontResourceInput) -> PyResult<
     let (data, name, weight, style, subset_of, generic_family) = input;
     let style = match style.as_deref() {
         Some(style) => Some(
-            FontStyle::parse_css(style)
-                .ok_or_else(|| FontError::new_err(format!("unsupported font style {style:?}")))?,
+            FontStyle::from_css_str(style)
+                .map_err(|_| FontError::new_err(format!("unsupported font style {style:?}")))?,
         ),
         None => None,
     };
-    let mut resource = FontResource::new(data).override_info(FontInfoOverride {
-        family_name: name.as_deref(),
+    let mut resource = FontResource::new(data).override_info(FontOverride {
+        family_name: name.map(Arc::from),
         width: None,
         style,
-        weight: weight.map(|weight| FontWeight::new(weight as f32)),
-        axes: None,
+        weight: weight.map(|weight| weight as f32),
+        axes: Vec::new(),
     });
 
     if let Some(generic_family) = generic_family {
@@ -821,15 +827,20 @@ fn html_options(
         }
     };
 
-    let mut options = FromHtmlOptions::default().with_presets(presets);
-    if let Some(tailwind_property) = tailwind_property {
-        options = options.with_tailwind_property(tailwind_property);
-    }
-    if let Some(max_depth) = max_depth {
-        options = options.with_max_depth(max_depth);
-    }
+    let max_depth = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
 
-    Ok(options)
+    if let Some(tailwind_property) = tailwind_property {
+        Ok(FromHtmlOptions::builder()
+            .presets(presets)
+            .tailwind_property(tailwind_property)
+            .max_depth(max_depth)
+            .build())
+    } else {
+        Ok(FromHtmlOptions::builder()
+            .presets(presets)
+            .max_depth(max_depth)
+            .build())
+    }
 }
 
 fn decode_image_resource(
@@ -881,9 +892,7 @@ fn merge_stylesheets(stylesheets: Vec<PyRef<'_, CompiledStyleSheet>>) -> PyResul
     };
 
     for structured in structured_stylesheets {
-        stylesheet
-            .keyframes
-            .extend(structured.stylesheet.keyframes.clone());
+        stylesheet.extend_keyframes(structured.keyframes.clone());
     }
 
     Ok(stylesheet)
@@ -922,6 +931,7 @@ fn render_to_bitmap(
     let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
     let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
     let lang = settings.lang();
+    let font_family = settings.font_family();
 
     render(
         CoreRenderOptions::builder()
@@ -933,7 +943,7 @@ fn render_to_bitmap(
             .dithering(settings.dithering.into())
             .node(node)
             .fonts(&fonts)
-            .font_families(settings.font_families)
+            .font_families(font_family)
             .lang(lang)
             .build(),
     )
@@ -951,6 +961,7 @@ fn render_svg_to_string(
     let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
     let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
     let lang = settings.lang();
+    let font_family = settings.font_family();
 
     render_svg(
         SvgOptions::builder()
@@ -960,7 +971,7 @@ fn render_svg_to_string(
             .time_ms(settings.time_ms)
             .node(node)
             .fonts(&fonts)
-            .font_families(settings.font_families)
+            .font_families(font_family)
             .lang(lang)
             .build(),
     )
@@ -978,6 +989,7 @@ fn measure_to_node(
     let images = decode_render_images(&image_cache, &legacy_images, settings.images.clone())?;
     let fonts = read_lock(&fonts, "renderer font lock poisoned")?;
     let lang = settings.lang();
+    let font_family = settings.font_family();
 
     measure(
         CoreRenderOptions::builder()
@@ -989,7 +1001,7 @@ fn measure_to_node(
             .dithering(settings.dithering.into())
             .node(node)
             .fonts(&fonts)
-            .font_families(settings.font_families)
+            .font_families(font_family)
             .lang(lang)
             .build(),
     )
@@ -1057,6 +1069,7 @@ fn build_sequence_scenes<'g>(
     scenes
         .into_iter()
         .map(|(node, duration_ms)| {
+            let font_family = settings.font_family();
             SequentialScene::builder()
                 .duration_ms(duration_ms)
                 .options(
@@ -1068,7 +1081,7 @@ fn build_sequence_scenes<'g>(
                         .dithering(settings.dithering.into())
                         .node(node)
                         .fonts(fonts)
-                        .font_families(settings.font_families.clone())
+                        .font_families(font_family)
                         .lang(settings.lang())
                         .build(),
                 )
@@ -1136,7 +1149,7 @@ fn encode_animation_frames(
                 options.quality = quality;
             }
             options.speed = settings.webp_speed;
-            encode_animated_webp(Cow::Owned(frames), &mut buffer, options)
+            write_animated_webp(Cow::Owned(frames), &mut buffer, options)
                 .map_err(|error| AnimationError::new_err(error.to_string()))?;
         }
         AnimationOutputFormat::Apng => {
@@ -1147,7 +1160,7 @@ fn encode_animation_frames(
             }
             let mut options = AnimatedPngOptions::default();
             options.loop_count = settings.loop_count;
-            encode_animated_png(&frames, &mut buffer, options)
+            write_animated_png(&frames, &mut buffer, options)
                 .map_err(|error| AnimationError::new_err(error.to_string()))?;
         }
         AnimationOutputFormat::Gif => {
@@ -1158,7 +1171,7 @@ fn encode_animation_frames(
             }
             let mut options = AnimatedGifOptions::default();
             options.loop_count = settings.loop_count;
-            encode_animated_gif(Cow::Owned(frames), &mut buffer, options)
+            write_animated_gif(Cow::Owned(frames), &mut buffer, options)
                 .map_err(|error| AnimationError::new_err(error.to_string()))?;
         }
     }
