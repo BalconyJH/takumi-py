@@ -163,6 +163,12 @@ jobs:
           args: --release --locked --out dist --compatibility pypi
           sccache: true
 
+      - name: Smoke test built wheel
+        run: |
+          python -m pip install --upgrade pip
+          python .github/scripts/install-built-wheel.py dist
+          python .github/scripts/smoke-wheel.py
+
       - name: Upload wheels
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
