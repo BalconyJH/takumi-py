@@ -136,7 +136,7 @@ jobs:
             target: aarch64
             manylinux: "2014"
           - name: macos-aarch64
-            runner: macos-latest
+            runner: macos-15
             target: aarch64
           - name: windows-x64
             runner: windows-latest
