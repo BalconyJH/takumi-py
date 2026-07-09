@@ -12,6 +12,8 @@ identifiers.
 
 - Align the built-in fallback font with Takumi v2 by embedding the Geist Latin
   last-resort font instead of Manrope.
+- Document that render-level `lang` drives locale-aware text shaping, while CSS
+  `:lang()` matching depends on HTML or node `lang` attributes.
 
 ### Fixed
 

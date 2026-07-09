@@ -203,7 +203,31 @@ and use `register_font` / `register_fonts`.
 `register_font` returns the family names registered by Takumi. Pass that list as
 `font_families` when you want a render call to use those families as its
 fallback stack. `lang` accepts a BCP-47 language tag and is forwarded to
-Takumi's locale-aware text shaping.
+Takumi's locale-aware text shaping and line-breaking.
+
+The render-level `lang` option is not injected as a node attribute, so it does
+not make CSS `:lang()` selectors match. Takumi's selector matcher follows the
+HTML language-determination model and walks actual node metadata or HTML
+attributes. If CSS needs `:lang(...)`, set `lang` on the HTML element or node
+that should establish the language:
+
+```python
+renderer.render_html(
+    '<section lang="zh-Hant"><div class="headline">你好</div></section>',
+    stylesheets=[
+        '.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }',
+    ],
+)
+
+renderer.render_node(
+    {
+        "type": "container",
+        "lang": "ja",
+        "children": [{"type": "text", "text": "こんにちは"}],
+    },
+    stylesheets=[':lang(ja) { font-family: "Noto Sans JP"; }'],
+)
+```
 
 `ImageResource.cache` accepts `"auto"` or `"none"` and is forwarded to Takumi's
 native image cache. Tuple resources like `("memory://logo", data)` remain
@@ -345,6 +369,8 @@ renderer-level global context to explicit per-render resources:
 - Use `register_font` / `register_fonts` instead of `load_font` / `load_fonts`.
 - Pass `font_families` and `lang` on render calls when you need deterministic
   font fallback or locale-aware shaping.
+- Use HTML or node `lang` attributes, not the render-level `lang` option, when
+  CSS selectors depend on `:lang(...)`.
 - `ImageResource.cache` is forwarded to the native image cache for per-render,
   constructor, and deprecated persistent-image resources.
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
