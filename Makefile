@@ -45,7 +45,7 @@ test: develop ## Run pytest.
 	@echo "==> Running pytest"
 	$(PYTEST)
 
-.PHONY: ruff-format ruff-format-check ruff-check lint ty typecheck cargo-fmt cargo-check check
+.PHONY: ruff-format ruff-format-check ruff-check lint ty typecheck cargo-fmt cargo-check cargo-clippy check
 ruff-format: ensure-uv ## Format Python files with Ruff.
 	@echo "==> Formatting Python files with Ruff"
 	$(UV) run ruff format python tests examples
@@ -68,10 +68,14 @@ typecheck: ty ## Alias for ty.
 
 cargo-fmt: ## Check Rust formatting.
 	@echo "==> Checking Rust formatting"
-	cargo fmt --check
+	cargo fmt --all -- --check
 
 cargo-check: ## Check Rust crate.
 	@echo "==> Checking Rust crate"
 	cargo check
 
-check: ruff-format-check ruff-check ty test cargo-fmt cargo-check ## Run format, lint, type checks, tests, and Rust checks.
+cargo-clippy: ## Run Rust Clippy checks.
+	@echo "==> Running Rust Clippy checks"
+	cargo clippy --all-targets --all-features -- -D warnings
+
+check: ruff-format-check ruff-check ty test cargo-fmt cargo-clippy ## Run format, lint, type checks, tests, and Rust checks.

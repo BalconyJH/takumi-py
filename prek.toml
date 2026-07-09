@@ -38,8 +38,8 @@ hooks = [
 [[repos]]
 repo = "local"
 hooks = [
-    { id = "cargo-fmt", name = "cargo fmt --check", entry = "cargo fmt --check", language = "system", files = "^src/.*[.]rs$", pass_filenames = false, priority = 1 },
-    { id = "cargo-check", name = "cargo check", entry = "cargo check", language = "system", files = "^(Cargo[.]toml|Cargo[.]lock|src/.*[.]rs)$", pass_filenames = false, priority = 1 },
+    { id = "cargo-fmt", name = "cargo fmt --all -- --check", entry = "cargo fmt --all -- --check", language = "system", files = "^src/.*[.]rs$", pass_filenames = false, priority = 1 },
+    { id = "cargo-clippy", name = "cargo clippy --all-targets --all-features -- -D warnings", entry = "cargo clippy --all-targets --all-features -- -D warnings", language = "system", files = "^(Cargo[.]toml|Cargo[.]lock|src/.*[.]rs)$", pass_filenames = false, priority = 1 },
 ]
 
 [[repos]]

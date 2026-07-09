@@ -17,3 +17,10 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde-pyobject = "0.8.0"
 takumi = { version = "2.0.1", path = "takumilib/takumi", features = ["from-html", "svg-backend"] }
 takumi-core = { version = "0.3.2", path = "takumilib/takumi-core" }
+
+[lints.clippy]
+redundant_closure_for_method_calls = "deny"
+
+[lints.clippy.all]
+level = "deny"
+priority = -1
