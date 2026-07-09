@@ -21,9 +21,9 @@ identifiers.
 
 ### Changed
 
-- Migrate the native renderer from Takumi 1.7 to Takumi 2.0.0-rc.14.
+- Migrate the native renderer from Takumi 1.7 to Takumi 2.0.1.
 - Use Takumi v2's explicit `Fonts`, `ImageCache`, per-render images, and new raster output format model.
-- Follow Takumi 2.0.0-rc.14's public API for animation writers, font metadata overrides, language tags, fallback font families, structured keyframes, and image URL discovery.
+- Follow Takumi 2.0's public API for animation writers, font metadata overrides, language tags, fallback font families, structured keyframes, and image URL discovery.
 - Route HTML parsing through Takumi's Rust `from_html` parser instead of the Python `selectolax` adapter.
 - Refresh README and runnable examples around explicit HTML stylesheets, resource descriptors, parser options, and structured keyframes.
 - Make ordinary CI run the full project check suite, including pytest and Cargo checks.
