@@ -8,6 +8,16 @@ identifiers.
 
 ## [Unreleased]
 
+### Changed
+
+- Align the built-in fallback font with Takumi v2 by embedding the Geist Latin
+  last-resort font instead of Manrope.
+
+### Fixed
+
+- Support inline image byte sources in node trees without triggering a native
+  deserialization panic.
+
 ## [0.2.0rc1] - 2026-07-05
 
 ### Added

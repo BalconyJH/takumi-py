@@ -349,6 +349,8 @@ renderer-level global context to explicit per-render resources:
   constructor, and deprecated persistent-image resources.
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
   `subset_of`, and `generic_family`.
+- The built-in fallback font follows Takumi v2: a Latin Geist subset marked as
+  last resort, so caller-registered fonts win ordinary fallback selection.
 - `HtmlOptions` exposes Takumi's Rust `from_html` parser options.
 - `CompiledNode.resource_urls()` wraps Takumi's image URL discovery and reports
   HTTP(S) image/style references for callers that want to prepare resources

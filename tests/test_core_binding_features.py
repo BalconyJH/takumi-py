@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,47 @@ SVG_1X1 = (
     b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'
     b'<rect width="1" height="1" fill="red"/></svg>'
 )
+GEIST_FONT = Path("takumilib/assets/fonts/geist/Geist[wght].woff2")
+GEIST_LAST_RESORT_FONT = Path(
+    "takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2"
+)
+NOTO_DEVANAGARI_FONT = Path(
+    "takumilib/assets/fonts/noto-sans/noto-sans-devanagari-v30-devanagari-regular.woff2"
+)
+ARCHIVO_FONT = Path("takumilib/assets/fonts/archivo/Archivo-VariableFont_wdth,wght.ttf")
+POPPINS_DEVANAGARI_FONT = Path(
+    "takumilib/assets/fonts/poppins/poppins-v24-devanagari_latin-regular.woff2"
+)
+
+
+def render_devanagari_raw(renderer: Renderer, family: str) -> bytes:
+    return renderer.render_html(
+        '<span class="sample">नमस्ते</span>',
+        stylesheets=[
+            f"""
+            .sample {{
+              color: black;
+              font-size: 72px;
+              font-family: {family};
+            }}
+            """
+        ],
+        width=400,
+        height=140,
+        format="raw",
+    )
+
+
+def inked_pixels(raw: bytes) -> int:
+    return sum(1 for index in range(3, len(raw), 4) if raw[index] > 0)
+
+
+def pixel_diff(left: bytes, right: bytes) -> int:
+    return sum(
+        1
+        for left_pixel, right_pixel in zip(left, right, strict=True)
+        if left_pixel != right_pixel
+    )
 
 
 def test_render_options_support_auto_viewport_and_dithering() -> None:
@@ -75,13 +117,7 @@ def test_measure_html_uses_explicit_stylesheets() -> None:
 def test_font_and_image_resources_can_be_loaded() -> None:
     renderer = Renderer(load_default_fonts=False)
     with pytest.warns(DeprecationWarning, match="load_font is deprecated"):
-        renderer.load_font(
-            FontResource(
-                data=Path(
-                    "takumilib/assets/fonts/manrope/manrope-latin-wght-normal.woff2"
-                ).read_bytes()
-            )
-        )
+        renderer.load_font(FontResource(data=GEIST_FONT.read_bytes()))
     with pytest.warns(DeprecationWarning, match="put_persistent_image is deprecated"):
         renderer.put_persistent_image(
             ImageResource("memory://pixel", SVG_1X1, cache="none")
@@ -125,6 +161,16 @@ def test_per_render_images_respect_cache_mode_shape() -> None:
     assert png.startswith(b"\x89PNG")
 
 
+def test_inline_image_bytes_can_be_rendered() -> None:
+    png = Renderer().render_node(
+        {"type": "image", "src": SVG_1X1, "width": 1, "height": 1},
+        width=4,
+        height=4,
+    )
+
+    assert png.startswith(b"\x89PNG")
+
+
 def test_per_render_fetched_resources_warns_and_still_resolves_images() -> None:
     with pytest.warns(DeprecationWarning, match="fetched_resources is deprecated"):
         png = Renderer().render_node(
@@ -139,13 +185,13 @@ def test_per_render_fetched_resources_warns_and_still_resolves_images() -> None:
 
 def test_register_font_returns_registered_families() -> None:
     renderer = Renderer(load_default_fonts=False)
-    families = renderer.register_font(
-        FontResource(
-            data=Path(
-                "takumilib/assets/fonts/manrope/manrope-latin-wght-normal.woff2"
-            ).read_bytes()
-        )
-    )
+    families = renderer.register_font(FontResource(data=GEIST_FONT.read_bytes()))
+
+    assert families
+
+
+def test_register_font_accepts_raw_bytes() -> None:
+    families = Renderer(load_default_fonts=False).register_font(GEIST_FONT.read_bytes())
 
     assert families
 
@@ -154,10 +200,8 @@ def test_register_font_accepts_v2_descriptor_fields() -> None:
     renderer = Renderer(load_default_fonts=False)
     families = renderer.register_font(
         FontResource(
-            data=Path(
-                "takumilib/assets/fonts/manrope/manrope-latin-wght-normal.woff2"
-            ).read_bytes(),
-            name="Descriptor Manrope",
+            data=GEIST_FONT.read_bytes(),
+            name="Descriptor Geist",
             weight=500,
             style="normal",
             subset_of="DescriptorLogical",
@@ -165,7 +209,7 @@ def test_register_font_accepts_v2_descriptor_fields() -> None:
         )
     )
 
-    assert families == ("Descriptor Manrope",)
+    assert families == ("Descriptor Geist",)
 
 
 def test_register_font_rejects_invalid_style_descriptor() -> None:
@@ -174,9 +218,7 @@ def test_register_font_rejects_invalid_style_descriptor() -> None:
     with pytest.raises(FontError, match="unsupported font style"):
         renderer.register_font(
             FontResource(
-                data=Path(
-                    "takumilib/assets/fonts/manrope/manrope-latin-wght-normal.woff2"
-                ).read_bytes(),
+                data=GEIST_FONT.read_bytes(),
                 style="banana",
             )
         )
@@ -186,6 +228,79 @@ def test_validate_node_accepts_lang_metadata() -> None:
     node = validate_node({"type": "text", "text": "こんにちは", "lang": "ja"})
 
     assert node["lang"] == "ja"
+
+
+def test_lang_selector_matches_html_lang_ancestor() -> None:
+    measured = Renderer().measure_html(
+        '<section lang="zh-Hant"><div class="box"></div></section>',
+        stylesheets=[
+            """
+            .box { width: 11px; height: 7px; }
+            .box:lang(zh-Hant) { width: 37px; height: 13px; }
+            """
+        ],
+        width=None,
+        height=None,
+    )
+
+    assert measured.width == 37
+    assert measured.height == 13
+
+
+def test_default_font_matches_upstream_geist_last_resort() -> None:
+    node: dict[str, object] = {
+        "type": "text",
+        "text": "Hello",
+        "style": {"fontSize": "48px", "color": "black"},
+    }
+    expected = Renderer(load_default_fonts=False)
+    expected.register_font(
+        FontResource(GEIST_LAST_RESORT_FONT.read_bytes(), name="Geist")
+    )
+
+    default = Renderer().render_node(
+        node,
+        width=160,
+        height=80,
+        format="raw",
+        font_families=["Geist"],
+    )
+    explicit = expected.render_node(
+        node,
+        width=160,
+        height=80,
+        format="raw",
+        font_families=["Geist"],
+    )
+
+    assert default == explicit
+
+
+def test_font_subset_groups_route_per_family() -> None:
+    renderer = Renderer(load_default_fonts=False)
+    for path, unique_name, logical_name in [
+        (GEIST_FONT, "Alpha-latin", "Alpha"),
+        (NOTO_DEVANAGARI_FONT, "Alpha-deva", "Alpha"),
+        (ARCHIVO_FONT, "Beta-latin", "Beta"),
+        (POPPINS_DEVANAGARI_FONT, "Beta-deva", "Beta"),
+    ]:
+        renderer.register_font(
+            FontResource(
+                path.read_bytes(),
+                name=unique_name,
+                subset_of=logical_name,
+                generic_family="sans-serif",
+            )
+        )
+
+    alpha = render_devanagari_raw(renderer, "Alpha")
+    beta = render_devanagari_raw(renderer, "Beta")
+    beta_explicit = render_devanagari_raw(renderer, '"Beta-latin", "Beta-deva"')
+
+    assert inked_pixels(alpha) > 500
+    assert inked_pixels(beta) > 500
+    assert pixel_diff(alpha, beta) > 1000
+    assert pixel_diff(beta, beta_explicit) == 0
 
 
 def test_compiled_node_collects_resource_urls() -> None:
@@ -230,6 +345,44 @@ def test_render_svg_html_returns_svg_document() -> None:
 
     assert svg.startswith("<svg")
     assert 'width="64"' in svg
+
+
+def test_concurrent_render_and_measure_calls_resolve() -> None:
+    renderer = Renderer()
+
+    def render(index: int) -> bytes:
+        return renderer.render_node(
+            {
+                "type": "text",
+                "text": f"concurrent render {index}",
+                "style": {
+                    "fontSize": "24px",
+                    "color": "#111827",
+                    "backgroundColor": f"rgb({index * 8}, {255 - index * 8}, 128)",
+                },
+            },
+            width=320,
+            height=80,
+        )
+
+    def measure(index: int) -> tuple[float, float]:
+        measured = renderer.measure_node(
+            {
+                "type": "text",
+                "text": f"concurrent measure {index}",
+                "style": {"fontSize": "24px"},
+            },
+            width=320,
+            height=80,
+        )
+        return measured.width, measured.height
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        render_results = list(executor.map(render, range(8)))
+        measure_results = list(executor.map(measure, range(8)))
+
+    assert all(result.startswith(b"\x89PNG") for result in render_results)
+    assert all(width > 0 and height > 0 for width, height in measure_results)
 
 
 def test_lossless_webp_rejects_quality_conflict() -> None:

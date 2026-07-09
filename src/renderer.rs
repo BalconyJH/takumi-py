@@ -8,7 +8,7 @@ use pyo3::{
     Bound, Py, PyAny, PyRef, PyResult, Python,
     exceptions::PyValueError,
     prelude::*,
-    types::{PyBytes, PyDict, PyList},
+    types::{PyBytes, PyDict, PyList, PyTuple},
 };
 use serde::Deserialize;
 use takumi::{
@@ -186,7 +186,9 @@ impl NativeRenderer {
     }
 
     pub fn compile_node_py(&self, node: Bound<'_, PyAny>) -> PyResult<CompiledNode> {
-        let node = serde_pyobject::from_pyobject(node)
+        let py = node.py();
+        let node = normalize_node_input_for_serde(py, node)?;
+        let node = serde_pyobject::from_pyobject(node.into_bound(py))
             .map_err(|error| NodeDecodeError::new_err(error.to_string()))?;
         Ok(CompiledNode { node })
     }
@@ -739,11 +741,51 @@ fn write_lock<'a, T>(lock: &'a RwLock<T>, message: &str) -> PyResult<RwLockWrite
 }
 
 fn load_default_font(fonts: &mut Fonts) -> PyResult<()> {
-    const MANROPE: &[u8] =
-        include_bytes!("../takumilib/assets/fonts/manrope/manrope-latin-wght-normal.woff2");
+    const GEIST: &[u8] =
+        include_bytes!("../takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2");
 
-    drop(register_font_resource(fonts, FontResource::new(MANROPE))?);
+    let resource = FontResource::new(GEIST)
+        .override_info(FontOverride {
+            family_name: Some(Arc::from("Geist")),
+            ..Default::default()
+        })
+        .last_resort();
+    drop(register_font_resource(fonts, resource)?);
     Ok(())
+}
+
+fn normalize_node_input_for_serde(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    if let Ok(bytes) = value.cast::<PyBytes>() {
+        return Ok(PyList::new(py, bytes.as_bytes().iter().copied())?
+            .into_any()
+            .unbind());
+    }
+
+    if let Ok(dict) = value.cast::<PyDict>() {
+        let normalized = PyDict::new(py);
+        for (key, item) in dict {
+            normalized.set_item(key, normalize_node_input_for_serde(py, item)?)?;
+        }
+        return Ok(normalized.into_any().unbind());
+    }
+
+    if let Ok(list) = value.cast::<PyList>() {
+        let normalized = PyList::empty(py);
+        for item in list {
+            normalized.append(normalize_node_input_for_serde(py, item)?)?;
+        }
+        return Ok(normalized.into_any().unbind());
+    }
+
+    if let Ok(tuple) = value.cast::<PyTuple>() {
+        let normalized = PyList::empty(py);
+        for item in tuple {
+            normalized.append(normalize_node_input_for_serde(py, item)?)?;
+        }
+        return Ok(normalized.into_any().unbind());
+    }
+
+    Ok(value.unbind())
 }
 
 fn register_font_input(fonts: &mut Fonts, input: FontResourceInput) -> PyResult<Vec<String>> {
