@@ -26,7 +26,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@1fbea72663f6d4c03efaab13560c8a24cfd2a7cc
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
           components: rustfmt
           rustflags: ""
