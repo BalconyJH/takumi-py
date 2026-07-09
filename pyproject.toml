@@ -18,6 +18,10 @@ dependencies = [
 module-name = "takumi_py._core"
 python-packages = ["takumi_py"]
 python-source = "python"
+include = [
+    { path = "takumilib/Cargo.toml", format = "sdist" },
+    { path = "takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2", format = "sdist" },
+]
 
 [tool.uv]
 cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.rs" }, { file = "python/**/*.py" }, { file = "Cargo.toml" }, { file = "Cargo.lock" }]

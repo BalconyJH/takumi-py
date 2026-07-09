@@ -19,6 +19,8 @@ identifiers.
 
 - Support inline image byte sources in node trees without triggering a native
   deserialization panic.
+- Include the Takumi workspace root manifest and embedded default font in the
+  source distribution so clean sdist builds can resolve path dependencies.
 
 ## [0.2.0rc1] - 2026-07-05
 
