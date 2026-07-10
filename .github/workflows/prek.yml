@@ -20,10 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
           submodules: recursive
 
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          components: rustfmt,clippy
+          rustflags: ""
+
       - name: Run pre-commit hooks via prek
-        uses: j178/prek-action@6ad80277337ad479fe43bd70701c3f7f8aa74db3
+        uses: j178/prek-action@e98a699c41eb69ab013a45817a0406469a748f8d

@@ -1,85 +1,59 @@
 import pytest
 
-from takumi_py import HtmlParseError, parse_html
+from takumi_py import CompiledNode, HtmlOptions, HtmlParseError, Renderer, parse_html
 
 
-def test_parse_html_extracts_stylesheet_and_nodes() -> None:
+def test_parse_html_returns_rust_compiled_node() -> None:
     parsed = parse_html(
         """
-        <div class="card" data-kind="demo">
+        <div class="card" data-kind="demo" style="width: 16px; height: 8px">
           <h1>Hello</h1>
           <br>
-          <img src="asset:demo" width="16">
         </div>
-        <style>.card { color: white; }</style>
         """
     )
 
-    assert parsed.stylesheets == (".card { color: white; }",)
-    assert parsed.node["type"] == "container"
-    assert parsed.node["className"] == "card"
-    assert parsed.node["attributes"] == {"data-kind": "demo"}
-    children = parsed.node["children"]
-    elements = [child for child in children if child["type"] != "text"]
-    assert elements[0]["tagName"] == "h1"
-    assert {"type": "text", "text": "\n"} in children
-    assert elements[1]["type"] == "image"
-    assert elements[1]["width"] == 16.0
+    assert isinstance(parsed.node, CompiledNode)
+    assert parsed.stylesheets == ()
 
 
-def test_parse_html_wraps_multiple_roots() -> None:
+def test_parse_html_compiled_node_can_render() -> None:
     parsed = parse_html("<h1>Hello</h1><p>World</p>")
 
-    assert parsed.node == {
-        "type": "container",
-        "style": {"width": "100%", "height": "100%"},
-        "children": [
-            {
-                "type": "container",
-                "tagName": "h1",
-                "children": [{"type": "text", "text": "Hello"}],
-            },
-            {
-                "type": "container",
-                "tagName": "p",
-                "children": [{"type": "text", "text": "World"}],
-            },
-        ],
-    }
+    png = Renderer().render_compiled(parsed.node, width=160, height=80)
+
+    assert png.startswith(b"\x89PNG")
 
 
 def test_parse_html_rejects_img_without_src() -> None:
-    with pytest.raises(HtmlParseError):
+    with pytest.raises(HtmlParseError, match="src"):
         parse_html("<img>")
 
 
-def test_parse_html_drops_hidden_img_without_src() -> None:
-    parsed = parse_html('<img style="display:none"><div>Hello</div>')
-
-    assert parsed.node == {
-        "type": "container",
-        "tagName": "div",
-        "children": [{"type": "text", "text": "Hello"}],
-    }
-
-
-def test_parse_html_drops_unsupported_stylesheet_at_rules() -> None:
+def test_parse_html_drops_style_elements() -> None:
     parsed = parse_html(
         """
-        <style>
-        @font-face { font-family: Demo; src: url(demo.woff2); }
-        @view-transition { navigation: none; }
-        @-webkit-keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-        .card { color: white; }
-        </style>
-        <div class="card">Hello</div>
+        <style>.card { width: 40px; height: 20px; }</style>
+        <div class="card" style="width: 8px; height: 4px">Hello</div>
         """
     )
+    measured = Renderer().measure_compiled(parsed.node, width=None, height=None)
 
-    stylesheet = parsed.stylesheets[0]
-    assert "@font-face" not in stylesheet
-    assert "@view-transition" not in stylesheet
-    assert "@-webkit-keyframes" not in stylesheet
-    assert "@keyframes fade" in stylesheet
-    assert ".card { color: white; }" in stylesheet
+    assert measured.width == 8
+    assert measured.height == 4
+
+
+def test_parse_html_honors_tailwind_property_alias() -> None:
+    parsed = parse_html(
+        '<div class="w-[10px] h-[6px]"></div>',
+        options=HtmlOptions(presets="none", tailwind_property="class"),
+    )
+    measured = Renderer().measure_compiled(parsed.node, width=None, height=None)
+
+    assert measured.width == 10
+    assert measured.height == 6
+
+
+def test_parse_html_honors_max_depth() -> None:
+    with pytest.raises(HtmlParseError, match="maximum depth"):
+        parse_html("<div><span>Hello</span></div>", options=HtmlOptions(max_depth=1))

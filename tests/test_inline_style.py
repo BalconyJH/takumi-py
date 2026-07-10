@@ -1,45 +1,33 @@
-from takumi_py.html import parse_html
+from takumi_py import Renderer
 
 
-def test_inline_style_uses_camel_case() -> None:
-    parsed = parse_html(
-        '<div style="font-size: 64px; background-color: #111827"></div>'
+def test_inline_style_drives_html_layout() -> None:
+    measured = Renderer().measure_html(
+        '<div style="width: 64px; height: 32px; font-size: 12px"></div>',
+        width=None,
+        height=None,
     )
 
-    assert parsed.node["style"] == {
-        "fontSize": "64px",
-        "backgroundColor": "#111827",
-    }
+    assert measured.width == 64
+    assert measured.height == 32
 
 
-def test_inline_style_skips_invalid_declarations() -> None:
-    parsed = parse_html('<div style="font-size: 64px; broken; color: white"></div>')
+def test_invalid_inline_style_does_not_abort_html_parse() -> None:
+    png = Renderer().render_html(
+        '<div style="width: 64px; broken; height: 32px"></div>',
+        width=64,
+        height=32,
+    )
 
-    assert parsed.node["style"] == {
-        "fontSize": "64px",
-        "color": "white",
-    }
-
-
-def test_inline_style_drops_unsupported_display_values() -> None:
-    parsed = parse_html('<div style="display: contents; color: white"></div>')
-
-    assert parsed.node["style"] == {"color": "white"}
+    assert png.startswith(b"\x89PNG")
 
 
-def test_inline_style_keeps_supported_display_values() -> None:
-    parsed = parse_html('<div style="display: none"></div>')
+def test_inline_style_ignores_custom_properties() -> None:
+    measured = Renderer().measure_html(
+        '<div style="--brand-color: red; width: 64px; height: 32px"></div>',
+        width=None,
+        height=None,
+    )
 
-    assert parsed.node["style"] == {"display": "none"}
-
-
-def test_inline_style_drops_custom_properties() -> None:
-    parsed = parse_html('<div style="--brand-color: red; color: white"></div>')
-
-    assert parsed.node["style"] == {"color": "white"}
-
-
-def test_inline_style_drops_ie_css_hacks() -> None:
-    parsed = parse_html('<div style="display: none \\9; color: white"></div>')
-
-    assert parsed.node["style"] == {"color": "white"}
+    assert measured.width == 64
+    assert measured.height == 32

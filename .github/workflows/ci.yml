@@ -16,33 +16,84 @@ concurrency:
 
 jobs:
   quality:
-    name: Ruff and ty
+    name: Check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version-file: ".python-version"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
         with:
           enable-cache: true
 
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          components: rustfmt,clippy
+          rustflags: ""
+
       - name: Sync dependencies
-        run: uv sync --locked --dev --no-install-project
+        run: uv sync --locked --dev
 
-      - name: Check Ruff formatting
-        run: uv run ruff format --check python tests examples
+      - name: Run checks
+        run: make check
 
-      - name: Run Ruff lint
-        run: uv run ruff check python tests examples pyproject.toml
+  wheel-smoke:
+    name: Wheel smoke (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 45
+    needs:
+      - quality
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64
+            manylinux: "2014"
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64
+            manylinux: "2014"
+          - name: macos-aarch64
+            runner: macos-15
+            target: aarch64
+          - name: windows-x64
+            runner: windows-latest
+            target: x64
 
-      - name: Run ty
-        run: uv run ty check python tests examples
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version-file: ".python-version"
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
+        with:
+          maturin-version: v1.14.1
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux || 'auto' }}
+          args: --release --locked --out dist --compatibility pypi
+          sccache: true
+
+      - name: Smoke test built wheel
+        run: |
+          python -m pip install --upgrade pip
+          python .github/scripts/install-built-wheel.py dist
+          python .github/scripts/smoke-wheel.py

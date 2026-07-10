@@ -25,6 +25,7 @@ class NodeBase(TypedDict, total=False):
     style: StyleMap
     tw: str
     dir: Literal["ltr", "rtl"]
+    lang: str
 
 
 class TextNode(NodeBase):
@@ -126,7 +127,7 @@ def measured_node_from_mapping(data: MeasuredNodeOutput) -> MeasuredNode:
     return MeasuredNode(
         width=float(data["width"]),
         height=float(data["height"]),
-        transform=cast(tuple[float, float, float, float, float, float], transform),
+        transform=transform,
         children=children,
         runs=runs,
     )
