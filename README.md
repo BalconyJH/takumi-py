@@ -435,12 +435,12 @@ tag that commit with `v` plus the `project.version` value from
 create a GitHub Release.
 
 ```bash
-git tag v0.2.0rc1 <commit-on-main>
-git push origin main v0.2.0rc1
+git tag v0.2.0 <commit-on-main>
+git push origin main v0.2.0
 ```
 
 The tag must match `project.version` in `pyproject.toml`; for example, version
-`0.2.0rc1` must be released as `v0.2.0rc1`.
+`0.2.0` must be released as `v0.2.0`.
 
 Before publishing, the workflow generates GitHub build provenance attestations
 for every wheel and source distribution. The PyPI publication is recorded as a

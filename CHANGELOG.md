@@ -8,23 +8,7 @@ identifiers.
 
 ## [Unreleased]
 
-### Changed
-
-- Align the built-in fallback font with Takumi v2 by embedding the Geist Latin
-  last-resort font instead of Manrope.
-- Document that render-level `lang` drives locale-aware text shaping, while CSS
-  `:lang()` matching depends on HTML or node `lang` attributes.
-- Attest release wheels and source distributions before publishing them, and
-  expose each PyPI release as a GitHub Deployment linked to its PyPI version.
-
-### Fixed
-
-- Support inline image byte sources in node trees without triggering a native
-  deserialization panic.
-- Include the Takumi workspace root manifest and embedded default font in the
-  source distribution so clean sdist builds can resolve path dependencies.
-
-## [0.2.0rc1] - 2026-07-05
+## [0.2.0] - 2026-07-10
 
 ### Added
 
@@ -45,6 +29,12 @@ identifiers.
 - Make ordinary CI run the full project check suite, including pytest and Cargo checks.
 - Publish PyPI distributions and GitHub Release artifacts in parallel after wheel and sdist builds complete.
 - Limit the release wheel matrix to Linux x86_64, Linux aarch64, macOS arm64, and Windows x64.
+- Align the built-in fallback font with Takumi v2 by embedding the Geist Latin
+  last-resort font instead of Manrope.
+- Document that render-level `lang` drives locale-aware text shaping, while CSS
+  `:lang()` matching depends on HTML or node `lang` attributes.
+- Attest release wheels and source distributions before publishing them, and
+  expose each PyPI release as a GitHub Deployment linked to its PyPI version.
 
 ### Deprecated
 
@@ -60,6 +50,10 @@ identifiers.
 - Check out the `takumi` submodule in CI, Prek, and release jobs before running editable builds or Cargo checks.
 - Check out the repository before creating or updating GitHub Releases so `gh release create --verify-tag` has a Git directory.
 - Reuse an existing GitHub Release on reruns by uploading distribution artifacts with `--clobber`.
+- Support inline image byte sources in node trees without triggering a native
+  deserialization panic.
+- Include the Takumi workspace root manifest and embedded default font in the
+  source distribution so clean sdist builds can resolve path dependencies.
 
 ## [0.1.0] - 2026-06-10
 
@@ -85,6 +79,6 @@ identifiers.
 - Removed the experimental `pack_node()` API and `codec="msgpack"` compile path.
 - Removed unused benchmark scripts.
 
-[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.2.0rc1...HEAD
-[0.2.0rc1]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.2.0rc1
+[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.2.0
 [0.1.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.1.0

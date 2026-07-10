@@ -1,6 +1,6 @@
 [project]
 name = "takumi-py"
-version = "0.2.0rc1"
+version = "0.2.0"
 description = "Python bindings for the Takumi Rust renderer"
 readme = "README.md"
 license = "GPL-3.0-or-later"
