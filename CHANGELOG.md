@@ -8,6 +8,11 @@ identifiers.
 
 ## [Unreleased]
 
+### Fixed
+
+- Skip release jobs when a valid tag has not reached `main` yet instead of
+  failing the pull request check, while leaving ordinary CI checks running.
+
 ## [0.2.0] - 2026-07-10
 
 ### Added

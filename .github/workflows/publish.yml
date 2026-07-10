@@ -27,6 +27,7 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
       sha: ${{ steps.release-ref.outputs.sha }}
       version: ${{ steps.release-ref.outputs.version }}
+      publish: ${{ steps.release-ref.outputs.publish }}
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
@@ -74,14 +75,18 @@ jobs:
             echo "origin/main is not available in the checkout" >&2
             exit 1
           fi
-          if ! git merge-base --is-ancestor "${tag_commit}" origin/main; then
-            echo "Release tag ${tag} points to ${tag_commit}, which is not on origin/main" >&2
-            exit 1
-          fi
 
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "sha=${tag_commit}" >> "${GITHUB_OUTPUT}"
           echo "version=${package_version}" >> "${GITHUB_OUTPUT}"
+
+          if ! git merge-base --is-ancestor "${tag_commit}" origin/main; then
+            echo "::notice::Skipping release because ${tag} points to ${tag_commit}, which is not on origin/main"
+            echo "publish=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "publish=true" >> "${GITHUB_OUTPUT}"
 
   release-check:
     name: Release checks
@@ -89,6 +94,7 @@ jobs:
     timeout-minutes: 30
     needs:
       - validate-release-ref
+    if: needs.validate-release-ref.outputs.publish == 'true'
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
