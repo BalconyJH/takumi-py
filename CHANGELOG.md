@@ -14,6 +14,8 @@ identifiers.
   last-resort font instead of Manrope.
 - Document that render-level `lang` drives locale-aware text shaping, while CSS
   `:lang()` matching depends on HTML or node `lang` attributes.
+- Attest release wheels and source distributions before publishing them, and
+  expose each PyPI release as a GitHub Deployment linked to its PyPI version.
 
 ### Fixed
 

@@ -442,6 +442,10 @@ git push origin main v0.2.0rc1
 The tag must match `project.version` in `pyproject.toml`; for example, version
 `0.2.0rc1` must be released as `v0.2.0rc1`.
 
+Before publishing, the workflow generates GitHub build provenance attestations
+for every wheel and source distribution. The PyPI publication is recorded as a
+GitHub Deployment and links to the released version on PyPI.
+
 ## Test Coverage
 
 The Python test suite covers static rendering, the HTML adapter, templates, core fixtures, options, measurement, resources, animation, typing artifacts, and generated HTML fixtures from the upstream Takumi core test suite.

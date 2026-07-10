@@ -26,6 +26,7 @@ jobs:
     outputs:
       tag: ${{ steps.release-ref.outputs.tag }}
       sha: ${{ steps.release-ref.outputs.sha }}
+      version: ${{ steps.release-ref.outputs.version }}
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
@@ -80,6 +81,7 @@ jobs:
 
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "sha=${tag_commit}" >> "${GITHUB_OUTPUT}"
+          echo "version=${package_version}" >> "${GITHUB_OUTPUT}"
 
   release-check:
     name: Release checks
@@ -202,14 +204,42 @@ jobs:
           name: distributions-sdist
           path: dist
 
-  pypi-publish:
-    name: Publish to PyPI
+  provenance:
+    name: Attest distributions
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs:
       - wheels
       - sdist
-    environment: release
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          path: dist
+          pattern: distributions-*
+          merge-multiple: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: dist/*
+
+  pypi-publish:
+    name: Deploy to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - validate-release-ref
+      - wheels
+      - sdist
+      - provenance
+    environment:
+      name: release
+      url: https://pypi.org/project/takumi-py/${{ needs.validate-release-ref.outputs.version }}/
     permissions:
       contents: read
       id-token: write
@@ -234,6 +264,7 @@ jobs:
       - validate-release-ref
       - wheels
       - sdist
+      - provenance
     permissions:
       contents: write
     steps:
