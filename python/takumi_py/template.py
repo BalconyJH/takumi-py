@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import Any, TypeAlias
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -16,9 +17,15 @@ from takumi_py.options import (
     UnsetType,
 )
 
+Filter: TypeAlias = Callable[..., Any]
 
-def create_environment(template_dir: str | Path) -> Environment:
-    return Environment(
+
+def create_environment(
+    template_dir: str | Path,
+    *,
+    filters: Mapping[str, Filter] | None = None,
+) -> Environment:
+    environment = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(
             enabled_extensions=("html", "xml", "jinja"),
@@ -26,24 +33,37 @@ def create_environment(template_dir: str | Path) -> Environment:
         ),
     )
 
+    if filters:
+        environment.filters.update(filters)
+
+    return environment
+
 
 def render_template_to_html(
     template_name: str,
     context: Mapping[str, object],
     *,
     template_dir: str | Path = ".",
+    filters: Mapping[str, Filter] | None = None,
 ) -> str:
     return (
-        create_environment(template_dir).get_template(template_name).render(**context)
+        create_environment(template_dir, filters=filters)
+        .get_template(template_name)
+        .render(**context)
     )
 
 
 class TemplateRenderer:
-    def __init__(self, template_dir: str | Path) -> None:
+    def __init__(
+        self,
+        template_dir: str | Path,
+        *,
+        filters: Mapping[str, Filter] | None = None
+    ) -> None:
         from takumi_py.renderer import Renderer
 
         self._renderer = Renderer()
-        self._environment = create_environment(template_dir)
+        self._environment = create_environment(template_dir, filters=filters)
 
     def render(
         self,
