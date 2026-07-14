@@ -55,10 +55,7 @@ def render_template_to_html(
 
 class TemplateRenderer:
     def __init__(
-        self,
-        template_dir: str | Path,
-        *,
-        filters: Mapping[str, Filter] | None = None
+        self, template_dir: str | Path, *, filters: Mapping[str, Filter] | None = None
     ) -> None:
         from takumi_py.renderer import Renderer
 
