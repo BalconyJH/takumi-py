@@ -1,5 +1,5 @@
 UV ?= uv
-PYTEST ?= $(UV) run pytest
+PYTEST ?= $(UV) run --group test pytest -n auto --dist worksteal
 TY ?= $(UV) run ty
 
 .DEFAULT_GOAL := help

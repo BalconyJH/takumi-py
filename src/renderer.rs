@@ -751,7 +751,7 @@ fn write_lock<'a, T>(lock: &'a RwLock<T>, message: &str) -> PyResult<RwLockWrite
 
 fn load_default_font(fonts: &mut Fonts) -> PyResult<()> {
   const GEIST: &[u8] =
-    include_bytes!("../takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2");
+    include_bytes!("../takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2");
 
   let resource = FontResource::new(GEIST)
     .override_info(FontOverride {

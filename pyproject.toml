@@ -4,6 +4,7 @@ version = "0.2.0"
 description = "Python bindings for the Takumi Rust renderer"
 readme = "README.md"
 license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "LICENSES/Geist-OFL-1.1.txt"]
 authors = [
     { name = "BalconyJH", email = "balconyjh@gmail.com" }
 ]
@@ -20,7 +21,7 @@ python-packages = ["takumi_py"]
 python-source = "python"
 include = [
     { path = "takumilib/Cargo.toml", format = "sdist" },
-    { path = "takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2", format = "sdist" },
+    { path = "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2", format = "sdist" },
 ]
 
 [tool.uv]
@@ -197,8 +198,6 @@ build-backend = "maturin"
 [dependency-groups]
 dev = [
     "maturin>=1.13.3",
-    "pytest>=9.0.3",
-    "pytest-cov>=7.0.0",
     "ruff>=0.15.16",
     "ty>=0.0.46",
 ]
@@ -206,4 +205,9 @@ docs = [
     "mike",
     "mkdocstrings-python>=2.0.5",
     "zensical>=0.0.47",
+]
+test = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
 ]

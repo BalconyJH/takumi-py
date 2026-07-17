@@ -22,8 +22,9 @@ SVG_1X1 = (
     b'<rect width="1" height="1" fill="red"/></svg>'
 )
 GEIST_FONT = Path("takumilib/assets/fonts/geist/Geist[wght].woff2")
+GEIST_MONO_FONT = Path("takumilib/assets/fonts/geist/GeistMono[wght].woff2")
 GEIST_LAST_RESORT_FONT = Path(
-    "takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2"
+    "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2"
 )
 NOTO_DEVANAGARI_FONT = Path(
     "takumilib/assets/fonts/noto-sans/noto-sans-devanagari-v30-devanagari-regular.woff2"
@@ -212,6 +213,34 @@ def test_register_font_accepts_v2_descriptor_fields() -> None:
     assert families == ("Descriptor Geist",)
 
 
+def test_registered_generic_font_family_is_used_for_resolution() -> None:
+    renderer = Renderer()
+    renderer.register_font(
+        FontResource(
+            data=GEIST_MONO_FONT.read_bytes(),
+            generic_family="monospace",
+        )
+    )
+
+    def render_with_family(font_family: str) -> bytes:
+        return renderer.render_node(
+            {
+                "type": "text",
+                "text": "mono 0O1lI",
+                "style": {
+                    "fontFamily": font_family,
+                    "fontSize": "32px",
+                    "color": "black",
+                },
+            },
+            width=256,
+            height=64,
+            format="raw",
+        )
+
+    assert render_with_family("monospace") == render_with_family("Geist Mono")
+
+
 def test_register_font_rejects_invalid_style_descriptor() -> None:
     renderer = Renderer(load_default_fonts=False)
 
@@ -251,7 +280,7 @@ def test_default_font_matches_upstream_geist_last_resort() -> None:
     node: dict[str, object] = {
         "type": "text",
         "text": "Hello",
-        "style": {"fontSize": "48px", "color": "black"},
+        "style": {"fontSize": "48px", "fontWeight": 300, "color": "black"},
     }
     expected = Renderer(load_default_fonts=False)
     expected.register_font(

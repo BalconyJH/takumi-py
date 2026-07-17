@@ -42,10 +42,52 @@ jobs:
           rustflags: ""
 
       - name: Sync dependencies
-        run: uv sync --locked --dev
+        run: uv sync --locked --group dev --group test
 
       - name: Run checks
         run: make check
+
+  sdist-smoke:
+    name: Sdist smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - quality
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          rustflags: ""
+
+      - name: Sync build dependencies
+        run: uv sync --locked --group dev
+
+      - name: Build sdist
+        run: uv run --group dev maturin sdist --out dist
+
+      - name: Build wheel from sdist
+        run: uv build --wheel dist/takumi_py-*.tar.gz --out-dir dist/from-sdist
+
+      - name: Smoke test wheel built from sdist
+        run: |
+          python -m pip install --upgrade pip
+          python .github/scripts/install-built-wheel.py dist/from-sdist
+          python .github/scripts/smoke-wheel.py
 
   wheel-smoke:
     name: Wheel smoke (${{ matrix.platform.name }})

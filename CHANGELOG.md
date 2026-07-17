@@ -8,8 +8,17 @@ identifiers.
 
 ## [Unreleased]
 
+### Changed
+
+- Update the native renderer from Takumi 2.0.1 to 2.2.0.
+- Extend the embedded Geist last-resort font's weight axis from 400–700 to
+  300–800.
+
 ### Fixed
 
+- Include the embedded Geist font's OFL license in source and wheel
+  distributions, and verify that wheels can be rebuilt from the source
+  distribution without relying on the repository checkout.
 - Skip release jobs when a valid tag has not reached `main` yet instead of
   failing the pull request check, while leaving ordinary CI checks running.
 

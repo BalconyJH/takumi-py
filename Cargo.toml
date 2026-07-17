@@ -15,8 +15,8 @@ parley = { version = "0.11", default-features = false, features = ["std"] }
 pyo3 = { version = "0.28.2", default-features = false, features = ["extension-module", "abi3-py310"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde-pyobject = "0.8.0"
-takumi = { version = "2.0.1", path = "takumilib/takumi", features = ["from-html", "svg-backend"] }
-takumi-core = { version = "0.3.2", path = "takumilib/takumi-core" }
+takumi = { version = "2.2.0", path = "takumilib/takumi", features = ["from-html", "svg-backend"] }
+takumi-core = { version = "0.4.0", path = "takumilib/takumi-core" }
 
 [lints.clippy]
 redundant_closure_for_method_calls = "deny"

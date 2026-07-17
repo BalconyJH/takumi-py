@@ -119,7 +119,7 @@ jobs:
           rustflags: ""
 
       - name: Sync dependencies
-        run: uv sync --locked --dev
+        run: uv sync --locked --group dev --group test
 
       - name: Run checks
         run: make check
