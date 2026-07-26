@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -16,6 +16,9 @@ from takumi_py.options import (
     RenderOptions,
     UnsetType,
 )
+
+if TYPE_CHECKING:
+    from takumi_py.renderer import Renderer
 
 Filter: TypeAlias = Callable[..., Any]
 
@@ -43,24 +46,60 @@ def render_template_to_html(
     template_name: str,
     context: Mapping[str, object],
     *,
-    template_dir: str | Path = ".",
+    template_dir: str | Path | None = None,
     filters: Mapping[str, Filter] | None = None,
+    environment: Environment | None = None,
 ) -> str:
-    return (
-        create_environment(template_dir, filters=filters)
-        .get_template(template_name)
-        .render(**context)
+    environment = _resolve_environment(
+        template_dir,
+        filters=filters,
+        environment=environment,
     )
+    return environment.get_template(template_name).render(**context)
+
+
+def _resolve_environment(
+    template_dir: str | Path | None,
+    *,
+    filters: Mapping[str, Filter] | None,
+    environment: Environment | None,
+) -> Environment:
+    if environment is not None and template_dir is not None:
+        raise ValueError("template_dir and environment are mutually exclusive")
+
+    if environment is None:
+        return create_environment(template_dir or ".", filters=filters)
+
+    if filters:
+        environment.filters.update(filters)
+
+    return environment
 
 
 class TemplateRenderer:
     def __init__(
-        self, template_dir: str | Path, *, filters: Mapping[str, Filter] | None = None
+        self,
+        template_dir: str | Path | None = None,
+        *,
+        filters: Mapping[str, Filter] | None = None,
+        renderer: Renderer | None = None,
+        environment: Environment | None = None,
     ) -> None:
-        from takumi_py.renderer import Renderer
+        if renderer is None:
+            from takumi_py.renderer import Renderer
 
-        self._renderer = Renderer()
-        self._environment = create_environment(template_dir, filters=filters)
+            renderer = Renderer()
+
+        self._renderer = renderer
+        self._environment = _resolve_environment(
+            template_dir,
+            filters=filters,
+            environment=environment,
+        )
+
+    @property
+    def environment(self) -> Environment:
+        return self._environment
 
     def render(
         self,
