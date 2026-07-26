@@ -323,7 +323,6 @@ class Renderer:
         html: str,
         *,
         html_options: HtmlOptions | None = None,
-        validate: bool = False,  # noqa: ARG002
     ) -> CompiledHtml:
         resolved_html_options = html_options or HtmlOptions()
         return CompiledHtml(
@@ -357,12 +356,10 @@ class Renderer:
         font_families: Sequence[str] | None | UnsetType = UNSET,
         lang: str | None | UnsetType = UNSET,
         fetched_resources: Sequence[ImageResourceInput] | None | UnsetType = UNSET,
-        validate: bool = False,
     ) -> bytes:
         compiled = self.compile_html(
             html,
             html_options=html_options,
-            validate=validate,
         )
         compiled_stylesheets = compiled.stylesheets + self.compile_html_stylesheets(
             stylesheets,
@@ -407,12 +404,10 @@ class Renderer:
         font_families: Sequence[str] | None | UnsetType = UNSET,
         lang: str | None | UnsetType = UNSET,
         fetched_resources: Sequence[ImageResourceInput] | None | UnsetType = UNSET,
-        validate: bool = False,
     ) -> MeasuredNode:
         compiled = self.compile_html(
             html,
             html_options=html_options,
-            validate=validate,
         )
         compiled_stylesheets = compiled.stylesheets + self.compile_html_stylesheets(
             stylesheets,
@@ -580,12 +575,10 @@ class Renderer:
         font_families: Sequence[str] | None | UnsetType = UNSET,
         lang: str | None | UnsetType = UNSET,
         fetched_resources: Sequence[ImageResourceInput] | None | UnsetType = UNSET,
-        validate: bool = False,
     ) -> str:
         compiled = self.compile_html(
             html,
             html_options=html_options,
-            validate=validate,
         )
         compiled_stylesheets = compiled.stylesheets + self.compile_html_stylesheets(
             stylesheets,

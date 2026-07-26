@@ -253,6 +253,19 @@ def test_register_font_rejects_invalid_style_descriptor() -> None:
         )
 
 
+@pytest.mark.parametrize("weight", [0.0, 1001.0, float("nan"), float("inf")])
+def test_register_font_rejects_invalid_weight(weight: float) -> None:
+    renderer = Renderer(load_default_fonts=False)
+
+    with pytest.raises(ValueError, match="font weight must be a finite number"):
+        renderer.register_font(
+            FontResource(
+                data=GEIST_FONT.read_bytes(),
+                weight=weight,
+            )
+        )
+
+
 def test_validate_node_accepts_lang_metadata() -> None:
     node = validate_node({"type": "text", "text": "こんにちは", "lang": "ja"})
 
@@ -274,6 +287,30 @@ def test_lang_selector_matches_html_lang_ancestor() -> None:
 
     assert measured.width == 37
     assert measured.height == 13
+
+
+def test_invalid_render_language_is_rejected_across_render_paths() -> None:
+    renderer = Renderer()
+    node: dict[str, object] = {
+        "type": "container",
+        "style": {"width": "2px", "height": "2px"},
+    }
+    expected = "lang must be a valid BCP-47 language tag"
+
+    with pytest.raises(ValueError, match=expected):
+        renderer.render_node(node, width=2, height=2, lang="not valid!")
+    with pytest.raises(ValueError, match=expected):
+        renderer.measure_node(node, width=2, height=2, lang="not valid!")
+    with pytest.raises(ValueError, match=expected):
+        renderer.render_svg_node(node, width=2, height=2, lang="not valid!")
+    with pytest.raises(ValueError, match=expected):
+        renderer.render_animation(
+            [AnimationScene(node, duration_ms=100)],
+            width=2,
+            height=2,
+            fps=1,
+            lang="not valid!",
+        )
 
 
 def test_default_font_matches_upstream_geist_last_resort() -> None:
@@ -622,6 +659,22 @@ def test_render_animation_and_encode_frames_write_animated_formats() -> None:
 def test_encode_frames_rejects_empty_frames() -> None:
     with pytest.raises(AnimationError):
         Renderer().encode_frames([])
+
+
+def test_animation_rejects_zero_duration_scenes_and_frames() -> None:
+    renderer = Renderer()
+    node: dict[str, object] = {
+        "type": "container",
+        "style": {"width": "2px", "height": "2px"},
+    }
+    scenes = [AnimationScene(node, duration_ms=0)]
+
+    with pytest.raises(ValueError, match="scene duration_ms must be greater than zero"):
+        renderer.render_sequence_at_time(scenes, 0, width=2, height=2)
+    with pytest.raises(ValueError, match="scene duration_ms must be greater than zero"):
+        renderer.render_animation(scenes, width=2, height=2)
+    with pytest.raises(ValueError, match="frame duration_ms must be greater than zero"):
+        renderer.encode_frames([RawAnimationFrame(bytes([0, 0, 0, 255] * 4), 2, 2, 0)])
 
 
 def test_render_options_dataclass_can_drive_rendering() -> None:

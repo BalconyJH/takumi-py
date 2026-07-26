@@ -82,7 +82,7 @@ struct RenderSettings {
   dithering: DitheringAlgorithm,
   images: Vec<ImageResourceInput>,
   font_families: Option<Vec<String>>,
-  lang: Option<String>,
+  lang: Option<Lang>,
 }
 
 impl RenderSettings {
@@ -94,6 +94,14 @@ impl RenderSettings {
     let device_pixel_ratio =
       validate_positive_f64("device_pixel_ratio", input.device_pixel_ratio)? as f32;
     let time_ms = validate_non_negative_i64("time_ms", input.time_ms)?;
+    let lang = match input.lang.as_deref() {
+      Some(lang) => Some(Lang::parse(lang).map_err(|_| {
+        PyValueError::new_err(format!(
+          "lang must be a valid BCP-47 language tag, got {lang:?}"
+        ))
+      })?),
+      None => None,
+    };
     let mut images = input.fetched_resources.unwrap_or_default();
     images.extend(input.images.unwrap_or_default());
 
@@ -107,7 +115,7 @@ impl RenderSettings {
       dithering: DitheringAlgorithm::parse(input.dithering)?,
       images,
       font_families: input.font_families,
-      lang: input.lang,
+      lang,
     })
   }
 
@@ -122,7 +130,7 @@ impl RenderSettings {
   }
 
   fn lang(&self) -> Option<Lang> {
-    self.lang.as_deref().and_then(|lang| Lang::parse(lang).ok())
+    self.lang
   }
 
   fn font_family(&self) -> Option<FontFamily> {
@@ -812,7 +820,7 @@ fn register_font_input(fonts: &mut Fonts, input: FontResourceInput) -> PyResult<
     family_name: name.map(Arc::from),
     width: None,
     style,
-    weight: weight.map(|weight| weight as f32),
+    weight: weight.map(validate_font_weight).transpose()?,
     axes: Vec::new(),
   });
 
@@ -1239,6 +1247,7 @@ fn raw_frames_to_animation_frames(
     .map(|(data, width, height, duration_ms)| {
       validate_dimension("width", width)?;
       validate_dimension("height", height)?;
+      validate_duration_ms(duration_ms)?;
       let image = Bitmap::from_raw(width, height, data).ok_or_else(|| {
         AnimationError::new_err("raw frame buffer size does not match width * height * 4")
       })?;
@@ -1295,6 +1304,11 @@ fn validate_scenes(scenes: &[(PyRef<'_, CompiledNode>, u32)]) -> PyResult<()> {
       "expected at least one animation scene",
     ));
   }
+  if scenes.iter().any(|(_, duration_ms)| *duration_ms == 0) {
+    return Err(PyValueError::new_err(
+      "animation scene duration_ms must be greater than zero",
+    ));
+  }
   Ok(())
 }
 
@@ -1303,6 +1317,24 @@ fn validate_fps(fps: u32) -> PyResult<()> {
     return Err(PyValueError::new_err("fps must be greater than zero"));
   }
   Ok(())
+}
+
+fn validate_duration_ms(duration_ms: u32) -> PyResult<()> {
+  if duration_ms == 0 {
+    return Err(PyValueError::new_err(
+      "animation frame duration_ms must be greater than zero",
+    ));
+  }
+  Ok(())
+}
+
+fn validate_font_weight(weight: f64) -> PyResult<f32> {
+  if !weight.is_finite() || !(1.0..=1000.0).contains(&weight) {
+    return Err(PyValueError::new_err(
+      "font weight must be a finite number in the range 1..=1000",
+    ));
+  }
+  Ok(weight as f32)
 }
 
 fn validate_quality(quality: Option<u8>) -> PyResult<()> {
