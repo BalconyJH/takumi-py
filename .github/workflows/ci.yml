@@ -34,6 +34,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
         with:
           enable-cache: true
+          version: "0.11.29"
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -68,6 +69,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
         with:
           enable-cache: true
+          version: "0.11.29"
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -80,8 +82,20 @@ jobs:
       - name: Build sdist
         run: uv run --group dev maturin sdist --out dist
 
+      - name: Validate sdist
+        run: >-
+          python3 .github/scripts/check-distributions.py
+          --version "$(uv version --short)"
+          dist/takumi_py-*.tar.gz
+
       - name: Build wheel from sdist
         run: uv build --wheel dist/takumi_py-*.tar.gz --out-dir dist/from-sdist
+
+      - name: Validate wheel built from sdist
+        run: >-
+          python3 .github/scripts/check-distributions.py
+          --version "$(uv version --short)"
+          dist/from-sdist/*.whl
 
       - name: Smoke test wheel built from sdist
         run: |

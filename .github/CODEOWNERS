@@ -1,0 +1,7 @@
+/.github/CODEOWNERS @BalconyJH
+/.github/workflows/ci.yml @BalconyJH
+/.github/workflows/publish.yml @BalconyJH
+/.github/scripts/validate-release.py @BalconyJH
+/.github/scripts/check-distributions.py @BalconyJH
+/zensical.toml @BalconyJH
+/docs/maintainers/ @BalconyJH

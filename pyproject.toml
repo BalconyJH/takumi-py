@@ -1,10 +1,15 @@
 [project]
 name = "takumi-py"
-version = "0.2.0"
+version = "0.3.0"
 description = "Python bindings for the Takumi Rust renderer"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE", "LICENSES/Geist-OFL-1.1.txt"]
+license-files = [
+    "LICENSE",
+    "LICENSES/Geist-OFL-1.1.txt",
+    "THIRD_PARTY_NOTICES.md",
+    "takumilib/LICENSE-MIT",
+]
 authors = [
     { name = "BalconyJH", email = "balconyjh@gmail.com" }
 ]

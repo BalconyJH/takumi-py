@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Git tag to publish, for example v0.2.0"
+        description: "Git tag to publish, for example v0.3.0"
         required: true
         type: string
 
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: pypi-release
   cancel-in-progress: false
 
 jobs:
@@ -38,55 +38,29 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
 
-      - name: Validate tag and main ancestry
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: false
+          version: "0.11.29"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          cache: false
+          rustflags: ""
+
+      - name: Validate release contract
         id: release-ref
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          tag="${RELEASE_TAG}"
-          if [[ ! "${tag}" =~ ^v[0-9]+[.][0-9]+[.][0-9]+[A-Za-z0-9.-]*$ ]]; then
-            echo "Release tag must start with vX.Y.Z, got ${tag}" >&2
-            exit 1
-          fi
-
-          package_version="$(python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          match = re.search(
-              r'^version = "([^"]+)"$',
-              Path("pyproject.toml").read_text(),
-              re.MULTILINE,
-          )
-          if match is None:
-              raise SystemExit("project.version is missing from pyproject.toml")
-          print(match.group(1))
-          PY
-          )"
-          expected_tag="v${package_version}"
-          if [[ "${tag}" != "${expected_tag}" ]]; then
-            echo "Release tag ${tag} does not match project version ${package_version}" >&2
-            exit 1
-          fi
-
-          tag_commit="$(git rev-list -n 1 "${tag}")"
-          if ! git rev-parse --verify origin/main >/dev/null; then
-            echo "origin/main is not available in the checkout" >&2
-            exit 1
-          fi
-
-          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
-          echo "sha=${tag_commit}" >> "${GITHUB_OUTPUT}"
-          echo "version=${package_version}" >> "${GITHUB_OUTPUT}"
-
-          if ! git merge-base --is-ancestor "${tag_commit}" origin/main; then
-            echo "::notice::Skipping release because ${tag} points to ${tag_commit}, which is not on origin/main"
-            echo "publish=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          echo "publish=true" >> "${GITHUB_OUTPUT}"
+        run: >-
+          python3 .github/scripts/validate-release.py
+          --tag "${RELEASE_TAG}"
+          --main-ref origin/main
 
   release-check:
     name: Release checks
@@ -110,11 +84,13 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
         with:
-          enable-cache: true
+          enable-cache: false
+          version: "0.11.29"
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
+          cache: false
           components: rustfmt,clippy
           rustflags: ""
 
@@ -169,7 +145,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           manylinux: ${{ matrix.platform.manylinux || 'auto' }}
           args: --release --locked --out dist --compatibility pypi
-          sccache: true
+          sccache: false
 
       - name: Smoke test built wheel
         run: |
@@ -203,12 +179,76 @@ jobs:
           command: sdist
           maturin-version: v1.14.1
           args: --out dist
+          sccache: false
 
       - name: Upload sdist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: distributions-sdist
           path: dist
+
+  artifact-validation:
+    name: Validate distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - validate-release-ref
+      - wheels
+      - sdist
+    env:
+      RELEASE_VERSION: ${{ needs.validate-release-ref.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: ${{ needs.validate-release-ref.outputs.sha }}
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: false
+          version: "0.11.29"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          cache: false
+          rustflags: ""
+
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          path: dist
+          pattern: distributions-*
+          merge-multiple: true
+
+      - name: Validate distribution set and metadata
+        run: >-
+          python3 .github/scripts/check-distributions.py
+          --complete
+          --version "${RELEASE_VERSION}"
+          dist/*
+
+      - name: Rebuild wheel from sdist
+        run: uv build --wheel dist/takumi_py-*.tar.gz --out-dir dist-from-sdist
+
+      - name: Validate rebuilt wheel
+        run: >-
+          python3 .github/scripts/check-distributions.py
+          --version "${RELEASE_VERSION}"
+          dist-from-sdist/*.whl
+
+      - name: Smoke test wheel rebuilt from sdist
+        run: |
+          python -m pip install --upgrade pip
+          python .github/scripts/install-built-wheel.py dist-from-sdist
+          python .github/scripts/smoke-wheel.py
 
   provenance:
     name: Attest distributions
@@ -217,6 +257,7 @@ jobs:
     needs:
       - wheels
       - sdist
+      - artifact-validation
     permissions:
       contents: read
       attestations: write
@@ -242,6 +283,7 @@ jobs:
       - validate-release-ref
       - wheels
       - sdist
+      - artifact-validation
       - provenance
     environment:
       name: release
@@ -270,7 +312,9 @@ jobs:
       - validate-release-ref
       - wheels
       - sdist
+      - artifact-validation
       - provenance
+      - pypi-publish
     permissions:
       contents: write
     steps:
@@ -287,16 +331,19 @@ jobs:
           pattern: distributions-*
           merge-multiple: true
 
-      - name: Create release and upload distributions
+      - name: Create draft release and upload distributions
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.validate-release-ref.outputs.tag }}
         run: |
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release upload "${RELEASE_TAG}" dist/* --clobber
-          else
-            gh release create "${RELEASE_TAG}" dist/* \
-              --verify-tag \
-              --title "${RELEASE_TAG}" \
-              --generate-notes
-          fi
+          gh release create "${RELEASE_TAG}" dist/* \
+            --draft \
+            --verify-tag \
+            --title "${RELEASE_TAG}" \
+            --generate-notes
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate-release-ref.outputs.tag }}
+        run: gh release edit "${RELEASE_TAG}" --draft=false
