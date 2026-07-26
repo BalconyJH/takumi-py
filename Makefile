@@ -1,6 +1,7 @@
 UV ?= uv
 PYTEST ?= $(UV) run --group test pytest -n auto --dist worksteal
 TY ?= $(UV) run ty
+ZENSICAL ?= $(UV) run --group docs zensical
 
 .DEFAULT_GOAL := help
 
@@ -45,24 +46,35 @@ test: develop ## Run pytest.
 	@echo "==> Running pytest"
 	$(PYTEST)
 
+.PHONY: docs docs-serve docs-build
+docs: docs-serve ## Preview the documentation site locally.
+
+docs-serve: ensure-uv ## Preview the documentation site locally.
+	@echo "==> Serving documentation"
+	$(ZENSICAL) serve
+
+docs-build: ensure-uv ## Build documentation and fail on warnings.
+	@echo "==> Building documentation"
+	$(ZENSICAL) build --clean --strict
+
 .PHONY: ruff-format ruff-format-check ruff-check lint ty typecheck cargo-fmt cargo-check cargo-clippy check
 ruff-format: ensure-uv ## Format Python files with Ruff.
 	@echo "==> Formatting Python files with Ruff"
-	$(UV) run ruff format python tests examples
+	$(UV) run ruff format python tests examples .github/scripts
 
 ruff-format-check: ensure-uv ## Check Python formatting with Ruff.
 	@echo "==> Checking Python formatting with Ruff"
-	$(UV) run ruff format --check python tests examples
+	$(UV) run ruff format --check python tests examples .github/scripts
 
 ruff-check: ensure-uv ## Run Ruff lint checks.
 	@echo "==> Running Ruff checks"
-	$(UV) run ruff check python tests examples pyproject.toml
+	$(UV) run ruff check python tests examples .github/scripts pyproject.toml
 
 lint: ruff-check ## Alias for ruff-check.
 
 ty: ensure-uv ## Run ty type checking.
 	@echo "==> Running ty"
-	$(TY) check python tests examples
+	$(TY) check python tests examples .github/scripts
 
 typecheck: ty ## Alias for ty.
 

@@ -48,6 +48,40 @@ jobs:
       - name: Run checks
         run: make check
 
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - quality
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
+          version: "0.11.29"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          rustflags: ""
+
+      - name: Sync documentation dependencies
+        run: uv sync --locked --group docs
+
+      - name: Build documentation
+        run: make docs-build
+
   sdist-smoke:
     name: Sdist smoke
     runs-on: ubuntu-latest

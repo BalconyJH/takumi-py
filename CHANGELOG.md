@@ -8,17 +8,45 @@ identifiers.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-26
+
+### Added
+
+- Add custom Jinja filter registration to `TemplateRenderer` and
+  `render_template_to_html`.
+- Allow callers to inject a complete Jinja `Environment`, including custom
+  loaders, globals, tests, extensions, and undefined-value policies, without
+  giving up the custom filter convenience API.
+- Allow `TemplateRenderer` to reuse an injected, preconfigured `Renderer`.
+- Add a Zensical documentation site with task-oriented guides, generated API
+  reference, migration notes, and maintainer workflows.
+
 ### Changed
 
 - Update the native renderer from Takumi 2.0.1 to 2.2.0.
 - Extend the embedded Geist last-resort font's weight axis from 400–700 to
   300–800.
+- Validate the complete release artifact set and rebuild a wheel from the source
+  distribution before provenance generation or publication.
+- Publish to PyPI before creating a draft GitHub Release, then publish the
+  release without replacing existing assets.
+- Reject invalid render-level BCP-47 language tags, font weights outside
+  `1..=1000`, and zero-duration animation scenes or frames.
+
+### Removed
+
+- Remove the no-op `validate` argument from HTML compile, render, measure, and
+  SVG methods; node validation remains available on node-based APIs.
 
 ### Fixed
 
 - Include the embedded Geist font's OFL license in source and wheel
   distributions, and verify that wheels can be rebuilt from the source
   distribution without relying on the repository checkout.
+- Include the selected Takumi MIT license and third-party notice in source and
+  wheel distributions.
+- Prevent transparent intermediate filter buffers from underflowing while
+  computing alpha bounds, which fixes valid `drop-shadow()` filter renders.
 - Skip release jobs when a valid tag has not reached `main` yet instead of
   failing the pull request check, while leaving ordinary CI checks running.
 
@@ -93,6 +121,7 @@ identifiers.
 - Removed the experimental `pack_node()` API and `codec="msgpack"` compile path.
 - Removed unused benchmark scripts.
 
-[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.3.0
 [0.2.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.2.0
 [0.1.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.1.0
