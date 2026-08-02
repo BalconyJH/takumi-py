@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from base64 import urlsafe_b64encode
+import csv
 from email import policy
 from email.message import Message
 from email.parser import BytesParser
@@ -107,15 +109,42 @@ def check_wheel(path: Path, version: str) -> str:
     filename_platform = wheel_platform(path.name)
     dist_info = f"{PACKAGE_NAME}-{version}.dist-info"
     with zipfile.ZipFile(path) as archive:
+        corrupt_member = archive.testzip()
+        if corrupt_member is not None:
+            fail(f"{path}: corrupt wheel member {corrupt_member}")
         names = set(archive.namelist())
         metadata_path = f"{dist_info}/METADATA"
         wheel_path = f"{dist_info}/WHEEL"
+        record_path = f"{dist_info}/RECORD"
         try:
             metadata = parse_metadata(archive.read(metadata_path))
             wheel_metadata = parse_metadata(archive.read(wheel_path))
+            record_data = archive.read(record_path).decode("utf-8")
         except KeyError:
-            fail(f"{path}: missing {metadata_path} or {wheel_path}")
+            fail(f"{path}: missing METADATA, WHEEL, or RECORD")
         check_metadata(metadata, version, path)
+
+        rows = [row for row in csv.reader(record_data.splitlines()) if len(row) == 3]
+        record = {row[0]: (row[1], row[2]) for row in rows}
+        if len(record) != len(rows):
+            fail(f"{path}: wheel RECORD contains duplicate paths")
+        archived_files = {name for name in names if not name.endswith("/")}
+        if set(record) != archived_files:
+            fail(
+                f"{path}: wheel RECORD manifest mismatch: "
+                f"missing={sorted(archived_files - record.keys())}, "
+                f"unexpected={sorted(record.keys() - archived_files)}"
+            )
+        for name in sorted(archived_files - {record_path}):
+            digest, size = record[name]
+            data = archive.read(name)
+            expected_digest = "sha256=" + urlsafe_b64encode(
+                hashlib.sha256(data).digest()
+            ).decode().rstrip("=")
+            if digest != expected_digest or size != str(len(data)):
+                fail(f"{path}: invalid wheel RECORD entry for {name}")
+        if record[record_path] != ("", ""):
+            fail(f"{path}: wheel RECORD must not hash itself")
 
     if wheel_metadata["Wheel-Version"] != "1.0":
         fail(f"{path}: expected Wheel-Version 1.0")
