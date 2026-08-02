@@ -102,7 +102,7 @@ jobs:
           rustflags: ""
 
       - name: Sync build dependencies
-        run: uv sync --locked --group dev --no-sources
+        run: uv sync --locked --group dev
 
       - name: Build sdist
         shell: bash

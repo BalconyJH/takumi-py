@@ -40,7 +40,7 @@ sync-all: ensure-uv ## Sync all dependency groups and extras.
 
 sync-build: ensure-uv ## Sync dependencies needed to build release artifacts.
 	@echo "==> Syncing build dependencies"
-	@$(UV) sync --locked --group dev --no-sources
+	@$(UV) sync --locked --group dev
 
 .PHONY: install-prek
 install-prek: ensure-uv ## Install prek and git hooks.
