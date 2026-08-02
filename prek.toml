@@ -28,6 +28,34 @@ hooks = [
 ]
 
 [[repos]]
+repo = "https://github.com/crate-ci/typos"
+rev = "v1.48.0"
+hooks = [
+    { id = "typos", priority = 0 },
+]
+
+[[repos]]
+repo = "https://github.com/rbubley/mirrors-prettier"
+rev = "v3.9.6"
+hooks = [
+    { id = "prettier", types = ["yaml"], priority = 0 },
+]
+
+[[repos]]
+repo = "https://github.com/zizmorcore/zizmor-pre-commit"
+rev = "v1.29.0"
+hooks = [
+    { id = "zizmor", args = ["--pedantic"], priority = 0 },
+]
+
+[[repos]]
+repo = "https://github.com/python-jsonschema/check-jsonschema"
+rev = "0.37.4"
+hooks = [
+    { id = "check-github-workflows", priority = 0 },
+]
+
+[[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
 rev = "v0.15.16"
 hooks = [
@@ -47,4 +75,11 @@ repo = "https://github.com/compilerla/conventional-pre-commit"
 rev = "v4.2.0"
 hooks = [
     { id = "conventional-pre-commit", stages = ["commit-msg"], args = ["build", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style", "test"], priority = 0 },
+]
+
+[[repos]]
+repo = "https://github.com/rhysd/actionlint"
+rev = "v1.7.12"
+hooks = [
+    { id = "actionlint", stages = ["manual"], args = ["-ignore=SC2129", "-ignore=SC2016"], language = "golang", additional_dependencies = ["github.com/wasilibs/go-shellcheck/cmd/shellcheck@v0.11.1"], priority = 0 },
 ]
