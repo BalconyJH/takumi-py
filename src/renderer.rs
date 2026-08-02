@@ -24,7 +24,7 @@ use takumi::{
   render, render_animation as render_sequence_animation, render_svg, write_animated_gif,
   write_animated_png, write_animated_webp, write_image,
 };
-use takumi_core::resources::image::ImageCache;
+use takumi_core::resources::image::ResourceCache;
 
 use crate::{
   errors::{
@@ -155,18 +155,19 @@ struct RenderSettingsInput<'a> {
 #[pyclass(module = "takumi_py._core")]
 pub struct NativeRenderer {
   fonts: Arc<RwLock<Fonts>>,
-  image_cache: Arc<ImageCache>,
+  resource_cache: Arc<ResourceCache>,
   legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
 }
 
 #[pymethods]
 impl NativeRenderer {
   #[new]
-  #[pyo3(signature = (*, load_default_fonts=true, fonts=None, persistent_images=None))]
+  #[pyo3(signature = (*, load_default_fonts=true, fonts=None, persistent_images=None, cache_max_bytes=None))]
   pub fn new(
     load_default_fonts: bool,
     fonts: Option<Vec<FontResourceInput>>,
     persistent_images: Option<Vec<ImageResourceInput>>,
+    cache_max_bytes: Option<u64>,
   ) -> PyResult<Self> {
     let mut font_store = Fonts::default();
 
@@ -178,16 +179,17 @@ impl NativeRenderer {
       drop(register_font_input(&mut font_store, font)?);
     }
 
-    let image_cache = Arc::new(ImageCache::default());
+    let resource_cache =
+      Arc::new(cache_max_bytes.map_or_else(ResourceCache::default, ResourceCache::new));
     let mut legacy_images = HashMap::new();
     for (src, data, cache) in persistent_images.unwrap_or_default() {
-      let image = decode_image_resource(&image_cache, &data, parse_image_cache_mode(&cache)?)?;
+      let image = decode_image_resource(&resource_cache, &data, parse_image_cache_mode(&cache)?)?;
       legacy_images.insert(Arc::from(src), image);
     }
 
     Ok(Self {
       fonts: Arc::new(RwLock::new(font_store)),
-      image_cache,
+      resource_cache,
       legacy_images: Arc::new(RwLock::new(legacy_images)),
     })
   }
@@ -276,7 +278,7 @@ impl NativeRenderer {
 
   #[pyo3(signature = (src, data, cache="auto"))]
   pub fn put_persistent_image(&self, src: String, data: Vec<u8>, cache: &str) -> PyResult<()> {
-    let image = decode_image_resource(&self.image_cache, &data, parse_image_cache_mode(cache)?)?;
+    let image = decode_image_resource(&self.resource_cache, &data, parse_image_cache_mode(cache)?)?;
     let mut images = self.write_legacy_images()?;
     images.insert(Arc::from(src), image);
     Ok(())
@@ -706,7 +708,7 @@ impl NativeRenderer {
   fn resources(&self) -> RendererResources {
     RendererResources {
       fonts: Arc::clone(&self.fonts),
-      image_cache: Arc::clone(&self.image_cache),
+      resource_cache: Arc::clone(&self.resource_cache),
       legacy_images: Arc::clone(&self.legacy_images),
     }
   }
@@ -723,7 +725,7 @@ impl NativeRenderer {
 #[derive(Clone)]
 struct RendererResources {
   fonts: Arc<RwLock<Fonts>>,
-  image_cache: Arc<ImageCache>,
+  resource_cache: Arc<ResourceCache>,
   legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
 }
 
@@ -909,24 +911,24 @@ fn html_options(
 }
 
 fn decode_image_resource(
-  image_cache: &ImageCache,
+  resource_cache: &ResourceCache,
   data: &[u8],
   mode: ImageCacheMode,
 ) -> PyResult<ImageSource> {
-  image_cache
+  resource_cache
     .get_or_decode(data, mode)
     .map_err(|error| ResourceError::new_err(format!("failed to decode image resource: {error}")))
 }
 
 fn decode_render_images(
-  image_cache: &ImageCache,
+  resource_cache: &ResourceCache,
   legacy_images: &RwLock<HashMap<Arc<str>, ImageSource>>,
   resources: Vec<ImageResourceInput>,
 ) -> PyResult<HashMap<Arc<str>, ImageSource>> {
   let mut images = read_lock(legacy_images, "renderer image lock poisoned")?.clone();
 
   for (src, data, cache) in resources {
-    let image = decode_image_resource(image_cache, &data, parse_image_cache_mode(&cache)?)?;
+    let image = decode_image_resource(resource_cache, &data, parse_image_cache_mode(&cache)?)?;
     images.insert(Arc::from(src), image);
   }
 
@@ -981,7 +983,7 @@ fn render_to_bitmap(
   settings: RenderSettings,
 ) -> PyResult<Bitmap> {
   let images = decode_render_images(
-    &resources.image_cache,
+    &resources.resource_cache,
     &resources.legacy_images,
     settings.images.clone(),
   )?;
@@ -994,7 +996,7 @@ fn render_to_bitmap(
       .viewport(settings.viewport())
       .draw_debug_border(settings.draw_debug_border)
       .images(images)
-      .stylesheet(stylesheet)
+      .stylesheet(stylesheet.into())
       .time_ms(settings.time_ms)
       .dithering(settings.dithering.into())
       .node(node)
@@ -1013,7 +1015,7 @@ fn render_svg_to_string(
   settings: RenderSettings,
 ) -> PyResult<String> {
   let images = decode_render_images(
-    &resources.image_cache,
+    &resources.resource_cache,
     &resources.legacy_images,
     settings.images.clone(),
   )?;
@@ -1025,7 +1027,7 @@ fn render_svg_to_string(
     SvgOptions::builder()
       .viewport(settings.svg_viewport())
       .images(images)
-      .stylesheet(stylesheet)
+      .stylesheet(stylesheet.into())
       .time_ms(settings.time_ms)
       .node(node)
       .fonts(&fonts)
@@ -1043,7 +1045,7 @@ fn measure_to_node(
   settings: RenderSettings,
 ) -> PyResult<CoreMeasuredNode> {
   let images = decode_render_images(
-    &resources.image_cache,
+    &resources.resource_cache,
     &resources.legacy_images,
     settings.images.clone(),
   )?;
@@ -1056,7 +1058,7 @@ fn measure_to_node(
       .viewport(settings.viewport())
       .draw_debug_border(settings.draw_debug_border)
       .images(images)
-      .stylesheet(stylesheet)
+      .stylesheet(stylesheet.into())
       .time_ms(settings.time_ms)
       .dithering(settings.dithering.into())
       .node(node)
@@ -1101,7 +1103,7 @@ fn render_animation_to_vec(
   encoder_settings: AnimationEncoderSettings,
 ) -> PyResult<Vec<u8>> {
   let images = decode_render_images(
-    &resources.image_cache,
+    &resources.resource_cache,
     &resources.legacy_images,
     settings.images.clone(),
   )?;
@@ -1120,6 +1122,7 @@ fn build_sequence_scenes<'g>(
   settings: RenderSettings,
   images: HashMap<Arc<str>, ImageSource>,
 ) -> Vec<SequentialScene<'g>> {
+  let stylesheet = Arc::new(stylesheet);
   scenes
     .into_iter()
     .map(|(node, duration_ms)| {
@@ -1131,7 +1134,7 @@ fn build_sequence_scenes<'g>(
             .viewport(settings.viewport())
             .draw_debug_border(settings.draw_debug_border)
             .images(images.clone())
-            .stylesheet(stylesheet.clone())
+            .stylesheet(Arc::clone(&stylesheet))
             .dithering(settings.dithering.into())
             .node(node)
             .fonts(fonts)
