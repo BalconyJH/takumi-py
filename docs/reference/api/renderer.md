@@ -3,6 +3,11 @@
 `Renderer` is the primary entry point for compilation, measurement, static rendering,
 SVG, and animation.
 
+`Renderer(cache_max_bytes=...)` controls each renderer's resource cache. The glyph
+cache is process-wide and configured separately before first use.
+
+::: takumi_py.renderer.set_glyph_cache_max_bytes
+
 ::: takumi_py.renderer.Renderer
     options:
       members:

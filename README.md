@@ -15,6 +15,7 @@ The binding focuses on exposing practical Takumi core capabilities instead of co
 - Node Tree, HTML string, and Jinja template rendering into image bytes.
 - `RenderOptions`, including auto viewport, DPR, debug border, dithering, and `time_ms`.
 - Custom fonts, per-render image resources, font fallback families, language hints, and SVG output.
+- Raw row-major RGBA image sources and configurable resource and glyph cache budgets.
 - Rust-backed HTML parsing with configurable presets, Tailwind attribute mapping, and depth limits.
 - Layout measurement with a typed measured node tree result.
 - CSS and structured keyframe animation time sampling, sequence animation, and WebP/APNG/GIF animated encoders.
@@ -242,8 +243,36 @@ renderer.render_node(
 ```
 
 `ImageResource.cache` accepts `"auto"` or `"none"` and is forwarded to Takumi's
-native image cache. Tuple resources like `("memory://logo", data)` remain
+native resource cache. Tuple resources like `("memory://logo", data)` remain
 accepted and default to `"auto"`.
+
+Image nodes can also consume raw row-major RGBA pixels without image decoding:
+
+```python
+from takumi_py import RawRgbaImage, Renderer
+
+source: RawRgbaImage = {
+    "width": 2,
+    "height": 2,
+    "data": bytes([255, 0, 0, 128] * 4),
+}
+
+png = Renderer().render_node(
+    {"type": "image", "src": source, "width": 2, "height": 2},
+    width=2,
+    height=2,
+)
+```
+
+The byte length must equal `width * height * 4`. Input uses straight alpha by
+default; set `premultiplied=True` only when the RGB channels are already
+multiplied by alpha.
+
+`Renderer(cache_max_bytes=...)` controls the renderer-local resource cache for
+decoded images, scaled rasters, SVG rasters, and related render resources. The
+default is 16 MiB; `0` disables retention. Glyph masks and outlines use a separate
+process-wide cache. Call `set_glyph_cache_max_bytes(...)` before the process's first
+render when the default 8 MiB glyph budget is too small for the workload.
 
 `FontResource` accepts Takumi v2 descriptor fields:
 
@@ -390,6 +419,11 @@ renderer-level global context to explicit per-render resources:
   CSS selectors depend on `:lang(...)`.
 - `ImageResource.cache` is forwarded to the native image cache for per-render,
   constructor, and deprecated persistent-image resources.
+- Image nodes accept `RawRgbaImage` sources for already decoded row-major RGBA
+  pixels.
+- `Renderer(cache_max_bytes=...)` controls its resource cache, while
+  `set_glyph_cache_max_bytes(...)` controls the process-wide glyph cache before
+  first use.
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
   `subset_of`, and `generic_family`.
 - The built-in fallback font follows Takumi v2: a Latin Geist subset marked as

@@ -31,6 +31,31 @@ png = renderer.render_node(
 `ImageResource.cache` accepts `"auto"` or `"none"`. The tuple shorthand
 `("memory://logo", data)` remains supported and uses `"auto"` by default.
 
+### Raw RGBA pixels
+
+Use `RawRgbaImage` when pixels are already decoded as row-major RGBA. This avoids an
+image codec round trip:
+
+```python
+from takumi_py import RawRgbaImage, Renderer
+
+source: RawRgbaImage = {
+    "width": 2,
+    "height": 2,
+    "data": bytes([255, 0, 0, 128] * 4),
+}
+
+png = Renderer().render_node(
+    {"type": "image", "src": source, "width": 2, "height": 2},
+    width=2,
+    height=2,
+)
+```
+
+The byte length must be exactly `width * height * 4`. Data uses straight alpha by
+default. Set `premultiplied=True` only for pixels whose RGB channels already include
+the alpha multiplication.
+
 ## Fonts
 
 ```python
@@ -85,6 +110,25 @@ renderer.render_html(
 
 Render-level `lang` must be a valid BCP-47 language tag. Every render, measure, SVG,
 and animation entry point rejects an invalid tag with `ValueError`.
+
+## Cache budgets
+
+`Renderer(cache_max_bytes=...)` sets the byte budget shared by that renderer's
+decoded images, scaled image variants, SVG rasters, and related render resources.
+The Takumi default is 16 MiB; pass `0` to disable retention.
+
+Glyph masks and outlines use a separate process-wide cache with an 8 MiB default.
+For CJK-heavy workloads, configure it before the first render in the process:
+
+```python
+from takumi_py import Renderer, set_glyph_cache_max_bytes
+
+set_glyph_cache_max_bytes(32 * 1024 * 1024)
+renderer = Renderer(cache_max_bytes=64 * 1024 * 1024)
+```
+
+Changing the glyph budget after glyph rendering begins does not resize the existing
+process-wide caches.
 
 ## Lifecycle
 

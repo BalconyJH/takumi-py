@@ -6,9 +6,14 @@ The Python type layer defines node inputs, measurement results, and animation sc
 Raw animation frames also require positive dimensions and exactly
 `width * height * 4` RGBA bytes.
 
+`RawRgbaImage` describes decoded row-major RGBA pixels used as an `ImageNode.src`.
+Its byte length follows the same `width * height * 4` contract.
+
 ::: takumi_py.types.TextNode
 
 ::: takumi_py.types.ImageNode
+
+::: takumi_py.types.RawRgbaImage
 
 ::: takumi_py.types.ContainerNode
 

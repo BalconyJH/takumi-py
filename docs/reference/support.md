@@ -17,7 +17,7 @@ published wheel matrix.[^sdist]
 
 | Category | Supported range |
 | --- | --- |
-| Inputs | Node trees, HTML, Jinja templates, compiled nodes |
+| Inputs | Node trees, raw RGBA pixels, HTML, Jinja templates, compiled nodes |
 | Raster | PNG, JPEG, WebP, ICO, raw RGBA |
 | Vector | SVG |
 | Animation | WebP, APNG, GIF |
@@ -29,6 +29,8 @@ published wheel matrix.[^sdist]
 - Callers provide all other font and image bytes.
 - `resource_urls()` discovers URLs without accessing the network.
 - Images accept a per-render cache hint; the binding does not provide an HTTP client.
+- Each renderer exposes a resource-cache budget; glyph caches use a separate
+  process-wide budget configured before first use.
 
 ## Explicit exclusions
 
@@ -37,7 +39,7 @@ published wheel matrix.[^sdist]
 - `AbortSignal` or an asynchronous cancellation protocol
 - Data URL convenience APIs
 - A Node.js sidecar
-- Direct mappings of Takumi's internal layout, cache, or glyph types
+- Direct mappings of Takumi's internal layout, cache, or glyph implementation types
 
 !!! info "Compose infrastructure at the application boundary"
 
