@@ -11,9 +11,12 @@ from takumi_py import (
     FontResource,
     HtmlOptions,
     ImageResource,
+    NodeDecodeError,
     RawAnimationFrame,
+    RawRgbaImage,
     Renderer,
     RenderOptions,
+    set_glyph_cache_max_bytes,
     validate_node,
 )
 
@@ -170,6 +173,50 @@ def test_inline_image_bytes_can_be_rendered() -> None:
     )
 
     assert png.startswith(b"\x89PNG")
+
+
+def test_raw_rgba_image_source_can_be_rendered() -> None:
+    source: RawRgbaImage = {
+        "width": 2,
+        "height": 2,
+        "data": bytes([255, 0, 0, 128] * 4),
+    }
+
+    raw = Renderer(cache_max_bytes=0).render_node(
+        {"type": "image", "src": source, "width": 2, "height": 2},
+        width=2,
+        height=2,
+        format="raw",
+        validate=True,
+    )
+
+    assert len(raw) == 2 * 2 * 4
+
+
+def test_raw_rgba_image_source_rejects_mismatched_buffer_length() -> None:
+    with pytest.raises(NodeDecodeError, match="ImageSourceInput"):
+        Renderer().compile_node(
+            {
+                "type": "image",
+                "src": {"width": 2, "height": 2, "data": b"too short"},
+            }
+        )
+
+
+def test_renderer_cache_budgets_reject_negative_values() -> None:
+    with pytest.raises(ValueError, match="cache_max_bytes"):
+        Renderer(cache_max_bytes=-1)
+
+    with pytest.raises(ValueError, match="max_bytes"):
+        set_glyph_cache_max_bytes(-1)
+
+
+def test_takumi_2_5_css_properties_compile() -> None:
+    stylesheet = Renderer().compile_stylesheet(
+        "span { font-kerning: none; tab-size: 4; text-underline-position: under; }"
+    )
+
+    assert stylesheet is not None
 
 
 def test_per_render_fetched_resources_warns_and_still_resolves_images() -> None:

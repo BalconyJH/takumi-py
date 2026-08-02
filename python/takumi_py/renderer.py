@@ -39,24 +39,65 @@ from takumi_py.types import (
 
 @dataclass(frozen=True, slots=True)
 class CompiledHtml:
+    """A compiled HTML node together with its embedded stylesheets."""
+
     node: CompiledNode
     stylesheets: tuple[CompiledStyleSheet, ...] = ()
 
 
+def set_glyph_cache_max_bytes(max_bytes: int) -> None:
+    """Set the process-wide glyph cache budget before the first render.
+
+    Args:
+        max_bytes: Maximum retained glyph-cache size in bytes. Use ``0`` to
+            disable retention.
+
+    Raises:
+        ValueError: If ``max_bytes`` is negative.
+        RuntimeError: If Takumi has already initialized the glyph cache.
+    """
+    if max_bytes < 0:
+        raise ValueError("max_bytes must be greater than or equal to 0")
+    _core.set_glyph_cache_max_bytes(max_bytes)
+
+
 class Renderer:
+    """Compile, measure, and render Takumi nodes, HTML, SVG, and animations."""
+
     def __init__(
         self,
         *,
         load_default_fonts: bool = True,
         fonts: Sequence[FontResourceInput] | None = None,
         persistent_images: Sequence[ImageResourceInput] | None = None,
+        cache_max_bytes: int | None = None,
     ) -> None:
+        """Create a renderer with optional font, image, and cache configuration.
+
+        ``cache_max_bytes`` controls the renderer-local resource cache for decoded
+        images, SVG rasters, and related render resources. Pass ``0`` to disable
+        retention or ``None`` to use Takumi's default budget.
+
+        Args:
+            load_default_fonts: Load Takumi's bundled default fonts.
+            fonts: Font resources to register during construction.
+            persistent_images: Deprecated renderer-wide image resources. Prefer
+                passing ``images`` to each render call.
+            cache_max_bytes: Maximum renderer-local resource-cache size in bytes.
+
+        Raises:
+            ValueError: If ``cache_max_bytes`` is negative.
+            TakumiError: If native renderer initialization fails.
+        """
+        if cache_max_bytes is not None and cache_max_bytes < 0:
+            raise ValueError("cache_max_bytes must be greater than or equal to 0")
         if persistent_images is not None:
             warn_deprecated("persistent_images", "per-render images")
         self._native = _core.NativeRenderer(
             load_default_fonts=load_default_fonts,
             fonts=normalize_font_resources(fonts),
             persistent_images=normalize_image_resources(persistent_images),
+            cache_max_bytes=cache_max_bytes,
         )
 
     def compile_node(

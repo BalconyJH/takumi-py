@@ -33,7 +33,7 @@ from takumi_py.options import (
     StyleMap,
     StyleValue,
 )
-from takumi_py.renderer import CompiledHtml, Renderer
+from takumi_py.renderer import CompiledHtml, Renderer, set_glyph_cache_max_bytes
 from takumi_py.template import TemplateRenderer
 from takumi_py.types import (
     AnimationScene,
@@ -46,6 +46,7 @@ from takumi_py.types import (
     Node,
     NodeInput,
     RawAnimationFrame,
+    RawRgbaImage,
     TextNode,
     validate_node,
 )
@@ -84,6 +85,7 @@ __all__ = [
     "NodeValidationError",
     "ParsedHtml",
     "RawAnimationFrame",
+    "RawRgbaImage",
     "RenderError",
     "RenderOptions",
     "Renderer",
@@ -97,5 +99,6 @@ __all__ = [
     "TextNode",
     "UnsupportedFormatError",
     "parse_html",
+    "set_glyph_cache_max_bytes",
     "validate_node",
 ]
