@@ -317,6 +317,7 @@ jobs:
         run: >-
           python3 .github/scripts/verify-distributions.py dist-from-sdist
           --wheel-only
+          --sdist-built-wheel
           --expected-version "${RELEASE_VERSION}"
           --python "$(cat .python-version)"
           --uv uv

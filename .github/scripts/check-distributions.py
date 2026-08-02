@@ -89,7 +89,7 @@ def check_sdist(path: Path, version: str) -> None:
         )
 
 
-def wheel_platform(tag: str) -> str:
+def wheel_platform(tag: str, *, allow_native: bool = False) -> str:
     if "manylinux2014_x86_64" in tag or "manylinux_2_17_x86_64" in tag:
         return "linux-x86_64"
     if "manylinux2014_aarch64" in tag or "manylinux_2_17_aarch64" in tag:
@@ -98,15 +98,19 @@ def wheel_platform(tag: str) -> str:
         return "macos-aarch64"
     if "win_amd64" in tag:
         return "windows-x64"
+    if allow_native:
+        _, separator, platform_tag = tag.removesuffix(".whl").rpartition("cp310-abi3-")
+        if separator and platform_tag:
+            return f"native:{platform_tag}"
     fail(f"unsupported wheel platform tag: {tag}")
 
 
-def check_wheel(path: Path, version: str) -> str:
+def check_wheel(path: Path, version: str, *, allow_native: bool = False) -> str:
     expected_prefix = f"{PACKAGE_NAME}-{version}-cp310-abi3-"
     if not path.name.startswith(expected_prefix):
         fail(f"{path}: wheel filename must start with {expected_prefix}")
 
-    filename_platform = wheel_platform(path.name)
+    filename_platform = wheel_platform(path.name, allow_native=allow_native)
     dist_info = f"{PACKAGE_NAME}-{version}.dist-info"
     with zipfile.ZipFile(path) as archive:
         corrupt_member = archive.testzip()
@@ -153,7 +157,7 @@ def check_wheel(path: Path, version: str) -> str:
     tags = wheel_metadata.get_all("Tag", [])
     if not tags or any(not tag.startswith("cp310-abi3-") for tag in tags):
         fail(f"{path}: expected only cp310-abi3 wheel tags, got {tags}")
-    tag_platforms = {wheel_platform(tag) for tag in tags}
+    tag_platforms = {wheel_platform(tag, allow_native=allow_native) for tag in tags}
     if tag_platforms != {filename_platform}:
         fail(
             f"{path}: filename platform {filename_platform} does not match "
@@ -192,8 +196,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
     parser.add_argument("--complete", action="store_true")
+    parser.add_argument("--allow-native-wheel-tag", action="store_true")
     parser.add_argument("paths", nargs="+", type=Path)
     args = parser.parse_args()
+
+    if args.complete and args.allow_native_wheel_tag:
+        fail("--allow-native-wheel-tag cannot be used with --complete")
 
     missing = [path for path in args.paths if not path.is_file()]
     if missing:
@@ -209,7 +217,14 @@ def main() -> None:
 
     for sdist in sdists:
         check_sdist(sdist, args.version)
-    platforms = {check_wheel(wheel, args.version) for wheel in wheels}
+    platforms = {
+        check_wheel(
+            wheel,
+            args.version,
+            allow_native=args.allow_native_wheel_tag,
+        )
+        for wheel in wheels
+    }
 
     if args.complete:
         if len(sdists) != 1:

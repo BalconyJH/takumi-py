@@ -50,6 +50,7 @@ def check_archives(
     paths: list[Path],
     *,
     expected_version: str,
+    allow_native_wheel_tag: bool = False,
     repository_root: Path,
     env: dict[str, str],
 ) -> None:
@@ -59,6 +60,7 @@ def check_archives(
             str(repository_root / ".github/scripts/check-distributions.py"),
             "--version",
             expected_version,
+            *(["--allow-native-wheel-tag"] if allow_native_wheel_tag else []),
             *(str(path) for path in paths),
         ],
         cwd=repository_root,
@@ -132,6 +134,7 @@ def rebuild_and_smoke_sdist(
     check_archives(
         [wheel],
         expected_version=expected_version,
+        allow_native_wheel_tag=True,
         repository_root=repository_root,
         env=env,
     )
@@ -155,11 +158,14 @@ def parse_args() -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--wheel-only", action="store_true")
     mode.add_argument("--sdist-only", action="store_true")
+    parser.add_argument("--sdist-built-wheel", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.sdist_built_wheel and not args.wheel_only:
+        fail("--sdist-built-wheel requires --wheel-only")
     dist_dir = args.dist_dir.expanduser().resolve()
     if not dist_dir.is_dir():
         fail(f"distribution directory does not exist: {dist_dir}")
@@ -184,6 +190,7 @@ def main() -> None:
     check_archives(
         selected,
         expected_version=args.expected_version,
+        allow_native_wheel_tag=args.sdist_built_wheel,
         repository_root=repository_root,
         env=env,
     )
