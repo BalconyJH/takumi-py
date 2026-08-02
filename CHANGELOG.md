@@ -8,7 +8,7 @@ identifiers.
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-07-26
+## [0.3.0] - 2026-08-02
 
 ### Added
 
@@ -18,18 +18,33 @@ identifiers.
   loaders, globals, tests, extensions, and undefined-value policies, without
   giving up the custom filter convenience API.
 - Allow `TemplateRenderer` to reuse an injected, preconfigured `Renderer`.
+- Add typed raw RGBA image sources for node trees, including premultiplied-alpha
+  input support.
+- Add per-renderer resource cache budgets through `cache_max_bytes` and a
+  process-wide `set_glyph_cache_max_bytes` configuration API.
 - Add a Zensical documentation site with task-oriented guides, generated API
   reference, migration notes, and maintainer workflows.
 
 ### Changed
 
-- Update the native renderer from Takumi 2.0.1 to 2.2.0.
+- Update Takumi from 2.0.1 to 2.5.4, including `takumi-core` 0.11.0,
+  `takumi-raster` 0.4.5, `takumi-svg` 0.3.4, and `takumi-html` 0.1.17.
+- Adopt Takumi's unified resource cache and new CSS support for SVG filter
+  references, `font-kerning`, `tab-size`, and `text-underline-position`.
 - Extend the embedded Geist last-resort font's weight axis from 400–700 to
   300–800.
 - Validate the complete release artifact set and rebuild a wheel from the source
   distribution before provenance generation or publication.
-- Publish to PyPI before creating a draft GitHub Release, then publish the
-  release without replacing existing assets.
+- Split CI, documentation, and repository hooks into exact-commit release gates,
+  then create an annotated release tag automatically when the project version changes.
+- Verify published PyPI filenames and SHA-256 digests before creating or recovering
+  a GitHub Release, and deploy versioned documentation from the verified release tag.
+- Validate `cp310-abi3` wheels on Python 3.10 through 3.14 and run distribution
+  smoke tests from isolated environments outside the source checkout.
+- Update GitHub Actions pins, the CI uv runtime, and repository workflow linters
+  to their latest releases.
+- Document every public `Renderer` method and keep its internal compilation
+  helpers outside the public API surface.
 - Reject invalid render-level BCP-47 language tags, font weights outside
   `1..=1000`, and zero-duration animation scenes or frames.
 
@@ -40,6 +55,8 @@ identifiers.
 
 ### Fixed
 
+- Align `_core.pyi` with the native runtime exports, constructor semantics, and
+  non-subclassable PyO3 classes, enforced by `mypy.stubtest` in `make check`.
 - Include the embedded Geist font's OFL license in source and wheel
   distributions, and verify that wheels can be rebuilt from the source
   distribution without relying on the repository checkout.
