@@ -11,7 +11,10 @@ Repository: <https://github.com/kane50613/takumi>
 
 Copyright (c) 2025 Kane Wang
 
-The submodule retains its upstream license files:
+Source and wheel distributions include this notice and the complete selected MIT
+license text as package license metadata:
 
 - `takumilib/LICENSE-MIT`
-- `takumilib/LICENSE-APACHE`
+
+The full repository checkout also retains `takumilib/LICENSE-APACHE` from the
+dual-licensed upstream project.

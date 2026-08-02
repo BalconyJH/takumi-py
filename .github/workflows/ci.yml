@@ -6,49 +6,137 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: Enable extra debug diagnostics
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Auto Tag joins every trusted main push by its exact SHA.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
-    name: Check
+    name: Quality and tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: ".python-version"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
+          cache-suffix: quality-${{ github.event_name }}
+          version: "0.12.1"
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           components: rustfmt,clippy
           rustflags: ""
 
+      - name: Show runner context
+        run: |
+          echo "Runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
+          python --version
+          uv --version
+          rustc --version
+
       - name: Sync dependencies
-        run: uv sync --locked --dev
+        run: uv sync --locked --group dev --group test
+
+      - name: Show dependency snapshot
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+        run: |
+          uv pip list
+          uv tree --locked
+          cargo tree --locked
 
       - name: Run checks
         run: make check
 
+  sdist-smoke:
+    name: Sdist build and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs:
+      - quality
+    env:
+      BUILD_LOG: sdist-build.log
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-suffix: sdist-${{ github.event_name }}
+          version: "0.12.1"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          rustflags: ""
+
+      - name: Sync build dependencies
+        run: uv sync --locked --group dev
+
+      - name: Build sdist
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run --group dev maturin sdist --out dist 2>&1 | tee "${BUILD_LOG}"
+
+      - name: Verify sdist in isolation
+        run: >-
+          python3 .github/scripts/verify-distributions.py dist
+          --sdist-only
+          --expected-version "$(uv version --short)"
+          --python "$(cat .python-version)"
+          --uv uv
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload sdist build log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-sdist-build-log
+          path: ${{ env.BUILD_LOG }}
+          if-no-files-found: warn
+          retention-days: 14
+
   wheel-smoke:
-    name: Wheel smoke (${{ matrix.platform.name }})
+    name: Wheel build and smoke (${{ matrix.platform.name }})
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 45
     needs:
@@ -73,18 +161,25 @@ jobs:
             target: x64
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: ".python-version"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-suffix: wheel-${{ matrix.platform.name }}-${{ github.event_name }}
+          version: "0.12.1"
+
       - name: Build wheel
-        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           maturin-version: v1.14.1
           target: ${{ matrix.platform.target }}
@@ -92,8 +187,98 @@ jobs:
           args: --release --locked --out dist --compatibility pypi
           sccache: true
 
-      - name: Smoke test built wheel
+      - name: Verify wheel in isolation
+        shell: bash
+        run: >-
+          python .github/scripts/verify-distributions.py dist
+          --wheel-only
+          --expected-version "$(uv version --short)"
+          --python "$(cat .python-version)"
+          --uv uv
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-wheel-${{ matrix.platform.name }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+  abi3-smoke:
+    name: abi3 smoke (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - wheel-smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-suffix: abi3-${{ matrix.python-version }}-${{ github.event_name }}
+          version: "0.12.1"
+
+      - name: Download Linux wheel
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ci-wheel-linux-x86_64
+          path: dist
+
+      - name: Verify abi3 wheel
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: >-
+          python3 .github/scripts/verify-distributions.py dist
+          --wheel-only
+          --expected-version "$(uv version --short)"
+          --python "${PYTHON_VERSION}"
+          --uv uv
+
+  result:
+    name: Required checks
+    if: ${{ always() }}
+    needs:
+      - quality
+      - sdist-smoke
+      - wheel-smoke
+      - abi3-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every CI layer
+        shell: bash
+        env:
+          ABI3_RESULT: ${{ needs.abi3-smoke.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          SDIST_RESULT: ${{ needs.sdist-smoke.result }}
+          WHEEL_RESULT: ${{ needs.wheel-smoke.result }}
         run: |
-          python -m pip install --upgrade pip
-          python .github/scripts/install-built-wheel.py dist
-          python .github/scripts/smoke-wheel.py
+          failed=false
+          for result in \
+            "${QUALITY_RESULT}" \
+            "${SDIST_RESULT}" \
+            "${WHEEL_RESULT}" \
+            "${ABI3_RESULT}"; do
+            if [[ "${result}" != "success" ]]; then
+              failed=true
+            fi
+          done
+          if [[ "${failed}" == "true" ]]; then
+            echo "::error::At least one required CI layer did not succeed."
+            exit 1
+          fi
+          echo "All required CI layers succeeded."

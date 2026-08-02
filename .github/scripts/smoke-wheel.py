@@ -1,15 +1,35 @@
 from __future__ import annotations
 
 from importlib.metadata import version
+import os
+from pathlib import Path
 import platform
 import sys
 
+import takumi_py
 from takumi_py import Renderer
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def main() -> None:
+    expected_version = os.environ.get("TAKUMI_PY_EXPECTED_VERSION")
+    installed_version = version("takumi-py")
+    if expected_version is not None and installed_version != expected_version:
+        raise SystemExit(
+            f"installed version {installed_version!r} != expected {expected_version!r}"
+        )
+
+    repository_root_value = os.environ.get("TAKUMI_PY_REPOSITORY_ROOT")
+    if repository_root_value is not None:
+        repository_root = Path(repository_root_value).resolve()
+        module_path = Path(takumi_py.__file__).resolve()
+        if module_path.is_relative_to(repository_root):
+            raise SystemExit(
+                "smoke imported the source checkout instead of the installed wheel: "
+                f"{module_path}"
+            )
+
     renderer = Renderer()
 
     png = renderer.render_html(
@@ -68,7 +88,7 @@ def main() -> None:
         raise SystemExit(f"measure_node returned {measured.width}x{measured.height}")
 
     sys.stdout.write(
-        f"takumi-py {version('takumi-py')} wheel smoke passed on {platform.platform()}\n"
+        f"takumi-py {installed_version} wheel smoke passed on {platform.platform()}\n"
     )
 
 

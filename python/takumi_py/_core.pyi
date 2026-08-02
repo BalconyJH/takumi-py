@@ -1,6 +1,23 @@
 from collections.abc import Sequence
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, final, type_check_only
 from typing_extensions import TypedDict
+
+__all__ = [
+    "AnimationError",
+    "CompiledNode",
+    "CompiledStyleSheet",
+    "FontError",
+    "HtmlParseError",
+    "NativeRenderer",
+    "NodeDecodeError",
+    "NodeValidationError",
+    "RenderError",
+    "ResourceError",
+    "StyleSheetError",
+    "TakumiError",
+    "UnsupportedFormatError",
+    "set_glyph_cache_max_bytes",
+]
 
 class TakumiError(Exception): ...
 class HtmlParseError(TakumiError): ...
@@ -13,43 +30,51 @@ class FontError(TakumiError): ...
 class AnimationError(TakumiError): ...
 class UnsupportedFormatError(TakumiError): ...
 
+@final
 class CompiledNode:
     def resource_urls(self) -> list[str]: ...
 
+@final
 class CompiledStyleSheet: ...
 
-ImageOutputFormat: TypeAlias = Literal["png", "jpeg", "jpg", "webp", "ico", "raw"]
-AnimationOutputFormat: TypeAlias = Literal["webp", "apng", "gif"]
-DitheringAlgorithm: TypeAlias = Literal["none", "ordered-bayer", "floyd-steinberg"]
-ImageCacheMode: TypeAlias = Literal["auto", "none"]
-ImageResourceInput: TypeAlias = tuple[str, bytes, ImageCacheMode]
-FontResourceInput: TypeAlias = tuple[
+_ImageOutputFormat: TypeAlias = Literal["png", "jpeg", "jpg", "webp", "ico", "raw"]
+_AnimationOutputFormat: TypeAlias = Literal["webp", "apng", "gif"]
+_DitheringAlgorithm: TypeAlias = Literal["none", "ordered-bayer", "floyd-steinberg"]
+_ImageCacheMode: TypeAlias = Literal["auto", "none"]
+_ImageResourceInput: TypeAlias = tuple[str, bytes, _ImageCacheMode]
+_FontResourceInput: TypeAlias = tuple[
     bytes, str | None, float | None, str | None, str | None, str | None
 ]
-RawAnimationFrameInput: TypeAlias = tuple[bytes, int, int, int]
+_RawAnimationFrameInput: TypeAlias = tuple[bytes, int, int, int]
 
-class MeasuredTextRunOutput(TypedDict):
+def set_glyph_cache_max_bytes(max_bytes: int) -> None: ...
+
+@type_check_only
+class _MeasuredTextRunOutput(TypedDict):
     text: str
     x: float
     y: float
     width: float
     height: float
 
-class MeasuredNodeOutput(TypedDict):
+@type_check_only
+class _MeasuredNodeOutput(TypedDict):
     width: float
     height: float
     transform: list[float]
-    children: list[MeasuredNodeOutput]
-    runs: list[MeasuredTextRunOutput]
+    children: list[_MeasuredNodeOutput]
+    runs: list[_MeasuredTextRunOutput]
 
+@final
 class NativeRenderer:
-    def __init__(
-        self,
+    def __new__(
+        cls,
         *,
         load_default_fonts: bool = True,
-        fonts: Sequence[FontResourceInput] | None = None,
-        persistent_images: Sequence[ImageResourceInput] | None = None,
-    ) -> None: ...
+        fonts: Sequence[_FontResourceInput] | None = None,
+        persistent_images: Sequence[_ImageResourceInput] | None = None,
+        cache_max_bytes: int | None = None,
+    ) -> NativeRenderer: ...
     def compile_node_py(self, node: object) -> CompiledNode: ...
     def compile_html(
         self,
@@ -62,12 +87,12 @@ class NativeRenderer:
     def compile_stylesheet(self, css: str) -> CompiledStyleSheet: ...
     def compile_stylesheet_lossy(self, css: str) -> CompiledStyleSheet: ...
     def compile_keyframes(self, keyframes: object) -> CompiledStyleSheet: ...
-    def register_font(self, font: FontResourceInput) -> list[str]: ...
-    def register_fonts(self, fonts: Sequence[FontResourceInput]) -> list[str]: ...
-    def load_font(self, font: FontResourceInput) -> None: ...
-    def load_fonts(self, fonts: Sequence[FontResourceInput]) -> None: ...
+    def register_font(self, font: _FontResourceInput) -> list[str]: ...
+    def register_fonts(self, fonts: Sequence[_FontResourceInput]) -> list[str]: ...
+    def load_font(self, font: _FontResourceInput) -> None: ...
+    def load_fonts(self, fonts: Sequence[_FontResourceInput]) -> None: ...
     def put_persistent_image(
-        self, src: str, data: bytes, cache: ImageCacheMode = "auto"
+        self, src: str, data: bytes, cache: _ImageCacheMode = "auto"
     ) -> None: ...
     def clear_image_store(self) -> None: ...
     def render_compiled(
@@ -81,12 +106,12 @@ class NativeRenderer:
         device_pixel_ratio: float = 1.0,
         draw_debug_border: bool = False,
         time_ms: int = 0,
-        dithering: DitheringAlgorithm = "none",
-        fetched_resources: Sequence[ImageResourceInput] | None = None,
-        images: Sequence[ImageResourceInput] | None = None,
+        dithering: _DitheringAlgorithm = "none",
+        fetched_resources: Sequence[_ImageResourceInput] | None = None,
+        images: Sequence[_ImageResourceInput] | None = None,
         font_families: Sequence[str] | None = None,
         lang: str | None = None,
-        format: ImageOutputFormat = "png",
+        format: _ImageOutputFormat = "png",
         quality: int | None = None,
         lossless: bool | None = None,
     ) -> bytes: ...
@@ -101,12 +126,12 @@ class NativeRenderer:
         device_pixel_ratio: float = 1.0,
         draw_debug_border: bool = False,
         time_ms: int = 0,
-        dithering: DitheringAlgorithm = "none",
-        fetched_resources: Sequence[ImageResourceInput] | None = None,
-        images: Sequence[ImageResourceInput] | None = None,
+        dithering: _DitheringAlgorithm = "none",
+        fetched_resources: Sequence[_ImageResourceInput] | None = None,
+        images: Sequence[_ImageResourceInput] | None = None,
         font_families: Sequence[str] | None = None,
         lang: str | None = None,
-    ) -> MeasuredNodeOutput: ...
+    ) -> _MeasuredNodeOutput: ...
     def render_svg_compiled(
         self,
         node: CompiledNode,
@@ -116,8 +141,8 @@ class NativeRenderer:
         height: int | None = 630,
         font_size: float = 16.0,
         time_ms: int = 0,
-        fetched_resources: Sequence[ImageResourceInput] | None = None,
-        images: Sequence[ImageResourceInput] | None = None,
+        fetched_resources: Sequence[_ImageResourceInput] | None = None,
+        images: Sequence[_ImageResourceInput] | None = None,
         font_families: Sequence[str] | None = None,
         lang: str | None = None,
     ) -> str: ...
@@ -132,12 +157,12 @@ class NativeRenderer:
         font_size: float = 16.0,
         device_pixel_ratio: float = 1.0,
         draw_debug_border: bool = False,
-        dithering: DitheringAlgorithm = "none",
-        fetched_resources: Sequence[ImageResourceInput] | None = None,
-        images: Sequence[ImageResourceInput] | None = None,
+        dithering: _DitheringAlgorithm = "none",
+        fetched_resources: Sequence[_ImageResourceInput] | None = None,
+        images: Sequence[_ImageResourceInput] | None = None,
         font_families: Sequence[str] | None = None,
         lang: str | None = None,
-        format: ImageOutputFormat = "png",
+        format: _ImageOutputFormat = "png",
         quality: int | None = None,
         lossless: bool | None = None,
     ) -> bytes: ...
@@ -151,13 +176,13 @@ class NativeRenderer:
         font_size: float = 16.0,
         device_pixel_ratio: float = 1.0,
         draw_debug_border: bool = False,
-        dithering: DitheringAlgorithm = "none",
-        fetched_resources: Sequence[ImageResourceInput] | None = None,
-        images: Sequence[ImageResourceInput] | None = None,
+        dithering: _DitheringAlgorithm = "none",
+        fetched_resources: Sequence[_ImageResourceInput] | None = None,
+        images: Sequence[_ImageResourceInput] | None = None,
         font_families: Sequence[str] | None = None,
         lang: str | None = None,
         fps: int = 30,
-        format: AnimationOutputFormat = "webp",
+        format: _AnimationOutputFormat = "webp",
         quality: int | None = None,
         lossless: bool | None = None,
         loop_count: int | None = None,
@@ -167,9 +192,9 @@ class NativeRenderer:
     ) -> bytes: ...
     def encode_frames(
         self,
-        frames: Sequence[RawAnimationFrameInput],
+        frames: Sequence[_RawAnimationFrameInput],
         *,
-        format: AnimationOutputFormat = "webp",
+        format: _AnimationOutputFormat = "webp",
         quality: int | None = None,
         lossless: bool | None = None,
         loop_count: int | None = None,

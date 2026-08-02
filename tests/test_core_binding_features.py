@@ -11,9 +11,12 @@ from takumi_py import (
     FontResource,
     HtmlOptions,
     ImageResource,
+    NodeDecodeError,
     RawAnimationFrame,
+    RawRgbaImage,
     Renderer,
     RenderOptions,
+    set_glyph_cache_max_bytes,
     validate_node,
 )
 
@@ -22,8 +25,9 @@ SVG_1X1 = (
     b'<rect width="1" height="1" fill="red"/></svg>'
 )
 GEIST_FONT = Path("takumilib/assets/fonts/geist/Geist[wght].woff2")
+GEIST_MONO_FONT = Path("takumilib/assets/fonts/geist/GeistMono[wght].woff2")
 GEIST_LAST_RESORT_FONT = Path(
-    "takumilib/assets/fonts/geist/geist-latin-wght-400-700.woff2"
+    "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2"
 )
 NOTO_DEVANAGARI_FONT = Path(
     "takumilib/assets/fonts/noto-sans/noto-sans-devanagari-v30-devanagari-regular.woff2"
@@ -171,6 +175,50 @@ def test_inline_image_bytes_can_be_rendered() -> None:
     assert png.startswith(b"\x89PNG")
 
 
+def test_raw_rgba_image_source_can_be_rendered() -> None:
+    source: RawRgbaImage = {
+        "width": 2,
+        "height": 2,
+        "data": bytes([255, 0, 0, 128] * 4),
+    }
+
+    raw = Renderer(cache_max_bytes=0).render_node(
+        {"type": "image", "src": source, "width": 2, "height": 2},
+        width=2,
+        height=2,
+        format="raw",
+        validate=True,
+    )
+
+    assert len(raw) == 2 * 2 * 4
+
+
+def test_raw_rgba_image_source_rejects_mismatched_buffer_length() -> None:
+    with pytest.raises(NodeDecodeError, match="ImageSourceInput"):
+        Renderer().compile_node(
+            {
+                "type": "image",
+                "src": {"width": 2, "height": 2, "data": b"too short"},
+            }
+        )
+
+
+def test_renderer_cache_budgets_reject_negative_values() -> None:
+    with pytest.raises(ValueError, match="cache_max_bytes"):
+        Renderer(cache_max_bytes=-1)
+
+    with pytest.raises(ValueError, match="max_bytes"):
+        set_glyph_cache_max_bytes(-1)
+
+
+def test_takumi_2_5_css_properties_compile() -> None:
+    stylesheet = Renderer().compile_stylesheet(
+        "span { font-kerning: none; tab-size: 4; text-underline-position: under; }"
+    )
+
+    assert stylesheet is not None
+
+
 def test_per_render_fetched_resources_warns_and_still_resolves_images() -> None:
     with pytest.warns(DeprecationWarning, match="fetched_resources is deprecated"):
         png = Renderer().render_node(
@@ -212,6 +260,34 @@ def test_register_font_accepts_v2_descriptor_fields() -> None:
     assert families == ("Descriptor Geist",)
 
 
+def test_registered_generic_font_family_is_used_for_resolution() -> None:
+    renderer = Renderer()
+    renderer.register_font(
+        FontResource(
+            data=GEIST_MONO_FONT.read_bytes(),
+            generic_family="monospace",
+        )
+    )
+
+    def render_with_family(font_family: str) -> bytes:
+        return renderer.render_node(
+            {
+                "type": "text",
+                "text": "mono 0O1lI",
+                "style": {
+                    "fontFamily": font_family,
+                    "fontSize": "32px",
+                    "color": "black",
+                },
+            },
+            width=256,
+            height=64,
+            format="raw",
+        )
+
+    assert render_with_family("monospace") == render_with_family("Geist Mono")
+
+
 def test_register_font_rejects_invalid_style_descriptor() -> None:
     renderer = Renderer(load_default_fonts=False)
 
@@ -220,6 +296,19 @@ def test_register_font_rejects_invalid_style_descriptor() -> None:
             FontResource(
                 data=GEIST_FONT.read_bytes(),
                 style="banana",
+            )
+        )
+
+
+@pytest.mark.parametrize("weight", [0.0, 1001.0, float("nan"), float("inf")])
+def test_register_font_rejects_invalid_weight(weight: float) -> None:
+    renderer = Renderer(load_default_fonts=False)
+
+    with pytest.raises(ValueError, match="font weight must be a finite number"):
+        renderer.register_font(
+            FontResource(
+                data=GEIST_FONT.read_bytes(),
+                weight=weight,
             )
         )
 
@@ -247,11 +336,35 @@ def test_lang_selector_matches_html_lang_ancestor() -> None:
     assert measured.height == 13
 
 
+def test_invalid_render_language_is_rejected_across_render_paths() -> None:
+    renderer = Renderer()
+    node: dict[str, object] = {
+        "type": "container",
+        "style": {"width": "2px", "height": "2px"},
+    }
+    expected = "lang must be a valid BCP-47 language tag"
+
+    with pytest.raises(ValueError, match=expected):
+        renderer.render_node(node, width=2, height=2, lang="not valid!")
+    with pytest.raises(ValueError, match=expected):
+        renderer.measure_node(node, width=2, height=2, lang="not valid!")
+    with pytest.raises(ValueError, match=expected):
+        renderer.render_svg_node(node, width=2, height=2, lang="not valid!")
+    with pytest.raises(ValueError, match=expected):
+        renderer.render_animation(
+            [AnimationScene(node, duration_ms=100)],
+            width=2,
+            height=2,
+            fps=1,
+            lang="not valid!",
+        )
+
+
 def test_default_font_matches_upstream_geist_last_resort() -> None:
     node: dict[str, object] = {
         "type": "text",
         "text": "Hello",
-        "style": {"fontSize": "48px", "color": "black"},
+        "style": {"fontSize": "48px", "fontWeight": 300, "color": "black"},
     }
     expected = Renderer(load_default_fonts=False)
     expected.register_font(
@@ -593,6 +706,22 @@ def test_render_animation_and_encode_frames_write_animated_formats() -> None:
 def test_encode_frames_rejects_empty_frames() -> None:
     with pytest.raises(AnimationError):
         Renderer().encode_frames([])
+
+
+def test_animation_rejects_zero_duration_scenes_and_frames() -> None:
+    renderer = Renderer()
+    node: dict[str, object] = {
+        "type": "container",
+        "style": {"width": "2px", "height": "2px"},
+    }
+    scenes = [AnimationScene(node, duration_ms=0)]
+
+    with pytest.raises(ValueError, match="scene duration_ms must be greater than zero"):
+        renderer.render_sequence_at_time(scenes, 0, width=2, height=2)
+    with pytest.raises(ValueError, match="scene duration_ms must be greater than zero"):
+        renderer.render_animation(scenes, width=2, height=2)
+    with pytest.raises(ValueError, match="frame duration_ms must be greater than zero"):
+        renderer.encode_frames([RawAnimationFrame(bytes([0, 0, 0, 255] * 4), 2, 2, 0)])
 
 
 def test_render_options_dataclass_can_drive_rendering() -> None:

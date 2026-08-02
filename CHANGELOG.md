@@ -8,8 +8,64 @@ identifiers.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-02
+
+### Added
+
+- Add custom Jinja filter registration to `TemplateRenderer` and
+  `render_template_to_html`.
+- Allow callers to inject a complete Jinja `Environment`, including custom
+  loaders, globals, tests, extensions, and undefined-value policies, without
+  giving up the custom filter convenience API.
+- Allow `TemplateRenderer` to reuse an injected, preconfigured `Renderer`.
+- Add typed raw RGBA image sources for node trees, including premultiplied-alpha
+  input support.
+- Add per-renderer resource cache budgets through `cache_max_bytes` and a
+  process-wide `set_glyph_cache_max_bytes` configuration API.
+- Add a Zensical documentation site with task-oriented guides, generated API
+  reference, migration notes, and maintainer workflows.
+
+### Changed
+
+- Update Takumi from 2.0.1 to 2.5.4, including `takumi-core` 0.11.0,
+  `takumi-raster` 0.4.5, `takumi-svg` 0.3.4, and `takumi-html` 0.1.17.
+- Adopt Takumi's unified resource cache and new CSS support for SVG filter
+  references, `font-kerning`, `tab-size`, and `text-underline-position`.
+- Extend the embedded Geist last-resort font's weight axis from 400–700 to
+  300–800.
+- Validate the complete release artifact set and rebuild a wheel from the source
+  distribution before provenance generation or publication.
+- Split CI, documentation, and repository hooks into exact-commit release gates,
+  then create an annotated release tag automatically when the project version changes.
+- Verify published PyPI filenames and SHA-256 digests before creating or recovering
+  a GitHub Release, then deploy versioned documentation from the verified release tag
+  through GitHub Pages artifacts and OIDC.
+- Validate `cp310-abi3` wheels on Python 3.10 through 3.14 and run distribution
+  smoke tests from isolated environments outside the source checkout.
+- Update GitHub Actions pins, the CI uv runtime, and repository workflow linters
+  to their latest releases.
+- Update the documentation framework to Zensical 0.0.52.
+- Document every public `Renderer` method and keep its internal compilation
+  helpers outside the public API surface.
+- Reject invalid render-level BCP-47 language tags, font weights outside
+  `1..=1000`, and zero-duration animation scenes or frames.
+
+### Removed
+
+- Remove the no-op `validate` argument from HTML compile, render, measure, and
+  SVG methods; node validation remains available on node-based APIs.
+
 ### Fixed
 
+- Align `_core.pyi` with the native runtime exports, constructor semantics, and
+  non-subclassable PyO3 classes, enforced by `mypy.stubtest` in `make check`.
+- Include the embedded Geist font's OFL license in source and wheel
+  distributions, and verify that wheels can be rebuilt from the source
+  distribution without relying on the repository checkout.
+- Include the selected Takumi MIT license and third-party notice in source and
+  wheel distributions.
+- Prevent transparent intermediate filter buffers from underflowing while
+  computing alpha bounds, which fixes valid `drop-shadow()` filter renders.
 - Skip release jobs when a valid tag has not reached `main` yet instead of
   failing the pull request check, while leaving ordinary CI checks running.
 
@@ -84,6 +140,7 @@ identifiers.
 - Removed the experimental `pack_node()` API and `codec="msgpack"` compile path.
 - Removed unused benchmark scripts.
 
-[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.3.0
 [0.2.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.2.0
 [0.1.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.1.0

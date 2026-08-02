@@ -11,25 +11,37 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Auto Tag joins every trusted main push by its exact SHA.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prek:
-    name: Prek
+    name: Repository hooks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           components: rustfmt,clippy
           rustflags: ""
 
-      - name: Run pre-commit hooks via prek
-        uses: j178/prek-action@e98a699c41eb69ab013a45817a0406469a748f8d
+      - name: Install prek
+        uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
+        with:
+          install-only: true
+          prek-version: "0.4.11"
+
+      - name: Run repository hooks
+        run: prek run --all-files --show-diff-on-failure --color=always
+
+      - name: Validate GitHub Actions workflows
+        run: >-
+          prek run actionlint --all-files --hook-stage=manual
+          --show-diff-on-failure --color=always

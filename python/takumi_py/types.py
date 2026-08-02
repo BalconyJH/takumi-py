@@ -14,7 +14,7 @@ CompiledNode: TypeAlias = _core.CompiledNode
 CompiledStyleSheet: TypeAlias = _core.CompiledStyleSheet
 
 if TYPE_CHECKING:
-    from takumi_py._core import MeasuredNodeOutput
+    from takumi_py._core import _MeasuredNodeOutput
 
 
 class NodeBase(TypedDict, total=False):
@@ -33,9 +33,18 @@ class TextNode(NodeBase):
     text: str
 
 
+class RawRgbaImage(TypedDict):
+    """Raw row-major RGBA pixels used directly as an image node source."""
+
+    width: int
+    height: int
+    data: bytes
+    premultiplied: NotRequired[bool]
+
+
 class ImageNode(NodeBase):
     type: Literal["image"]
-    src: str | bytes
+    src: str | bytes | RawRgbaImage
     width: NotRequired[float]
     height: NotRequired[float]
 
@@ -56,6 +65,13 @@ class _NodeKind(TypedDict):
 class _ContainerNodeInput(NodeBase):
     type: Literal["container"]
     children: NotRequired[list[object]]
+
+
+class _ImageNodeInput(NodeBase):
+    type: Literal["image"]
+    src: object
+    width: NotRequired[float]
+    height: NotRequired[float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,7 +112,15 @@ def validate_node(node: object) -> Node:
         if kind == "text":
             return msgspec.convert(node, type=TextNode)
         if kind == "image":
-            return msgspec.convert(node, type=ImageNode)
+            image = msgspec.convert(node, type=_ImageNodeInput)
+            source = image["src"]
+            if isinstance(source, dict):
+                image["src"] = msgspec.convert(source, type=RawRgbaImage)
+            elif not isinstance(source, (str, bytes)):
+                raise NodeValidationError(
+                    "image src must be a string, bytes, or raw RGBA mapping"
+                )
+            return cast(ImageNode, image)
 
         container = msgspec.convert(node, type=_ContainerNodeInput)
         if "children" in container:
@@ -108,7 +132,7 @@ def validate_node(node: object) -> Node:
         raise NodeValidationError(str(error)) from error
 
 
-def measured_node_from_mapping(data: MeasuredNodeOutput) -> MeasuredNode:
+def measured_node_from_mapping(data: _MeasuredNodeOutput) -> MeasuredNode:
     children = tuple(measured_node_from_mapping(child) for child in data["children"])
     runs = tuple(
         MeasuredTextRun(

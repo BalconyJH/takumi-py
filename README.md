@@ -2,6 +2,11 @@
 
 `takumi-py` provides Python 3.10+ bindings for the Takumi Rust renderer.
 
+The documentation source lives in
+[`docs/`](https://github.com/BalconyJH/takumi-py/blob/main/docs/index.md) and is
+built with [Zensical](https://zensical.org/). Use `make docs-serve` for local
+preview.
+
 > [!IMPORTANT]
 > `takumi-py` is currently in a testing stage. APIs, wheel build targets, release automation, and exception types may still change while the Takumi core binding surface is completed; do not treat it as a stable production dependency yet.
 
@@ -10,6 +15,7 @@ The binding focuses on exposing practical Takumi core capabilities instead of co
 - Node Tree, HTML string, and Jinja template rendering into image bytes.
 - `RenderOptions`, including auto viewport, DPR, debug border, dithering, and `time_ms`.
 - Custom fonts, per-render image resources, font fallback families, language hints, and SVG output.
+- Raw row-major RGBA image sources and configurable resource and glyph cache budgets.
 - Rust-backed HTML parsing with configurable presets, Tailwind attribute mapping, and depth limits.
 - Layout measurement with a typed measured node tree result.
 - CSS and structured keyframe animation time sampling, sequence animation, and WebP/APNG/GIF animated encoders.
@@ -20,20 +26,26 @@ It intentionally does not include Playwright fallback, remote fetch, abort signa
 ## Development
 
 ```bash
+git submodule update --init --recursive
 uv sync --all-groups --all-extras
 uv run maturin develop
 make check
 ```
 
-`make check` checks Ruff formatting and linting, `ty`, pytest with coverage,
-and the Rust formatting/build checks.
+`make check` checks Ruff formatting and linting, `ty`, native stub/runtime parity
+with `mypy.stubtest`, pytest with coverage, and the Rust formatting/build checks.
 
 ## Install From Source
 
 ```bash
+git clone --recurse-submodules https://github.com/BalconyJH/takumi-py.git
+cd takumi-py
 uv sync --all-groups --all-extras
 uv run maturin develop
 ```
+
+For an existing non-recursive checkout, run
+`git submodule update --init --recursive` before syncing dependencies.
 
 ## Node Tree
 
@@ -203,7 +215,8 @@ and use `register_font` / `register_fonts`.
 `register_font` returns the family names registered by Takumi. Pass that list as
 `font_families` when you want a render call to use those families as its
 fallback stack. `lang` accepts a BCP-47 language tag and is forwarded to
-Takumi's locale-aware text shaping and line-breaking.
+Takumi's locale-aware text shaping and line-breaking. Invalid render-level language
+tags raise `ValueError` consistently across render, measure, SVG, and animation APIs.
 
 The render-level `lang` option is not injected as a node attribute, so it does
 not make CSS `:lang()` selectors match. Takumi's selector matcher follows the
@@ -230,8 +243,36 @@ renderer.render_node(
 ```
 
 `ImageResource.cache` accepts `"auto"` or `"none"` and is forwarded to Takumi's
-native image cache. Tuple resources like `("memory://logo", data)` remain
+native resource cache. Tuple resources like `("memory://logo", data)` remain
 accepted and default to `"auto"`.
+
+Image nodes can also consume raw row-major RGBA pixels without image decoding:
+
+```python
+from takumi_py import RawRgbaImage, Renderer
+
+source: RawRgbaImage = {
+    "width": 2,
+    "height": 2,
+    "data": bytes([255, 0, 0, 128] * 4),
+}
+
+png = Renderer().render_node(
+    {"type": "image", "src": source, "width": 2, "height": 2},
+    width=2,
+    height=2,
+)
+```
+
+The byte length must equal `width * height * 4`. Input uses straight alpha by
+default; set `premultiplied=True` only when the RGB channels are already
+multiplied by alpha.
+
+`Renderer(cache_max_bytes=...)` controls the renderer-local resource cache for
+decoded images, scaled rasters, SVG rasters, and related render resources. The
+default is 16 MiB; `0` disables retention. Glyph masks and outlines use a separate
+process-wide cache. Call `set_glyph_cache_max_bytes(...)` before the process's first
+render when the default 8 MiB glyph budget is too small for the workload.
 
 `FontResource` accepts Takumi v2 descriptor fields:
 
@@ -248,6 +289,8 @@ FontResource(
 
 `style` uses CSS font-style syntax such as `"normal"`, `"italic"`, or
 `"oblique 12deg"`. Invalid style values raise `FontError` during registration.
+When provided, `weight` must be a finite number from 1 through 1000; invalid weight
+overrides raise `ValueError`.
 
 ## SVG
 
@@ -360,6 +403,9 @@ webp = renderer.render_animation(
 )
 ```
 
+Animation scene and raw-frame `duration_ms` values must be positive. A zero duration
+raises `ValueError` instead of producing an empty or silently skipped frame.
+
 ## Takumi v2 Migration
 
 `takumi-py` now targets Takumi v2. The main resource model changed from a
@@ -373,6 +419,11 @@ renderer-level global context to explicit per-render resources:
   CSS selectors depend on `:lang(...)`.
 - `ImageResource.cache` is forwarded to the native image cache for per-render,
   constructor, and deprecated persistent-image resources.
+- Image nodes accept `RawRgbaImage` sources for already decoded row-major RGBA
+  pixels.
+- `Renderer(cache_max_bytes=...)` controls its resource cache, while
+  `set_glyph_cache_max_bytes(...)` controls the process-wide glyph cache before
+  first use.
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
   `subset_of`, and `generic_family`.
 - The built-in fallback font follows Takumi v2: a Latin Geist subset marked as
@@ -399,9 +450,28 @@ border/outline width, `transform-origin`, `object-position`, and SVG
 ## Jinja
 
 ```python
-from takumi_py import TemplateRenderer
+from pathlib import Path
 
-renderer = TemplateRenderer("examples/templates")
+from takumi_py import FontResource, Renderer, TemplateRenderer
+
+
+def uppercase(value: str) -> str:
+    return value.upper()
+
+
+configured_renderer = Renderer(load_default_fonts=False)
+families = configured_renderer.register_font(
+    FontResource(
+        Path("Inter-Regular.woff2").read_bytes(),
+        name="Inter",
+        generic_family="sans-serif",
+    )
+)
+renderer = TemplateRenderer(
+    "examples/templates",
+    filters={"uppercase": uppercase},
+    renderer=configured_renderer,
+)
 stylesheets = ["""
 .card {
   width: 1200px;
@@ -422,29 +492,29 @@ png = renderer.render(
         "subtitle": "HTML / Jinja to image",
     },
     stylesheets=stylesheets,
+    font_families=families,
     width=1200,
     height=630,
 )
 ```
 
+Registered filters are available to templates in the renderer's environment;
+for example, `{{ title | uppercase }}` uses the filter above. Injecting the
+configured `Renderer` preserves its registered font state for template renders.
+The standalone `render_template_to_html` helper accepts the same `filters`
+mapping when only the rendered HTML string is needed.
+
+For complete Jinja control, pass `environment=...` instead of `template_dir`.
+The injected `jinja2.Environment` keeps its loader, globals, tests, extensions,
+undefined-value policy, bytecode cache, and other native configuration. The
+optional `filters` mapping is then added to that same environment, and
+`renderer.environment` exposes the exact instance in use.
+
 ## Release
 
-Releases are handled by GitHub Actions. After the release commit is on `main`,
-tag that commit with `v` plus the `project.version` value from
-`pyproject.toml`, then push the tag to build wheels/sdist, publish to PyPI, and
-create a GitHub Release.
-
-```bash
-git tag v0.2.0 <commit-on-main>
-git push origin main v0.2.0
-```
-
-The tag must match `project.version` in `pyproject.toml`; for example, version
-`0.2.0` must be released as `v0.2.0`.
-
-Before publishing, the workflow generates GitHub build provenance attestations
-for every wheel and source distribution. The PyPI publication is recorded as a
-GitHub Deployment and links to the released version on PyPI.
+The version contract, exact-commit CI gates, automatic tag and publish pipeline,
+external repository settings, and failure recovery rules are maintained in the
+[release guide](https://github.com/BalconyJH/takumi-py/blob/main/docs/maintainers/releasing.md).
 
 ## Test Coverage
 
@@ -452,8 +522,9 @@ The Python test suite covers static rendering, the HTML adapter, templates, core
 
 ## License
 
-`takumi-py` is licensed under GPL-3.0-or-later. See [LICENSE](LICENSE).
+`takumi-py` is licensed under GPL-3.0-or-later. See
+[LICENSE](https://github.com/BalconyJH/takumi-py/blob/main/LICENSE).
 
 This repository includes `takumi` as a git submodule. `takumi` is licensed
 separately under `MIT OR Apache-2.0`; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](https://github.com/BalconyJH/takumi-py/blob/main/THIRD_PARTY_NOTICES.md).
