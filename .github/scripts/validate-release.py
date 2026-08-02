@@ -8,7 +8,7 @@ import re
 import subprocess
 import sys
 
-TAG_PATTERN = re.compile(r"v(?P<version>[0-9]+[.][0-9]+[.][0-9]+(?:[A-Za-z0-9.-]*)?)")
+TAG_PATTERN = re.compile(r"v(?P<version>[0-9]+[.][0-9]+[.][0-9]+)")
 
 
 def run(*command: str) -> str:

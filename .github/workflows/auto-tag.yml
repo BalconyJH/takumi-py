@@ -1,0 +1,339 @@
+name: Auto Tag on Version Change
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Only trusted main push runs are joined and the exact SHA is revalidated before writes.
+    workflows:
+      - CI
+      - Docs
+      - Prek
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact current main SHA whose untagged version should be recovered
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: auto-tag-${{ github.event.workflow_run.head_sha || inputs.source_sha }}
+  cancel-in-progress: false
+
+jobs:
+  tag-and-dispatch:
+    name: Gate source, tag version change, and dispatch publish
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: write # Dispatch the verified tag to the publish workflow.
+      contents: write # Create the annotated release tag.
+    env:
+      RECOVERY_MODE: ${{ github.event_name == 'workflow_dispatch' }}
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || inputs.source_sha }}
+    steps:
+      - name: Validate recovery request
+        if: env.RECOVERY_MODE == 'true'
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          if [[ "${REF_TYPE}" != "branch" || "${REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "::error::Pre-tag recovery must use the default branch workflow definition."
+            exit 1
+          fi
+          if [[ ! "${SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::source_sha must be a full lowercase commit SHA."
+            exit 1
+          fi
+
+      - name: Require all release workflows for the exact source SHA
+        id: gates
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          required_workflows=(
+            "CI:ci.yml"
+            "Docs:docs.yml"
+            "Prek:prek.yml"
+          )
+          ready=true
+
+          {
+            echo "### Release gate for \`${SOURCE_SHA}\`"
+            echo
+            echo "| Workflow | Status | Conclusion | Run |"
+            echo "| --- | --- | --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for required in "${required_workflows[@]}"; do
+            workflow_name=${required%%:*}
+            workflow_file=${required#*:}
+            payload=$(gh api --method GET \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
+              -f branch=main \
+              -f event=push \
+              -f head_sha="${SOURCE_SHA}" \
+              -f per_page=100)
+            workflow_run=$(jq -c \
+              '.workflow_runs | sort_by([.run_number, .run_attempt]) | last // empty' \
+              <<< "${payload}")
+
+            if [[ -z "${workflow_run}" ]]; then
+              ready=false
+              echo "::notice::${workflow_name} has no push run for ${SOURCE_SHA}; no tag will be created."
+              echo "| ${workflow_name} | missing | — | — |" >> "${GITHUB_STEP_SUMMARY}"
+              continue
+            fi
+
+            status=$(jq -r '.status' <<< "${workflow_run}")
+            conclusion=$(jq -r '.conclusion // ""' <<< "${workflow_run}")
+            run_number=$(jq -r '.run_number' <<< "${workflow_run}")
+            run_attempt=$(jq -r '.run_attempt' <<< "${workflow_run}")
+            run_url=$(jq -r '.html_url' <<< "${workflow_run}")
+            echo "| ${workflow_name} | ${status} | ${conclusion:-—} | [#${run_number}.${run_attempt}](${run_url}) |" \
+              >> "${GITHUB_STEP_SUMMARY}"
+            if [[ "${status}" != "completed" || "${conclusion}" != "success" ]]; then
+              ready=false
+              echo "::notice::${workflow_name} is ${status}/${conclusion:-none} for ${SOURCE_SHA}; no tag will be created."
+            fi
+          done
+
+          echo "ready=${ready}" >> "${GITHUB_OUTPUT}"
+          if [[ "${ready}" != "true" ]]; then
+            echo "Release gates are not all completed successfully; exiting without a tag."
+          fi
+
+      - name: Checkout the gated source commit
+        if: steps.gates.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        if: steps.gates.outputs.ready == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        if: steps.gates.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: false
+          version: "0.12.1"
+
+      - name: Set up Rust
+        if: steps.gates.outputs.ready == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache: false
+          rustflags: ""
+
+      - name: Verify source and select the release version
+        if: steps.gates.outputs.ready == 'true'
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            "+refs/heads/main:refs/remotes/origin/main"
+          HEAD_SHA=$(git rev-parse HEAD)
+          if [[ "${HEAD_SHA}" != "${SOURCE_SHA}" ]]; then
+            echo "::error::Checked out ${HEAD_SHA}, expected gated source ${SOURCE_SHA}."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${SOURCE_SHA}" origin/main; then
+            echo "::error::Gated source ${SOURCE_SHA} is not on main."
+            exit 1
+          fi
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [[ "${RECOVERY_MODE}" == "true" && "${SOURCE_SHA}" != "${MAIN_SHA}" ]]; then
+            echo "::error::Pre-tag recovery requires current main ${MAIN_SHA}, got ${SOURCE_SHA}."
+            exit 1
+          fi
+
+          if ! PARENT_SHA=$(git rev-parse --verify "${SOURCE_SHA}^1"); then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "Source has no first parent; no automatic release tag is needed."
+            exit 0
+          fi
+          if ! git cat-file -e "${PARENT_SHA}:pyproject.toml"; then
+            echo "::error::Cannot read pyproject.toml from first parent ${PARENT_SHA}."
+            exit 1
+          fi
+
+          PREVIOUS_VERSION=$(git show "${PARENT_SHA}:pyproject.toml" | python3 -c \
+            'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])')
+          VERSION=$(uv version --short)
+          if [[ "${VERSION}" == "${PREVIOUS_VERSION}" && "${RECOVERY_MODE}" != "true" ]]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "Project version remains ${VERSION}; no release tag is needed."
+            exit 0
+          fi
+
+          uvx --from packaging==26.2 python - \
+            "${PREVIOUS_VERSION}" "${VERSION}" "${RECOVERY_MODE}" <<'PY'
+          import sys
+
+          from packaging.version import InvalidVersion, Version
+
+          previous_raw, current_raw, recovery_raw = sys.argv[1:]
+          recovery = recovery_raw == "true"
+          try:
+              previous = Version(previous_raw)
+              current = Version(current_raw)
+          except InvalidVersion as error:
+              raise SystemExit(f"::error::Invalid PEP 440 project version: {error}") from error
+
+          if str(previous) != previous_raw or str(current) != current_raw:
+              raise SystemExit(
+                  "::error::Project versions must use canonical PEP 440 spelling: "
+                  f"{previous_raw!r} -> {previous}, {current_raw!r} -> {current}."
+              )
+          if current.local is not None:
+              raise SystemExit("::error::PyPI releases cannot use a local version segment.")
+          if current < previous or (current == previous and not recovery):
+              raise SystemExit(
+                  f"::error::Automatic releases must increase the version: {previous} -> {current}."
+              )
+          PY
+
+          CARGO_VERSION=$(cargo metadata --locked --no-deps --format-version 1 | jq -r \
+            --arg manifest "${GITHUB_WORKSPACE}/Cargo.toml" \
+            '.packages[] | select(.manifest_path == $manifest) | .version')
+          if [[ "${CARGO_VERSION}" != "${VERSION}" ]]; then
+            echo "::error::Cargo version ${CARGO_VERSION} does not match project version ${VERSION}."
+            exit 1
+          fi
+          uv lock --check
+          python3 - "${VERSION}" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          version = sys.argv[1]
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = re.compile(
+              rf"^## \[{re.escape(version)}\] - [0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$",
+              re.MULTILINE,
+          )
+          if pattern.search(changelog) is None:
+              raise SystemExit(
+                  f"::error::CHANGELOG.md has no dated {version} release heading."
+              )
+          PY
+
+          TAG="v${VERSION}"
+          if ! git check-ref-format "refs/tags/${TAG}"; then
+            echo "::error::Invalid release tag derived from project version: ${TAG}."
+            exit 1
+          fi
+          echo "changed=true" >> "${GITHUB_OUTPUT}"
+          echo "previous_version=${PREVIOUS_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "Detected releasable version ${PREVIOUS_VERSION} -> ${VERSION}."
+
+      - name: Decide whether to create or reuse the tag
+        if: steps.version.outputs.changed == 'true'
+        id: tag
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin \
+            "refs/tags/${TAG}" >/dev/null 2>&1; then
+            git fetch --force --no-tags origin \
+              "refs/tags/${TAG}:refs/tags/${TAG}"
+            TAG_SHA=$(git rev-list -n 1 "refs/tags/${TAG}")
+            if [[ "${TAG_SHA}" != "${SOURCE_SHA}" ]]; then
+              echo "::error::Tag ${TAG} already points to ${TAG_SHA}, not ${SOURCE_SHA}."
+              exit 1
+            fi
+            echo "create=false" >> "${GITHUB_OUTPUT}"
+            echo "Tag ${TAG} already points to ${SOURCE_SHA}; reusing it."
+          else
+            echo "create=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create and push the tag
+        if: steps.version.outputs.changed == 'true' && steps.tag.outputs.create == 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" "${SOURCE_SHA}" \
+            -m "Release ${TAG}" \
+            -m "Source commit: ${SOURCE_SHA}"
+          git remote set-url origin \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "refs/tags/${TAG}"
+          echo "Pushed ${TAG} at ${SOURCE_SHA}."
+
+      - name: Dispatch the publish workflow exactly once
+        if: steps.version.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          publish_run_count() {
+            gh api --method GET \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs" \
+              -f event=workflow_dispatch \
+              -f head_sha="${SOURCE_SHA}" \
+              -f per_page=100 \
+              --jq '.total_count'
+          }
+
+          if [[ "$(publish_run_count)" -gt 0 ]]; then
+            echo "Publish already has a workflow_dispatch run for ${TAG}; skipping duplicate dispatch."
+            exit 0
+          fi
+
+          gh workflow run publish.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${TAG}" \
+            -f release_tag="${TAG}"
+
+          for attempt in $(seq 1 10); do
+            if [[ "$(publish_run_count)" -gt 0 ]]; then
+              echo "Dispatched publish.yml from ${TAG}."
+              exit 0
+            fi
+            echo "Waiting for publish.yml dispatch to appear (${attempt}/10)."
+            sleep 2
+          done
+
+          echo "::error::publish.yml dispatch was not observable after 20 seconds."
+          exit 1
