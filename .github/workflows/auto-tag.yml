@@ -183,8 +183,10 @@ jobs:
             exit 1
           fi
 
-          PREVIOUS_VERSION=$(git show "${PARENT_SHA}:pyproject.toml" | python3 -c \
-            'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])')
+          PREVIOUS_PROJECT_DIR=$(mktemp -d)
+          git show "${PARENT_SHA}:pyproject.toml" \
+            > "${PREVIOUS_PROJECT_DIR}/pyproject.toml"
+          PREVIOUS_VERSION=$(uv version --short --project "${PREVIOUS_PROJECT_DIR}")
           VERSION=$(uv version --short)
           if [[ "${VERSION}" == "${PREVIOUS_VERSION}" && "${RECOVERY_MODE}" != "true" ]]; then
             echo "changed=false" >> "${GITHUB_OUTPUT}"
