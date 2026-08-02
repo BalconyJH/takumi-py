@@ -31,8 +31,8 @@ uv run maturin develop
 make check
 ```
 
-`make check` checks Ruff formatting and linting, `ty`, pytest with coverage,
-and the Rust formatting/build checks.
+`make check` checks Ruff formatting and linting, `ty`, native stub/runtime parity
+with `mypy.stubtest`, pytest with coverage, and the Rust formatting/build checks.
 
 ## Install From Source
 

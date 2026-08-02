@@ -1,6 +1,7 @@
 UV ?= uv
 PYTEST ?= $(UV) run --group test pytest -n auto --dist worksteal
-TY ?= $(UV) run ty
+TY ?= $(UV) run --group test ty
+STUBTEST ?= $(UV) run python3 -m mypy.stubtest
 ZENSICAL ?= $(UV) run --group docs zensical
 
 .DEFAULT_GOAL := help
@@ -76,7 +77,11 @@ ty: ensure-uv ## Run ty type checking.
 	@echo "==> Running ty"
 	$(TY) check python tests examples .github/scripts
 
-typecheck: ty ## Alias for ty.
+stubtest: develop ## Check native stubs against the extension's runtime API.
+	@echo "==> Checking native stub/runtime parity"
+	$(STUBTEST) --strict-type-check-only takumi_py._core
+
+typecheck: ty stubtest ## Run static checks and native stub/runtime parity checks.
 
 cargo-fmt: ## Check Rust formatting.
 	@echo "==> Checking Rust formatting"
@@ -90,4 +95,4 @@ cargo-clippy: ## Run Rust Clippy checks.
 	@echo "==> Running Rust Clippy checks"
 	cargo clippy --all-targets --all-features -- -D warnings
 
-check: ruff-format-check ruff-check ty test cargo-fmt cargo-clippy ## Run format, lint, type checks, tests, and Rust checks.
+check: ruff-format-check ruff-check typecheck test cargo-fmt cargo-clippy ## Run format, lint, type checks, tests, and Rust checks.

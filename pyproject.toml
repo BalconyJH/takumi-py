@@ -203,6 +203,7 @@ build-backend = "maturin"
 [dependency-groups]
 dev = [
     "maturin>=1.13.3",
+    "mypy>=2.3.0",
     "ruff>=0.15.16",
     "ty>=0.0.46",
 ]
