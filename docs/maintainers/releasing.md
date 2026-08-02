@@ -46,7 +46,8 @@ flowchart TD
     A --> P["生成 provenance 并发布 PyPI"]
     P --> H["核对 PyPI 文件名与 SHA-256"]
     H --> R["发布或恢复 GitHub Release"]
-    R --> X["从 release tag 部署版本化文档"]
+    R --> X["从 release tag 准备版本化文档"]
+    X --> Y["通过 GitHub Pages artifact 与 OIDC 部署"]
 ```
 
 发布构建包含 Linux x86_64、Linux aarch64、macOS arm64、Windows x64 四个
@@ -60,8 +61,10 @@ flowchart TD
    PyPI JSON 中的完整文件集合和 SHA-256 完全一致。
 6. 仅在 PyPI 核验成功后发布 GitHub Release；现有已发布 Release 只允许摘要一致的
    幂等重跑，现有草稿可以用本次已验证制品恢复。
-7. 从同一个 release tag 严格构建文档，通过 mike 更新版本；只有不旧于现有最高版本
-   的发布才能移动 `latest`，并对 `gh-pages` 并发写入进行有限重试。
+7. 从同一个 release tag 通过 mike 更新版本；只有不旧于现有最高版本的发布才能移动
+   `latest`，并对作为版本状态存储的 `gh-pages` 并发写入进行有限重试。
+8. 从更新后的 `gh-pages` 导出完整静态树，上传标准 `github-pages` artifact，并通过
+   OIDC 部署到受保护的 `github-pages` environment。
 
 本地检查发布物时使用：
 
@@ -83,7 +86,8 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 - 在 `release` environment 配置 required reviewers。
 - 将 PyPI Trusted Publisher 绑定到 owner `BalconyJH`、repository `takumi-py`、
   workflow `publish.yml` 和 environment `release`。
-- 将 GitHub Pages 配置为从 `gh-pages` 分支发布。
+- 将 GitHub Pages Source 配置为 `GitHub Actions`，并让 `github-pages` environment
+  只允许受信任的 `v*` release tag 部署。
 - 启用 immutable GitHub Releases；工作流对已发布 Release 只做摘要核验，不会改写。
 - 保留 Dependabot 的 GitHub Actions 周更，并让 SHA pin 更新通过相同门禁。
 
@@ -109,7 +113,8 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 === "GitHub Release 或文档部署失败"
 
     再次运行同一标签的 `Publish`。已发布 Release 只有在文件集合与摘要完全一致时才被
-    复用；草稿可从已验证制品恢复。文档部署会重新读取远端 `gh-pages` 并重试冲突。
+    复用；草稿可从已验证制品恢复。文档准备会重新读取远端 `gh-pages` 并重试冲突，
+    随后的 Pages deployment 会重新使用同一次运行上传的静态 artifact。
 
 !!! danger "不要改写已经发布的制品"
 

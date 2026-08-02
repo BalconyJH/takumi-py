@@ -38,11 +38,13 @@ identifiers.
 - Split CI, documentation, and repository hooks into exact-commit release gates,
   then create an annotated release tag automatically when the project version changes.
 - Verify published PyPI filenames and SHA-256 digests before creating or recovering
-  a GitHub Release, and deploy versioned documentation from the verified release tag.
+  a GitHub Release, then deploy versioned documentation from the verified release tag
+  through GitHub Pages artifacts and OIDC.
 - Validate `cp310-abi3` wheels on Python 3.10 through 3.14 and run distribution
   smoke tests from isolated environments outside the source checkout.
 - Update GitHub Actions pins, the CI uv runtime, and repository workflow linters
   to their latest releases.
+- Update the documentation framework to Zensical 0.0.52.
 - Document every public `Renderer` method and keep its internal compilation
   helpers outside the public API surface.
 - Reject invalid render-level BCP-47 language tags, font weights outside

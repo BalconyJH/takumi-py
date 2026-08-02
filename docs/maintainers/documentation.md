@@ -61,7 +61,10 @@ Avoid decorative components that add no information hierarchy.
 
 ## Versioning
 
-The site uses the Zensical-compatible mike fork. Version deployment runs from the
+The site uses the Zensical-compatible mike fork. Version preparation runs from the
 verified release tag at the end of the
-[automatic release pipeline](releasing.md#automatic-release-pipeline). Ordinary
-documentation builds validate the site but never update `gh-pages`.
+[automatic release pipeline](releasing.md#automatic-release-pipeline). The generated
+`gh-pages` branch is persistent version state rather than the Pages publishing source;
+the release workflow exports it as a Pages artifact and deploys it through the
+`github-pages` environment. Ordinary documentation builds validate the site without
+updating either destination.

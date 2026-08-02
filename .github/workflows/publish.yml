@@ -583,17 +583,17 @@ jobs:
           fi
 
   docs-release:
-    name: Publish versioned documentation
+    name: Prepare versioned documentation
     needs:
       - release-guard
       - github-release
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
-      contents: write # Commit released documentation to gh-pages.
+      contents: write # Commit versioned documentation state to gh-pages.
+      pages: read # Read the enabled GitHub Pages configuration.
     env:
       DEPLOY_LOG: release-docs-deploy.log
-      DOCS_LOG: release-docs-build.log
       RELEASE_TAG: ${{ needs.release-guard.outputs.release_tag }}
       VERSION: ${{ needs.release-guard.outputs.version }}
     steps:
@@ -625,21 +625,6 @@ jobs:
 
       - name: Sync documentation dependencies
         run: uv sync --locked --group docs --no-default-groups
-
-      - name: Build released docs strictly
-        shell: bash
-        run: |
-          set -o pipefail
-          make docs-build 2>&1 | tee "${DOCS_LOG}"
-
-      - name: Upload released docs build log
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-docs-build-log
-          path: ${{ env.DOCS_LOG }}
-          if-no-files-found: warn
-          retention-days: 14
 
       - name: Configure deployment identity
         env:
@@ -712,6 +697,24 @@ jobs:
             sleep "$((attempt * 2))"
           done
 
+      - name: Export versioned Pages site
+        shell: bash
+        run: |
+          set -euo pipefail
+          pages_dir="${RUNNER_TEMP}/pages-site"
+          mkdir -p "${pages_dir}"
+          git archive gh-pages | tar -x -C "${pages_dir}"
+          test -f "${pages_dir}/index.html"
+          test -f "${pages_dir}/versions.json"
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/pages-site
+
       - name: Upload released docs deployment log
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -721,11 +724,26 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  pages-deploy:
+    name: Deploy documentation to GitHub Pages
+    needs:
+      - docs-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      id-token: write # Authenticate the Pages deployment through OIDC.
+      pages: write # Publish the verified Pages artifact.
+    steps:
+      - name: Deploy GitHub Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
       - name: Show released docs URL
         env:
-          DOCS_OWNER: ${{ github.repository_owner }}
-          DOCS_REPO: ${{ github.event.repository.name }}
+          DOCS_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
-          docs_url="https://${DOCS_OWNER}.github.io/${DOCS_REPO}/${VERSION}/"
-          echo "Docs deployed from ${RELEASE_TAG}: ${docs_url}"
-          echo "### [Open released documentation](${docs_url})" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Documentation deployed to ${DOCS_URL}"
+          echo "### [Open released documentation](${DOCS_URL})" >> "${GITHUB_STEP_SUMMARY}"
