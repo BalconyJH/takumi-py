@@ -18,11 +18,27 @@ with ad hoc `pip install` commands.
 make check
 make docs-build
 prek run --all-files
+prek run actionlint --all-files --hook-stage=manual
 ```
 
-`make check` runs Ruff, ty, pytest, Rustfmt, and Clippy. The strict documentation build
-runs separately because it uses the docs dependency group and treats warnings as
-failures.
+`make check` runs Ruff, ty, `mypy.stubtest` for the native extension, pytest,
+Rustfmt, and Clippy. The strict documentation build runs separately because it uses
+the docs dependency group and treats warnings as failures. The manual Actionlint
+stage validates embedded workflow shell scripts in addition to the normal repository
+hooks.
+
+## Distribution contract
+
+Build the current platform wheel and sdist through the same local contract used by CI:
+
+```bash
+make build-artifacts
+```
+
+The target checks metadata and archive contents, installs the wheel in a temporary
+environment outside the checkout, rebuilds a wheel from the sdist, and runs the native
+rendering smoke against both paths. Use `make verify-artifacts DIST_DIR=/path/to/dist`
+to validate an existing local pair.
 
 ## Native extension
 

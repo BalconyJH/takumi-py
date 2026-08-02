@@ -1,117 +1,117 @@
-# Releasing
+# 发布
 
-The GitHub Actions release workflow is tag-driven. A normal release never requires a
-maintainer to upload wheels or a source distribution manually.
+正常发布由 `main` 上的版本变化驱动。维护者无需手工构建制品、创建标签或部署文档；
+自动化只会处理同时满足版本契约和同一提交门禁的版本。
 
-## Prepare the release commit
+## 准备发布提交
 
-The release commit must satisfy every version contract:
+发布提交必须同时满足以下契约：
 
-- The Python project version in `pyproject.toml` matches the package version in
-  `Cargo.toml`.
-- `uv.lock` and `Cargo.lock` are current and pass locked checks.
-- `CHANGELOG.md` contains a dated heading for the version.
-- `make docs-build` succeeds from the release tree, and every added, moved, or removed
-  page is reflected in `zensical.toml` navigation.
-- The commit is on `main`, and all required CI checks passed.
+- `pyproject.toml` 与根 `Cargo.toml` 的项目版本完全一致。
+- 相对 `main` 第一父提交，项目版本严格递增，并使用规范的 PEP 440 表示。
+- `uv.lock` 与 `Cargo.lock` 已更新且能通过 locked 检查。
+- `CHANGELOG.md` 包含该版本的日期标题。
+- `make check`、`make docs-build` 和全部 Prek hook 均通过。
 
-Bump versions through project tooling:
+使用项目工具更新版本，不要直接编辑版本字段：
 
 ```bash
 uv version 0.3.0 --no-sync
 cargo set-version 0.3.0
 ```
 
-## Create the tag
+提交合并到 `main` 后，`CI`、`Docs`、`Prek` 会分别验证同一提交。`Auto Tag on
+Version Change` 等待三个工作流全部成功，确认版本、锁文件、changelog 和 `main`
+祖先关系后，为该提交创建 annotated `v0.3.0` 标签，并且仅派发一次 `Publish`。
 
-After the release commit is visible on `main`, create a signed tag for that exact
-commit. Do not combine the `main` push and tag push into one operation that depends on
-server-side event ordering.
+!!! note "普通发布不再手工创建标签"
 
-```bash
-git tag -s v0.3.0 -m "takumi-py 0.3.0" <commit-on-main>
-git push origin v0.3.0
-```
+    自动标签是精确提交门禁的一部分。手工标签会跳过门禁聚合，只应用于管理员明确判断过的
+    异常恢复；正常发布不要执行 `git tag` 或直接运行 `Publish`。
 
-## Release graph
+## 自动发布链路 { #automatic-release-pipeline }
 
 ```mermaid
 flowchart TD
-    V["Validate tag, versions, locks, changelog"] --> Q["Run project checks"]
-    Q --> W["Build and smoke wheels"]
-    Q --> S["Build and smoke sdist"]
-    W --> A["Validate exact artifact set"]
-    S --> A
-    A --> R["Rebuild wheel from sdist"]
-    R --> P["Generate provenance"]
-    P --> Y["Publish to PyPI"]
-    Y --> G["Publish GitHub Release"]
+    M["版本提交进入 main"] --> C["CI: tests + 四平台 wheel + sdist + abi3"]
+    M --> D["Docs: strict build"]
+    M --> K["Prek: repository + Actions lint"]
+    C --> T["Auto Tag: 聚合同一 source SHA"]
+    D --> T
+    K --> T
+    T --> V["校验版本、locks、changelog 与 main 祖先"]
+    V --> G["创建 annotated tag 并派发 Publish"]
+    G --> B["重新检查并构建四个 wheel 与一个 sdist"]
+    B --> A["校验元数据、许可证、平台与隔离安装"]
+    A --> P["生成 provenance 并发布 PyPI"]
+    P --> H["核对 PyPI 文件名与 SHA-256"]
+    H --> R["发布或恢复 GitHub Release"]
+    R --> X["从 release tag 部署版本化文档"]
 ```
 
-The workflow validates the tag, `HEAD`, `main` ancestry, Python and Cargo versions,
-lock files, and changelog before building. It then:
+发布构建包含 Linux x86_64、Linux aarch64、macOS arm64、Windows x64 四个
+`cp310-abi3` wheel 和一个 sdist。验证层会：
 
-1. Builds four platform wheels and one sdist, with platform-specific smoke tests.
-2. Validates the exact artifact set, metadata, licenses, ABI/platform tags, and default
-   font boundary.
-3. Rebuilds a wheel from the isolated sdist and runs another smoke test.
-4. Generates provenance for the files that will actually be uploaded.
-5. Publishes through PyPI Trusted Publishing.
-6. Creates a draft GitHub Release, attaches the same artifacts, and publishes it only
-   after PyPI succeeds.
+1. 检查完整制品集合、包元数据、许可证、ABI/平台标签及内置字体边界。
+2. 在仓库外的临时虚拟环境安装并执行渲染 smoke，避免意外导入 checkout。
+3. 从 sdist 重新构建 wheel，并对重建结果执行同样的隔离 smoke。
+4. 对最终上传文件生成 GitHub build provenance。
+5. 通过 Trusted Publishing 上传 PyPI；重跑时允许跳过已存在文件，但随后必须与
+   PyPI JSON 中的完整文件集合和 SHA-256 完全一致。
+6. 仅在 PyPI 核验成功后发布 GitHub Release；现有已发布 Release 只允许摘要一致的
+   幂等重跑，现有草稿可以用本次已验证制品恢复。
+7. 从同一个 release tag 严格构建文档，通过 mike 更新版本；只有不旧于现有最高版本
+   的发布才能移动 `latest`，并对 `gh-pages` 并发写入进行有限重试。
 
-## Publish documentation manually
-
-Documentation deployment is a required manual release step until it is represented by
-an explicitly approved workflow. After the GitHub Release succeeds, check out the
-exact release tag, build the site, and deploy that version with the `latest` alias:
+本地检查发布物时使用：
 
 ```bash
-git switch --detach v0.3.0
-make docs-build
-uv run --group docs mike deploy --push --update-aliases 0.3.0 latest
-uv run --group docs mike set-default --push latest
+make build-artifacts
 ```
 
-Verify the version selector, `latest` alias, and the published API reference at
-`https://balconyjh.github.io/takumi-py/` before marking the release complete.
+该目标会构建当前平台 wheel 与 sdist、运行 Twine 元数据检查，并在隔离环境中验证
+wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 Python 版本。
 
-!!! danger "Deployment writes to the remote repository"
+## 外部仓库设置
 
-    The mike commands update `gh-pages`. Run them only from the exact release tag and
-    only as an explicit maintainer release operation. An ordinary documentation build
-    must never deploy implicitly.
+仓库文件无法自行启用以下控制，管理员需在 GitHub 与 PyPI 配置：
 
-!!! note "Artifacts are immutable inputs"
+- 保护 `main`，至少要求 `CI / Required checks`、`Docs / Build docs strictly` 和
+  `Prek / Repository hooks`，并要求 release automation 的 code-owner review。
+- 允许 GitHub Actions 的 `GITHUB_TOKEN` 按工作流声明获得写权限；若保护 release tag，
+  为 `Auto Tag on Version Change` 配置受控 bypass。
+- 在 `release` environment 配置 required reviewers。
+- 将 PyPI Trusted Publisher 绑定到 owner `BalconyJH`、repository `takumi-py`、
+  workflow `publish.yml` 和 environment `release`。
+- 将 GitHub Pages 配置为从 `gh-pages` 分支发布。
+- 启用 immutable GitHub Releases；工作流对已发布 Release 只做摘要核验，不会改写。
+- 保留 Dependabot 的 GitHub Actions 周更，并让 SHA pin 更新通过相同门禁。
 
-    The release workflow neither overwrites existing GitHub Release assets nor reuses
-    build artifacts across separate workflow runs.
+## 故障恢复
 
-## External controls
+=== "门禁失败，尚未创建标签"
 
-Repository files cannot enforce these controls; an administrator must configure them:
+    修复问题并合并到 `main`。因为修复提交的版本可能与父提交相同，自动检测不会再次
+    把它视为版本变化；此时从当前 `main` 手工运行 `Auto Tag on Version Change`，传入
+    当前完整 40 位 `source_sha`。恢复模式只接受当前 `main` 且仍会要求三个精确提交
+    工作流全部成功。
 
-- Protect `main`, require the CI jobs, and require code-owner review for release
-  automation.
-- Configure required reviewers on the `release` environment.
-- Bind the PyPI Trusted Publisher to owner `BalconyJH`, repository `takumi-py`, workflow
-  `publish.yml`, and environment `release`.
-- Configure GitHub Pages to publish the `gh-pages` branch before the first versioned
-  documentation deployment.
-- Enable immutable GitHub Releases.
+=== "标签存在，但 Publish 未成功"
 
-## Failure recovery
+    从匹配标签或默认分支手工运行 `Publish`，传入相同 `release_tag`。不要创建替代标签，
+    也不要改写标签指向。
 
-=== "Before PyPI"
+=== "PyPI 已经接收部分或全部文件"
 
-    Fix the cause and rerun the same workflow run.
+    重跑同一标签的 `Publish`。上传步骤使用 `skip-existing`，之后的摘要核验会确认已存在
+    文件是否就是本次构建结果；缺失文件会等待 PyPI 元数据收敛，摘要不同则立即失败。
 
-=== "After PyPI"
+=== "GitHub Release 或文档部署失败"
 
-    If GitHub Release publication fails after PyPI succeeds, do not rebuild or replace
-    PyPI files. Complete the GitHub Release with the same validated artifacts.
+    再次运行同一标签的 `Publish`。已发布 Release 只有在文件集合与摘要完全一致时才被
+    复用；草稿可从已验证制品恢复。文档部署会重新读取远端 `gh-pages` 并重试冲突。
 
-=== "Release already exists"
+!!! danger "不要改写已经发布的制品"
 
-    The workflow fails instead of using `--clobber`. Investigate the origin and state
-    of the existing release before making any remote change.
+    PyPI 文件、已发布 GitHub Release、release tag 都是不可变输入。任何摘要不一致都应
+    停止发布并调查来源，而不是 force push、替换版本或覆盖已发布文件。

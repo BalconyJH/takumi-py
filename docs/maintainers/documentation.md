@@ -61,7 +61,7 @@ Avoid decorative components that add no information hierarchy.
 
 ## Versioning
 
-The site uses the Zensical-compatible mike fork. Version deployment is a release
-operation; follow the exact-tag procedure in the
-[release guide](releasing.md#publish-documentation-manually). Ordinary documentation
-builds validate the site but never update `gh-pages`.
+The site uses the Zensical-compatible mike fork. Version deployment runs from the
+verified release tag at the end of the
+[automatic release pipeline](releasing.md#automatic-release-pipeline). Ordinary
+documentation builds validate the site but never update `gh-pages`.

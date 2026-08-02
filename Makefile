@@ -94,7 +94,9 @@ test: develop ## Run pytest.
 	@echo "==> Running pytest"
 	$(PYTEST)
 
-.PHONY: docs docs-serve docs-build
+##@ Documentation
+
+.PHONY: docs docs-serve docs-build docs-deploy docs-list
 docs: docs-serve ## Preview the documentation site locally.
 
 docs-serve: ensure-uv ## Preview the documentation site locally.
@@ -105,7 +107,17 @@ docs-build: ensure-uv ## Build documentation and fail on warnings.
 	@echo "==> Building documentation"
 	$(ZENSICAL) build --clean --strict
 
-.PHONY: ruff-format ruff-format-check ruff-check lint ty typecheck cargo-fmt cargo-check cargo-clippy check
+docs-deploy: ensure-uv ## Stage versioned docs locally (for example VERSION=0.3.0).
+	@test -n "$(VERSION)" || { echo "Error: VERSION is required."; exit 1; }
+	@echo "==> Staging documentation version $(VERSION)"
+	$(UV) run --group docs mike deploy --update-aliases "$(VERSION)" latest
+
+docs-list: ensure-uv ## List versioned documentation deployments.
+	$(UV) run --group docs mike list
+
+##@ Code quality
+
+.PHONY: ruff-format ruff-format-check ruff-check lint ty stubtest typecheck cargo-fmt cargo-check cargo-clippy check
 ruff-format: ensure-uv ## Format Python files with Ruff.
 	@echo "==> Formatting Python files with Ruff"
 	$(UV) run ruff format python tests examples .github/scripts

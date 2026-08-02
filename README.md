@@ -512,8 +512,8 @@ optional `filters` mapping is then added to that same environment, and
 
 ## Release
 
-The version contract, tag procedure, CI DAG, external repository settings, and
-failure recovery rules are maintained in the
+The version contract, exact-commit CI gates, automatic tag and publish pipeline,
+external repository settings, and failure recovery rules are maintained in the
 [release guide](https://github.com/BalconyJH/takumi-py/blob/main/docs/maintainers/releasing.md).
 
 ## Test Coverage
