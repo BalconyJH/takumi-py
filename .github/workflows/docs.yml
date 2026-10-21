@@ -1,4 +1,4 @@
-name: Docs
+name: Check · Docs
 
 on:
   push:
@@ -16,13 +16,13 @@ on:
 permissions: {}
 
 concurrency:
-  # Auto Tag joins every trusted main push by its exact SHA.
+  # Release · Tag joins every trusted main push by its exact SHA.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
-    name: Build docs strictly
+    name: Build documentation
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:

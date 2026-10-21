@@ -1,11 +1,11 @@
-name: Auto Tag on Version Change
+name: Release · Tag
 
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers] Only trusted main push runs are joined and the exact SHA is revalidated before writes.
     workflows:
-      - CI
-      - Docs
-      - Prek
+      - Check · Build and test
+      - Check · Docs
+      - Check · Lint
     types:
       - completed
     branches:
@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   tag-and-dispatch:
-    name: Gate source, tag version change, and dispatch publish
+    name: Tag version and dispatch publish
     if: >-
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.event == 'push' &&
@@ -67,9 +67,9 @@ jobs:
           set -euo pipefail
 
           required_workflows=(
-            "CI:ci.yml"
-            "Docs:docs.yml"
-            "Prek:prek.yml"
+            "Check · Build and test:ci.yml"
+            "Check · Docs:docs.yml"
+            "Check · Lint:prek.yml"
           )
           ready=true
 

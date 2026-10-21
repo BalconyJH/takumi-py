@@ -1,4 +1,4 @@
-name: CI
+name: Check · Build and test
 
 on:
   push:
@@ -17,13 +17,13 @@ permissions:
   contents: read
 
 concurrency:
-  # Auto Tag joins every trusted main push by its exact SHA.
+  # Release · Tag joins every trusted main push by its exact SHA.
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
-    name: Quality and tests
+    name: Run checks and tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -71,7 +71,7 @@ jobs:
         run: make check
 
   sdist-smoke:
-    name: Sdist build and smoke
+    name: Build and smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs:
@@ -136,7 +136,7 @@ jobs:
           retention-days: 14
 
   wheel-smoke:
-    name: Wheel build and smoke (${{ matrix.platform.name }})
+    name: Build and smoke-test wheel (${{ matrix.platform.name }})
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 45
     needs:
@@ -205,7 +205,7 @@ jobs:
           retention-days: 14
 
   abi3-smoke:
-    name: abi3 smoke (Python ${{ matrix.python-version }})
+    name: Smoke-test abi3 wheel (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs:

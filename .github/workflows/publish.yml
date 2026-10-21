@@ -1,4 +1,4 @@
-name: Publish
+name: Release · Publish
 
 on:
   workflow_dispatch:
@@ -153,7 +153,7 @@ jobs:
         run: make docs-build
 
   wheels:
-    name: Build wheels (${{ matrix.platform.name }})
+    name: Build wheel (${{ matrix.platform.name }})
     needs:
       - release-guard
       - release-check
