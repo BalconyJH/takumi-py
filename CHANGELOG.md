@@ -34,6 +34,12 @@ identifiers.
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
 - Stream `render_animation` frames straight into the encoder, so an animation holds
   one raw frame at a time instead of all of them.
+- Split the native extension into focused modules and pass resolved options, fonts,
+  images, and frames across the private `_core` boundary as objects instead of
+  positional keyword lists and tuples. The public Python API and its output are
+  unchanged.
+- Reject conflicting encoder options, such as `lossless=True` with PNG output,
+  before rendering rather than after.
 - Restructure the documentation: English sources move to `docs/en/`, new HTML and
   CSS and Output formats guides take over from the overloaded rendering guide, the
   release guide is now in English, and the README keeps only the overview,
@@ -56,6 +62,9 @@ identifiers.
 
 ### Fixed
 
+- Point deprecation warnings at the calling code. Nested public calls, such as
+  `render_node` delegating to `render_compiled`, attributed them to `takumi_py`
+  itself, where Python's default filters hide `DeprecationWarning`.
 - Enforce the documented frame-rate limits in `render_animation`: above 90 fps for
   WebP and APNG, or 50 fps for GIF, it now raises `ValueError` instead of writing
   frame delays that decoders clamp to 100 ms.
