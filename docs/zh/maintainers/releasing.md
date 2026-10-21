@@ -61,8 +61,10 @@ flowchart TD
    PyPI JSON 中的完整文件集合和 SHA-256 完全一致。
 6. 仅在 PyPI 核验成功后发布 GitHub Release；现有已发布 Release 只允许摘要一致的
    幂等重跑，现有草稿可以用本次已验证制品恢复。
-7. 从同一个 release tag 通过 mike 更新版本；只有不旧于现有最高版本的发布才能移动
-   `latest`，并对作为版本状态存储的 `gh-pages` 并发写入进行有限重试。
+7. 从同一个 release tag 通过 mike 更新两种语言的文档：英文位于站点根目录，简体中文
+   位于 `zh/` 前缀下，各自维护 `versions.json`。早于中文站点的标签只部署英文。只有不
+   旧于现有最高版本的发布才能移动 `latest`，并对作为版本状态存储的 `gh-pages` 并发
+   写入进行有限重试。
 8. 从更新后的 `gh-pages` 导出完整静态树，上传标准 `github-pages` artifact，并通过
    OIDC 部署到受保护的 `github-pages` environment。
 

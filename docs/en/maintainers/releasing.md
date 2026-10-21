@@ -69,7 +69,9 @@ macOS arm64, and Windows x64, plus one sdist. The verification layer:
 6. Publishes the GitHub Release only after the PyPI check succeeds. An existing
    published Release only allows an idempotent rerun with matching digests, and an
    existing draft can be recovered with the artifacts this run verified.
-7. Updates the documentation version from the same release tag with mike. Only a
+7. Updates both documentation languages from the same release tag with mike: English
+   at the site root and Simplified Chinese under the `zh/` prefix, each with its own
+   `versions.json`. A tag that predates the Chinese site deploys English only. Only a
    release no older than the newest deployed version moves `latest`, and concurrent
    writes to the `gh-pages` branch, which stores the version state, retry a bounded
    number of times.

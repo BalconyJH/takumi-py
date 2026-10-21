@@ -124,5 +124,7 @@ verified release tag at the end of the
 [automatic release pipeline](releasing.md#automatic-release-pipeline). The generated
 `gh-pages` branch is persistent version state rather than the Pages publishing source;
 the release workflow exports it as a Pages artifact and deploys it through the
-`github-pages` environment. Ordinary documentation builds validate the site without
-updating either destination.
+`github-pages` environment. English versions live at the branch root and Chinese
+versions under `zh/`, each with its own `versions.json`, so each site's version
+selector lists its own deployments. Ordinary documentation builds validate the site
+without updating either destination.
