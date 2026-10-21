@@ -40,27 +40,27 @@ make changelog
 发布工作流会把该章节原样发布为 GitHub Release 的说明。请用 merge commit 合并发布用的
 pull request：squash 或 rebase 合并会改写条目所链接的提交哈希。
 
-提交合并到 `main` 后，`CI`、`Docs`、`Prek` 会分别验证同一提交。`Auto Tag on
-Version Change` 等待三个工作流全部成功，确认版本、锁文件、changelog 和 `main`
-祖先关系后，为该提交创建 annotated `v0.3.0` 标签，并且仅派发一次 `Publish`。
+提交合并到 `main` 后，`Check · Build and test`、`Check · Docs`、`Check · Lint` 会分别验证
+同一提交。`Release · Tag` 等待三个工作流全部成功，确认版本、锁文件、changelog 和 `main`
+祖先关系后，为该提交创建 annotated `v0.3.0` 标签，并且仅派发一次 `Release · Publish`。
 
 !!! note "普通发布不再手工创建标签"
 
     自动标签是精确提交门禁的一部分。手工标签会跳过门禁聚合，只应用于管理员明确判断过的
-    异常恢复；正常发布不要执行 `git tag` 或直接运行 `Publish`。
+    异常恢复；正常发布不要执行 `git tag` 或直接运行 `Release · Publish`。
 
 ## 自动发布链路 { #automatic-release-pipeline }
 
 ```mermaid
 flowchart TD
-    M["版本提交进入 main"] --> C["CI: tests + 四平台 wheel + sdist + abi3"]
-    M --> D["Docs: strict build"]
-    M --> K["Prek: repository + Actions lint"]
-    C --> T["Auto Tag: 聚合同一 source SHA"]
+    M["版本提交进入 main"] --> C["Check · Build and test: tests + 四平台 wheel + sdist + abi3"]
+    M --> D["Check · Docs: strict build"]
+    M --> K["Check · Lint: repository + Actions lint"]
+    C --> T["Release · Tag: 聚合同一 source SHA"]
     D --> T
     K --> T
     T --> V["校验版本、locks、changelog 与 main 祖先"]
-    V --> G["创建 annotated tag 并派发 Publish"]
+    V --> G["创建 annotated tag 并派发 Release · Publish"]
     G --> B["重新检查并构建四个 wheel 与一个 sdist"]
     B --> A["校验元数据、许可证、平台与隔离安装"]
     A --> P["生成 provenance 并发布 PyPI"]
@@ -102,10 +102,10 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 
 仓库文件无法自行启用以下控制，管理员需在 GitHub 与 PyPI 配置：
 
-- 保护 `main`，至少要求 `CI / Required checks`、`Docs / Build docs strictly` 和
-  `Prek / Repository hooks`，并要求 release automation 的 code-owner review。
+- 保护 `main`，至少要求 `Check · Build and test / Required checks`、`Check · Docs / Build documentation` 和
+  `Check · Lint / Run repository hooks`，并要求 release automation 的 code-owner review。
 - 允许 GitHub Actions 的 `GITHUB_TOKEN` 按工作流声明获得写权限；若保护 release tag，
-  为 `Auto Tag on Version Change` 配置受控 bypass。
+  为 `Release · Tag` 配置受控 bypass。
 - 在 `release` environment 配置 required reviewers。
 - 将 PyPI Trusted Publisher 绑定到 owner `BalconyJH`、repository `takumi-py`、
   workflow `publish.yml` 和 environment `release`。
@@ -119,23 +119,23 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 === "门禁失败，尚未创建标签"
 
     修复问题并合并到 `main`。因为修复提交的版本可能与父提交相同，自动检测不会再次
-    把它视为版本变化；此时从当前 `main` 手工运行 `Auto Tag on Version Change`，传入
+    把它视为版本变化；此时从当前 `main` 手工运行 `Release · Tag`，传入
     当前完整 40 位 `source_sha`。恢复模式只接受当前 `main` 且仍会要求三个精确提交
     工作流全部成功。
 
 === "标签存在，但 Publish 未成功"
 
-    从匹配标签或默认分支手工运行 `Publish`，传入相同 `release_tag`。不要创建替代标签，
+    从匹配标签或默认分支手工运行 `Release · Publish`，传入相同 `release_tag`。不要创建替代标签，
     也不要改写标签指向。
 
 === "PyPI 已经接收部分或全部文件"
 
-    重跑同一标签的 `Publish`。上传步骤使用 `skip-existing`，之后的摘要核验会确认已存在
+    重跑同一标签的 `Release · Publish`。上传步骤使用 `skip-existing`，之后的摘要核验会确认已存在
     文件是否就是本次构建结果；缺失文件会等待 PyPI 元数据收敛，摘要不同则立即失败。
 
 === "GitHub Release 或文档部署失败"
 
-    再次运行同一标签的 `Publish`。已发布 Release 只有在文件集合与摘要完全一致时才被
+    再次运行同一标签的 `Release · Publish`。已发布 Release 只有在文件集合与摘要完全一致时才被
     复用；草稿可从已验证制品恢复。文档准备会重新读取远端 `gh-pages` 并重试冲突，
     随后的 Pages deployment 会重新使用同一次运行上传的静态 artifact。
 

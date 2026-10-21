@@ -38,6 +38,9 @@ contributors, and the release's section is published as its GitHub Release notes
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
 - Publish each version's `CHANGELOG.md` section as its GitHub Release notes, instead of
   GitHub's generated notes.
+- Name the GitHub Actions workflows by stage: `Check · Build and test`, `Check · Docs`,
+  `Check · Lint`, `Release · Tag`, and `Release · Publish`, with verb-first job names.
+  Workflow file names, and so the PyPI Trusted Publisher binding, are unchanged.
 - Stream `render_animation` frames straight into the encoder, so an animation holds
   one raw frame at a time instead of all of them.
 - Split the native extension into focused modules and pass resolved options, fonts,

@@ -48,29 +48,30 @@ The release workflow publishes that section verbatim as the GitHub Release notes
 Merge the release pull request with a merge commit: a squash or rebase merge rewrites
 the hashes the entry links to.
 
-After the commit merges into `main`, `CI`, `Docs`, and `Prek` each verify that same
-commit. `Auto Tag on Version Change` waits for all three workflows to succeed, confirms
-the version, lock files, changelog, and ancestry on `main`, creates an annotated
-`v0.3.0` tag on the commit, and dispatches `Publish` exactly once.
+After the commit merges into `main`, `Check · Build and test`, `Check · Docs`, and
+`Check · Lint` each verify that same commit. `Release · Tag` waits for all three
+workflows to succeed, confirms the version, lock files, changelog, and ancestry on
+`main`, creates an annotated `v0.3.0` tag on the commit, and dispatches
+`Release · Publish` exactly once.
 
 !!! note "Normal releases no longer create tags by hand"
 
     The automatic tag is part of the exact-commit gate. A manual tag skips the gate
     aggregation and is reserved for recovery an administrator has explicitly approved;
-    do not run `git tag` or `Publish` directly for a normal release.
+    do not run `git tag` or `Release · Publish` directly for a normal release.
 
 ## Automatic release pipeline { #automatic-release-pipeline }
 
 ```mermaid
 flowchart TD
-    M["Version commit lands on main"] --> C["CI: tests + four platform wheels + sdist + abi3"]
-    M --> D["Docs: strict build"]
-    M --> K["Prek: repository + Actions lint"]
-    C --> T["Auto Tag: aggregate the same source SHA"]
+    M["Version commit lands on main"] --> C["Check · Build and test: tests + four platform wheels + sdist + abi3"]
+    M --> D["Check · Docs: strict build"]
+    M --> K["Check · Lint: repository + Actions lint"]
+    C --> T["Release · Tag: aggregate the same source SHA"]
     D --> T
     K --> T
     T --> V["Check version, locks, changelog, and main ancestry"]
-    V --> G["Create annotated tag and dispatch Publish"]
+    V --> G["Create annotated tag and dispatch Release · Publish"]
     G --> B["Re-check and build four wheels and one sdist"]
     B --> A["Verify metadata, licenses, platforms, and isolated installs"]
     A --> P["Generate provenance and publish to PyPI"]
@@ -121,12 +122,12 @@ and verifies the wheel and the sdist rebuild path in isolated environments.
 Repository files cannot enable the following controls; an administrator configures them
 on GitHub and PyPI:
 
-- Protect `main`, requiring at least `CI / Required checks`,
-  `Docs / Build docs strictly`, and `Prek / Repository hooks`, plus code-owner review of
+- Protect `main`, requiring at least `Check · Build and test / Required checks`,
+  `Check · Docs / Build documentation`, and `Check · Lint / Run repository hooks`, plus code-owner review of
   the release automation.
 - Allow the GitHub Actions `GITHUB_TOKEN` to receive the write permissions the workflows
   declare. If release tags are protected, configure a controlled bypass for
-  `Auto Tag on Version Change`.
+  `Release · Tag`.
 - Configure required reviewers on the `release` environment.
 - Bind the PyPI Trusted Publisher to owner `BalconyJH`, repository `takumi-py`, workflow
   `publish.yml`, and environment `release`.
@@ -143,24 +144,24 @@ on GitHub and PyPI:
 
     Fix the problem and merge the fix into `main`. Because the fix commit may keep the
     parent's version, automatic detection will not treat it as a version change again.
-    Run `Auto Tag on Version Change` by hand from the current `main`, passing the full
+    Run `Release · Tag` by hand from the current `main`, passing the full
     40-character `source_sha` of the current commit. Recovery mode only accepts the
     current `main` and still requires all three exact-commit workflows to succeed.
 
 === "The tag exists, but Publish did not succeed"
 
-    Run `Publish` by hand from the matching tag or the default branch, passing the same
+    Run `Release · Publish` by hand from the matching tag or the default branch, passing the same
     `release_tag`. Do not create a replacement tag or move the existing one.
 
 === "PyPI already accepted some or all files"
 
-    Rerun `Publish` for the same tag. The upload step uses `skip-existing`, and the
+    Rerun `Release · Publish` for the same tag. The upload step uses `skip-existing`, and the
     digest check that follows confirms that existing files are the ones this run built.
     Missing files wait for PyPI metadata to converge; a digest mismatch fails at once.
 
 === "The GitHub Release or docs deployment failed"
 
-    Run `Publish` again for the same tag. A published Release is reused only when its
+    Run `Release · Publish` again for the same tag. A published Release is reused only when its
     file set and digests match exactly, and a draft can be recovered from the verified
     artifacts. Docs preparation reads the remote `gh-pages` again and retries conflicts,
     and the Pages deployment that follows reuses the static artifact uploaded by the
