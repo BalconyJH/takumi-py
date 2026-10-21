@@ -7,13 +7,9 @@ import copy
 from pathlib import Path
 import re
 import sys
+import tomllib
 from typing import Any
 import unicodedata
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 ENGLISH_CONFIG = ROOT / "zensical.toml"
