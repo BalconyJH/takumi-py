@@ -9,7 +9,7 @@ docs/
 ├── getting-started/  # Shortest path to a successful render
 ├── guides/           # Task-oriented explanations and composition
 ├── reference/        # Exact contracts, support matrix, generated API
-├── migration/        # Behavioral changes across core generations
+├── migration/        # Behavioral and required changes across core upgrades
 └── maintainers/      # Repository workflows and release operations
 ```
 

@@ -6,6 +6,8 @@ Common validation contracts:
 
 - `RenderOptions.lang`, when set, must be a valid BCP-47 language tag.
 - `FontResource.weight`, when set, must be finite and within 1 through 1000.
+- Each `FontResource.unicode_range` entry is an inclusive `(start, end)` pair with
+  `0 <= start <= end <= 0x10FFFF`.
 - `AnimationEncodeOptions.quality` accepts 0 through 100, and `webp_speed` accepts
   0 through 6.
 

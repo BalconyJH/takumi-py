@@ -11,8 +11,8 @@ All public exception classes can be imported from `takumi_py`.
 | `StyleSheetError` | CSS or keyframe compilation fails |
 | `FontError` | Font description, parsing, or registration fails |
 | `ResourceError` | An image or another resource is invalid or undecodable |
-| `RenderError` | Layout or static rendering fails |
-| `AnimationError` | Frame generation or animation encoding fails |
+| `RenderError` | Layout or rendering of an image, SVG, or animation frame fails |
+| `AnimationError` | Animation encoding fails, or the animation format or raw frames are invalid |
 | `UnsupportedFormatError` | The requested output format is unsupported |
 
 Catch the narrowest useful exception. Catch `TakumiError` only at an API boundary

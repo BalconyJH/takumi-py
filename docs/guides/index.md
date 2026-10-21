@@ -16,7 +16,8 @@ Guides are organized around rendering tasks rather than Python module boundaries
 
 -   :material-folder-image:{ .lg .middle } **Fonts and images**
 
-    Resource ownership, cache hints, fallback families, and language metadata.
+    Resource ownership, font subsets, cache budgets, fallback families, and language
+    metadata.
 
     [:octicons-arrow-right-24: Open guide](resources.md)
 

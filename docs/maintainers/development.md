@@ -56,12 +56,37 @@ uv run maturin develop
 
 ## Takumi submodule
 
-Takumi is an explicit source dependency of this repository. An upgrade must check:
+Takumi is an explicit source dependency of this repository. Pin `takumilib` to the
+upstream release commit that a `takumi@X.Y.Z` tag points to, never to a branch tip or
+a local merge:
+
+```bash
+git -C takumilib fetch origin --tags
+git -C takumilib checkout --detach 'takumi@2.17.1^{commit}'
+cargo update -w
+```
+
+An upgrade must check:
 
 - The submodule revision and `Cargo.lock`
 - Version constraints for `takumi` and `takumi-core`
+- Deprecations in the upstream API: Clippy runs with `-D warnings`, so a deprecated
+  call fails the build. Adopt the replacement that the Node binding in
+  `takumilib/takumi-napi` uses, and surface the change as a Python
+  `DeprecationWarning`
+- New upstream capabilities worth exposing, by comparing the Node binding's surface
+  with `Renderer`
+- That the build stays within the toolchain in `rust-toolchain.toml`: `rust-version`
+  keeps the resolver on compatible crates, and running
+  `cargo +1.91.0 clippy --locked --all-targets` through rustup confirms it
+- That the HTML fixtures read by `tests/test_takumi_core_fixtures.py` still exist under
+  `takumilib/takumi/tests/fixtures-html`
 - Whether the source distribution can still rebuild a wheel in isolation
 - Whether assets referenced by the binding under `takumilib/assets` changed
+
+Upstream's `[patch.crates-io]` forks of fontations and harfrust apply only inside the
+Takumi workspace. This crate builds against the crates.io releases, so a patch upstream
+adds is not inherited.
 
 !!! danger "The repository checkout is not an sdist dependency"
 

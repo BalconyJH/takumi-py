@@ -16,8 +16,8 @@ a source checkout when developing the binding.
 
 === "Source checkout"
 
-    A source build requires a Rust toolchain, Python 3.10+, and `uv`. Takumi is a Git
-    submodule, so clone it recursively:
+    A source build requires Rust 1.91 or later, Python 3.10+, and `uv`. Takumi is a
+    Git submodule, so clone it recursively:
 
     ```bash
     git clone --recurse-submodules https://github.com/BalconyJH/takumi-py.git

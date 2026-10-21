@@ -104,8 +104,12 @@ renderer.register_fonts(
 ```
 
 Each range must satisfy `0 <= start <= end <= 0x10FFFF`; anything else raises
-`ValueError`. `FontResource.subset_of` is deprecated: Takumi now only uses it as the
-family name, in place of `name`.
+`ValueError`. Without `unicode_range`, a later font registered under the same name and
+descriptors shadows the earlier one, as a later `@font-face` rule does in a browser.
+
+`FontResource.subset_of` is deprecated: Takumi now only uses it as the family name, in
+place of `name`. See [Upgrade to Takumi 2.17](../migration/takumi-2.17.md#font-subsets)
+to migrate per-subset family names.
 
 ### Releasing fonts
 
@@ -158,7 +162,7 @@ For CJK-heavy workloads, configure it before the first render in the process:
 from takumi_py import Renderer, set_glyph_cache_max_bytes
 
 set_glyph_cache_max_bytes(32 * 1024 * 1024)
-renderer = Renderer(cache_max_bytes=64 * 1024 * 1024)
+renderer = Renderer(cache_max_bytes=128 * 1024 * 1024)
 ```
 
 Changing the glyph budget after glyph rendering begins does not resize the existing
@@ -168,7 +172,7 @@ process-wide caches.
 
 | Resource | Preferred lifetime | API |
 | --- | --- | --- |
-| Font | Renderer lifetime | `register_font` or `register_fonts` |
+| Font | Renderer lifetime | `register_font` or `register_fonts`; release with `unregister_font` or `clear_fonts` |
 | Image | One render | `images=[ImageResource(...)]` |
 
 ??? info "Compatibility APIs"

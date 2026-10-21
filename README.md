@@ -14,7 +14,7 @@ The binding focuses on exposing practical Takumi core capabilities instead of co
 
 - Node Tree, HTML string, and Jinja template rendering into image bytes.
 - `RenderOptions`, including auto viewport, DPR, debug border, dithering, and `time_ms`.
-- Custom fonts, per-render image resources, font fallback families, language hints, and SVG output.
+- Custom fonts with `unicode-range` subsets, per-render image resources, font fallback families, language hints, and SVG output.
 - Raw row-major RGBA image sources and configurable resource and glyph cache budgets.
 - Rust-backed HTML parsing with configurable presets, Tailwind attribute mapping, and depth limits.
 - Layout measurement with a typed measured node tree result.
@@ -412,6 +412,10 @@ webp = renderer.render_animation(
 Animation scene and raw-frame `duration_ms` values must be positive. A zero duration
 raises `ValueError` instead of producing an empty or silently skipped frame.
 
+`render_animation` streams each frame into the encoder, so it holds one raw frame at a
+time. `fps` may be at most 90 for WebP and APNG and at most 50 for GIF, whose decoders
+clamp shorter frame delays; higher values raise `ValueError` before rendering.
+
 ## Takumi v2 Migration
 
 `takumi-py` now targets Takumi v2. The main resource model changed from a
@@ -431,10 +435,7 @@ renderer-level global context to explicit per-render resources:
   `set_glyph_cache_max_bytes(...)` controls the process-wide glyph cache before
   first use.
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
-  `generic_family`, and `unicode_range`. `subset_of` is deprecated and only sets
-  the family name.
-- `unregister_font(name)` and `clear_fonts()` release registered fonts.
-- `dithering="floyd-steinberg"` is a deprecated alias of `"ordered-bayer"`.
+  `generic_family`, and `unicode_range`.
 - The built-in fallback font follows Takumi v2: a Latin Geist subset marked as
   last resort, so caller-registered fonts win ordinary fallback selection.
 - `HtmlOptions` exposes Takumi's Rust `from_html` parser options.
@@ -455,6 +456,23 @@ Takumi v2 also changes several CSS defaults to be closer to the Web platform.
 If an old image shifts, check for implicit defaults such as `position`,
 border/outline width, `transform-origin`, `object-position`, and SVG
 `currentColor` inheritance before treating it as a binding regression.
+
+### Takumi 2.17
+
+The upgrade from Takumi 2.5.4 to 2.17.1 brings rendering closer to Chrome, so expect
+pixel differences in golden images. It also changes a few inputs:
+
+- `subset_of` is deprecated and only sets the family name. Register each subset
+  under one `name` with its own `unicode_range`.
+- `dithering="floyd-steinberg"` is a deprecated alias of `"ordered-bayer"`.
+- `render_animation` rejects `fps` above 90 for WebP and APNG or 50 for GIF.
+- `<img>` without a `src` parses as an empty box instead of raising
+  `HtmlParseError`.
+- The resource cache defaults to 64 MiB, and `data:` URI images decode through it.
+- `unregister_font(name)` and `clear_fonts()` release registered fonts.
+
+The [Takumi 2.17 migration guide](https://github.com/BalconyJH/takumi-py/blob/main/docs/migration/takumi-2.17.md)
+covers each change.
 
 ## Jinja
 

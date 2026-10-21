@@ -20,13 +20,14 @@ published wheel matrix.[^sdist]
 | Inputs | Node trees, raw RGBA pixels, HTML, Jinja templates, compiled nodes |
 | Raster | PNG, JPEG, WebP, ICO, raw RGBA |
 | Vector | SVG |
-| Animation | WebP, APNG, GIF |
+| Animation | WebP and APNG up to 90 fps, GIF up to 50 fps |
 | Layout | Measurement of nodes, HTML, and compiled nodes |
 
 ## Resource model
 
 - One Latin Geist last-resort font is compiled into the extension.
-- Callers provide all other font and image bytes.
+- Callers provide all other font and image bytes. Fonts register per renderer, can be
+  split into `unicode_range` subsets, and can be released again.
 - `resource_urls()` discovers URLs without accessing the network.
 - Images accept a per-render cache hint; the binding does not provide an HTTP client.
 - Each renderer exposes a resource-cache budget; glyph caches use a separate
@@ -47,7 +48,7 @@ published wheel matrix.[^sdist]
     remote fetching, persistent caching, or task cancellation in the application
     instead of reaching through renderer internals.
 
-[^sdist]: A source build requires a supported Rust toolchain, a Python development
+[^sdist]: A source build requires Rust 1.91 or later, a Python development
     environment, and the native dependencies of the target platform.
 
 *[ABI]: Application Binary Interface

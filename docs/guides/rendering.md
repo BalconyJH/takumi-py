@@ -151,6 +151,7 @@ The native boundary validates values before rendering:
 | `time_ms` | Non-negative integer |
 | render-level `lang` | `None` or a valid BCP-47 language tag |
 | `quality` | Integer from 0 through 100 |
+| `dithering` | `"none"` or `"ordered-bayer"`; `"floyd-steinberg"` is a deprecated alias of `"ordered-bayer"` |
 | `lossless` | Supported only for WebP; `lossless=True` cannot be combined with `quality` |
 
 Invalid numeric values and contradictory encoder options raise `ValueError`. Format
