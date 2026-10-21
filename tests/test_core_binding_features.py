@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
@@ -801,6 +802,69 @@ def test_render_animation_and_encode_frames_write_animated_formats() -> None:
     assert webp[8:12] == b"WEBP"
     assert apng.startswith(b"\x89PNG")
     assert gif.startswith(b"GIF")
+
+
+@pytest.mark.parametrize("format", ["webp", "apng", "gif"])
+def test_streamed_animation_matches_encoded_frames(
+    format: Literal["webp", "apng", "gif"],
+) -> None:
+    renderer = Renderer()
+    scenes = [
+        AnimationScene(
+            {
+                "type": "container",
+                "style": {
+                    "width": "100%",
+                    "height": "100%",
+                    "backgroundColor": color,
+                },
+            },
+            duration_ms=100,
+        )
+        for color in ("black", "white")
+    ]
+    frames = [
+        RawAnimationFrame(
+            renderer.render_sequence_at_time(
+                scenes, time_ms, width=4, height=4, format="raw"
+            ),
+            4,
+            4,
+            100,
+        )
+        for time_ms in (0, 100)
+    ]
+
+    streamed = renderer.render_animation(
+        scenes, width=4, height=4, fps=10, format=format
+    )
+
+    assert streamed == renderer.encode_frames(frames, format=format)
+
+
+@pytest.mark.parametrize(
+    ("format", "max_fps"),
+    [("gif", 50), ("apng", 90), ("webp", 90)],
+)
+def test_render_animation_rejects_frame_rates_decoders_clamp(
+    format: Literal["webp", "apng", "gif"],
+    max_fps: int,
+) -> None:
+    renderer = Renderer()
+    scenes = [
+        AnimationScene(
+            {"type": "container", "style": {"width": "2px", "height": "2px"}},
+            duration_ms=100,
+        )
+    ]
+
+    assert renderer.render_animation(
+        scenes, width=2, height=2, fps=max_fps, format=format
+    )
+    with pytest.raises(ValueError, match=f"fps must not exceed {max_fps}"):
+        renderer.render_animation(
+            scenes, width=2, height=2, fps=max_fps + 1, format=format
+        )
 
 
 def test_encode_frames_rejects_empty_frames() -> None:

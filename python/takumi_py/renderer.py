@@ -1327,7 +1327,9 @@ class Renderer:
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
             fetched_resources: Deprecated alias for externally fetched images.
-            fps: Number of frames rendered per second.
+            fps: Number of frames rendered per second: at most 90 for WebP and
+                APNG and at most 50 for GIF, whose decoders clamp shorter frame
+                delays.
             format: Animation container format.
             quality: Lossy encoder quality from 0 through 100 where supported.
             lossless: Whether to use lossless WebP encoding.
@@ -1347,6 +1349,8 @@ class Renderer:
             NodeDecodeError: If a native node decoder rejects a scene.
             RenderError: If layout or frame rendering fails.
             UnsupportedFormatError: If the animation cannot be encoded.
+            ValueError: If ``fps`` exceeds the format's limit or an encoder
+                option combination is invalid.
         """
         render_options = resolve_render_options(
             options,
