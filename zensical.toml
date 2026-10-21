@@ -38,6 +38,7 @@ nav = [
   { "Migration" = [
     "migration/index.md",
     { "Takumi v2" = "migration/takumi-v2.md" },
+    { "Takumi 2.17" = "migration/takumi-2.17.md" },
   ] },
   { "Maintainers" = [
     "maintainers/index.md",
