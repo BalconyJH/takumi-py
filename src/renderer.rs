@@ -158,6 +158,7 @@ struct RenderSettingsInput<'a> {
 #[pyclass(module = "takumi_py._core")]
 pub struct NativeRenderer {
   fonts: Arc<RwLock<Fonts>>,
+  load_default_fonts: bool,
   resource_cache: ResourceCache,
   legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
 }
@@ -172,11 +173,7 @@ impl NativeRenderer {
     persistent_images: Option<Vec<ImageResourceInput>>,
     cache_max_bytes: Option<u64>,
   ) -> PyResult<Self> {
-    let mut font_store = Fonts::default();
-
-    if load_default_fonts {
-      load_default_font(&mut font_store)?;
-    }
+    let mut font_store = initial_fonts(load_default_fonts)?;
 
     for font in fonts.unwrap_or_default() {
       drop(register_font_input(&mut font_store, font)?);
@@ -191,6 +188,7 @@ impl NativeRenderer {
 
     Ok(Self {
       fonts: Arc::new(RwLock::new(font_store)),
+      load_default_fonts,
       resource_cache,
       legacy_images: Arc::new(RwLock::new(legacy_images)),
     })
@@ -266,6 +264,18 @@ impl NativeRenderer {
       registered.extend(register_font_input(&mut font_store, font)?);
     }
     Ok(registered)
+  }
+
+  pub fn unregister_font(&self, family: &str) -> PyResult<bool> {
+    let mut fonts = self.write_fonts()?;
+    Ok(fonts.unregister_family(family))
+  }
+
+  pub fn clear_fonts(&self) -> PyResult<()> {
+    let font_store = initial_fonts(self.load_default_fonts)?;
+    let mut fonts = self.write_fonts()?;
+    *fonts = font_store;
+    Ok(())
   }
 
   pub fn load_font(&self, font: FontResourceInput) -> PyResult<()> {
@@ -759,6 +769,16 @@ fn write_lock<'a, T>(lock: &'a RwLock<T>, message: &str) -> PyResult<RwLockWrite
   lock
     .write()
     .map_err(|error| RenderError::new_err(format!("{message}: {error}")))
+}
+
+fn initial_fonts(load_default_fonts: bool) -> PyResult<Fonts> {
+  let mut fonts = Fonts::default();
+
+  if load_default_fonts {
+    load_default_font(&mut fonts)?;
+  }
+
+  Ok(fonts)
 }
 
 fn load_default_font(fonts: &mut Fonts) -> PyResult<()> {
