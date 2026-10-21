@@ -10,15 +10,35 @@
 - `pyproject.toml` 与根 `Cargo.toml` 的项目版本完全一致。
 - 相对 `main` 第一父提交，项目版本严格递增，并使用规范的 PEP 440 表示。
 - `uv.lock` 与 `Cargo.lock` 已更新且能通过 locked 检查。
-- `CHANGELOG.md` 包含该版本的日期标题。
+- `CHANGELOG.md` 包含由 `make changelog` 写入的该版本带日期的章节。
 - `make check`、`make docs-build` 和全部 Prek hook 均通过。
 
-使用项目工具更新版本，不要直接编辑版本字段：
+使用项目工具更新版本，不要直接编辑版本字段，然后写入 changelog 条目：
 
 ```bash
 uv version 0.3.0 --no-sync
 cargo set-version 0.3.0
+make changelog
 ```
+
+### Changelog 条目 { #changelog-entry }
+
+在变更合入的过程中，按 Keep a Changelog 的分节把面向用户的说明整理到 `CHANGELOG.md` 的
+`## [Unreleased]` 下。`make changelog` 会把它们变成发布条目：
+
+- 把 `[Unreleased]` 标注为项目版本和日期，并在其上方新开一个空的 `[Unreleased]`。
+- 追加一个 **Commits** 列表，由 git-changelog 根据上一个标签以来的约定式提交生成：先列出
+  破坏性变更，再按提交类型分组，每个提交都以短哈希链接。
+- 条目末尾附上完整 diff 的链接，以及一行 **Contributors**，@ 提及所有作者、共同作者和
+  提交者，GitHub 自身的合并提交者除外。
+
+登录名取自 GitHub noreply 邮箱；其他邮箱通过 `gh api` 查询，因此运行该目标前请先完成
+`gh` 认证。向 `.github/scripts/changelog.py release` 传入 `--offline` 时，这些人会改为
+按名字列出。用 `make changelog-preview VERSION=0.3.0` 预览条目，必要时编辑整理过的部分，
+再与版本号变更一起提交。
+
+发布工作流会把该章节原样发布为 GitHub Release 的说明。请用 merge commit 合并发布用的
+pull request：squash 或 rebase 合并会改写条目所链接的提交哈希。
 
 提交合并到 `main` 后，`CI`、`Docs`、`Prek` 会分别验证同一提交。`Auto Tag on
 Version Change` 等待三个工作流全部成功，确认版本、锁文件、changelog 和 `main`
@@ -59,8 +79,9 @@ flowchart TD
 4. 对最终上传文件生成 GitHub build provenance。
 5. 通过 Trusted Publishing 上传 PyPI；重跑时允许跳过已存在文件，但随后必须与
    PyPI JSON 中的完整文件集合和 SHA-256 完全一致。
-6. 仅在 PyPI 核验成功后发布 GitHub Release；现有已发布 Release 只允许摘要一致的
-   幂等重跑，现有草稿可以用本次已验证制品恢复。
+6. 仅在 PyPI 核验成功后发布 GitHub Release，并以该版本的 `CHANGELOG.md` 章节作为
+   发布说明；现有已发布 Release 只允许摘要一致的幂等重跑，现有草稿可以用本次已验证
+   制品恢复，并换用 changelog 中的说明。
 7. 从同一个 release tag 通过 mike 更新两种语言的文档：英文位于站点根目录，简体中文
    位于 `zh/` 前缀下，各自维护 `versions.json`。早于中文站点的标签只部署英文。只有不
    旧于现有最高版本的发布才能移动 `latest`，并对作为版本状态存储的 `gh-pages` 并发

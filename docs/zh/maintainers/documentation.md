@@ -69,7 +69,9 @@ docs/en/ 与 docs/zh/
 - `docs/*/reference/api/` 用 mkdocstrings 渲染源码签名，不手工复制参数表。
 - 可运行示例位于 `examples/`，由 `tests/test_examples.py` 执行。指南链接这些示例，而不是
   嵌入完整脚本。
-- `CHANGELOG.md` 以英文记录发布事实；迁移页面解释跨版本的取舍和必需改动。
+- `CHANGELOG.md` 以英文记录发布事实：`[Unreleased]` 下是整理过的说明，由
+  `make changelog` 标注日期，并补上该版本的提交和贡献者。每个已发布的章节都会成为
+  GitHub Release 的说明。迁移页面解释跨版本的取舍和必需改动。
 - 发布操作，包括版本化文档的部署，只记录在 `maintainers/releasing.md` 中。
 
 ## 本地编写 { #authoring-locally }

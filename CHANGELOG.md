@@ -4,7 +4,8 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses semantic versioning with Python-compatible prerelease
-identifiers.
+identifiers. From 0.4.0 on, `make changelog` ends each release with its commits and
+contributors, and the release's section is published as its GitHub Release notes.
 
 ## [Unreleased]
 
@@ -18,6 +19,9 @@ identifiers.
   renders that inline the same image decode it once.
 - Add a Takumi 2.17 migration guide, and document font subsets, font release,
   animation frame-rate limits, and the Takumi submodule upgrade procedure.
+- Add `make changelog`, which dates the `[Unreleased]` notes as the project version
+  and appends the release's commits, grouped by type and linked by hash, with
+  @-mentions of its contributors, generated with git-changelog.
 - Publish the documentation in Simplified Chinese alongside the American English
   primary, with a language switcher, a Chinese README, and a docs build check that
   keeps both languages' pages, anchors, code samples, and configuration in sync.
@@ -32,6 +36,8 @@ identifiers.
 - Declare `rust-version = "1.91"` so dependency resolution stays within the
   pinned CI toolchain.
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
+- Publish each version's `CHANGELOG.md` section as its GitHub Release notes, instead of
+  GitHub's generated notes.
 - Stream `render_animation` frames straight into the encoder, so an animation holds
   one raw frame at a time instead of all of them.
 - Split the native extension into focused modules and pass resolved options, fonts,

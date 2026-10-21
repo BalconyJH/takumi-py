@@ -80,8 +80,10 @@ and should be split first.
   parameter tables by hand.
 - Runnable examples live in `examples/`, where `tests/test_examples.py` executes them.
   Guides link to them rather than embedding complete scripts.
-- `CHANGELOG.md` records release facts in English; migration pages explain cross-version
-  decisions and required changes.
+- `CHANGELOG.md` records release facts in English: curated notes under `[Unreleased]`,
+  which `make changelog` dates and completes with the release's commits and
+  contributors. Each released section becomes the GitHub Release notes. Migration pages
+  explain cross-version decisions and required changes.
 - Release operations, including versioned documentation deployment, live only in
   `maintainers/releasing.md`.
 

@@ -12,15 +12,41 @@ A release commit must satisfy every part of this contract:
 - The project version strictly increases over the first parent on `main` and uses the
   canonical PEP 440 form.
 - `uv.lock` and `Cargo.lock` are up to date and pass the locked checks.
-- `CHANGELOG.md` contains a dated heading for the version.
+- `CHANGELOG.md` has a dated section for the version, written by `make changelog`.
 - `make check`, `make docs-build`, and every Prek hook pass.
 
-Update versions with the project tools rather than editing the version fields directly:
+Update versions with the project tools rather than editing the version fields
+directly, then write the changelog entry:
 
 ```bash
 uv version 0.3.0 --no-sync
 cargo set-version 0.3.0
+make changelog
 ```
+
+### Changelog entry
+
+Curate user-facing notes under `## [Unreleased]` in `CHANGELOG.md` as changes land,
+in Keep a Changelog sections. `make changelog` turns them into the release entry:
+
+- It dates `[Unreleased]` as the project version and opens a new, empty
+  `[Unreleased]` above it.
+- It appends a **Commits** list that git-changelog builds from the conventional commits
+  since the previous tag: breaking changes first, then one group per commit type, each
+  commit linked by its short hash.
+- It ends the entry with a link to the full diff and a **Contributors** line that
+  @-mentions every author, co-author, and committer, except GitHub's own merge
+  committer.
+
+Logins come from GitHub noreply addresses, or from `gh api` for other emails, so run
+the target with `gh` authenticated. Passing `--offline` to
+`.github/scripts/changelog.py release` lists those people by name instead. Preview the
+entry with `make changelog-preview VERSION=0.3.0`, edit its curated part if needed, and
+commit it with the version bump.
+
+The release workflow publishes that section verbatim as the GitHub Release notes.
+Merge the release pull request with a merge commit: a squash or rebase merge rewrites
+the hashes the entry links to.
 
 After the commit merges into `main`, `CI`, `Docs`, and `Prek` each verify that same
 commit. `Auto Tag on Version Change` waits for all three workflows to succeed, confirms
@@ -66,9 +92,10 @@ macOS arm64, and Windows x64, plus one sdist. The verification layer:
 5. Uploads to PyPI through Trusted Publishing. A rerun may skip files that already
    exist, but the result must then match the complete file set and SHA-256 digests in
    the PyPI JSON exactly.
-6. Publishes the GitHub Release only after the PyPI check succeeds. An existing
-   published Release only allows an idempotent rerun with matching digests, and an
-   existing draft can be recovered with the artifacts this run verified.
+6. Publishes the GitHub Release, with the version's `CHANGELOG.md` section as its
+   notes, only after the PyPI check succeeds. An existing published Release only allows
+   an idempotent rerun with matching digests, and an existing draft can be recovered
+   with the artifacts this run verified, taking the changelog notes.
 7. Updates both documentation languages from the same release tag with mike: English
    at the site root and Simplified Chinese under the `zh/` prefix, each with its own
    `versions.json`. A tag that predates the Chinese site deploys English only. Only a
