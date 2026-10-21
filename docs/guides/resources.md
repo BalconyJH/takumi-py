@@ -88,6 +88,25 @@ result to `font_families` to select a deterministic fallback stack for a render.
 When supplied, `FontResource.weight` must be a finite number from 1 through 1000;
 invalid overrides raise `ValueError` before font registration.
 
+### Font subsets
+
+Register each subset of a family under the same `name`, with the `unicode_range` its
+`@font-face` declares. A subset serves only the codepoints in its inclusive
+`(start, end)` ranges, as in Chrome, so text picks the right file per character:
+
+```python
+renderer.register_fonts(
+    [
+        FontResource(latin, name="Inter", unicode_range=[(0x0000, 0x00FF)]),
+        FontResource(cyrillic, name="Inter", unicode_range=[(0x0400, 0x045F)]),
+    ]
+)
+```
+
+Each range must satisfy `0 <= start <= end <= 0x10FFFF`; anything else raises
+`ValueError`. `FontResource.subset_of` is deprecated: Takumi now only uses it as the
+family name, in place of `name`.
+
 !!! warning "The bundled font is intentionally narrow"
 
     Built-in Geist is a Latin last-resort font. Register suitable fonts for non-Latin
@@ -115,7 +134,9 @@ and animation entry point rejects an invalid tag with `ValueError`.
 
 `Renderer(cache_max_bytes=...)` sets the byte budget shared by that renderer's
 decoded images, scaled image variants, SVG rasters, and related render resources.
-The Takumi default is 16 MiB; pass `0` to disable retention.
+Images embedded as `data:` URIs decode through the same cache, so a template that
+inlines its logo decodes it once per renderer rather than on every render. The Takumi
+default is 64 MiB; pass `0` to disable retention.
 
 Glyph masks and outlines use a separate process-wide cache with an 8 MiB default.
 For CJK-heavy workloads, configure it before the first render in the process:

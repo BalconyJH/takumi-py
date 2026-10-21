@@ -270,7 +270,7 @@ multiplied by alpha.
 
 `Renderer(cache_max_bytes=...)` controls the renderer-local resource cache for
 decoded images, scaled rasters, SVG rasters, and related render resources. The
-default is 16 MiB; `0` disables retention. Glyph masks and outlines use a separate
+default is 64 MiB; `0` disables retention. Glyph masks and outlines use a separate
 process-wide cache. Call `set_glyph_cache_max_bytes(...)` before the process's first
 render when the default 8 MiB glyph budget is too small for the workload.
 
@@ -282,10 +282,14 @@ FontResource(
     name="Inter",
     weight=700,
     style="italic",
-    subset_of="Brand Sans",
     generic_family="sans-serif",
+    unicode_range=[(0x0000, 0x00FF)],
 )
 ```
+
+Register each subset of a family under the same `name` with its own
+`unicode_range`; a subset only serves the codepoints in its ranges.
+`subset_of` is deprecated and now only sets the family name.
 
 `style` uses CSS font-style syntax such as `"normal"`, `"italic"`, or
 `"oblique 12deg"`. Invalid style values raise `FontError` during registration.
@@ -425,7 +429,9 @@ renderer-level global context to explicit per-render resources:
   `set_glyph_cache_max_bytes(...)` controls the process-wide glyph cache before
   first use.
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
-  `subset_of`, and `generic_family`.
+  `generic_family`, and `unicode_range`. `subset_of` is deprecated and only sets
+  the family name.
+- `dithering="floyd-steinberg"` is a deprecated alias of `"ordered-bayer"`.
 - The built-in fallback font follows Takumi v2: a Latin Geist subset marked as
   last resort, so caller-registered fonts win ordinary fallback selection.
 - `HtmlOptions` exposes Takumi's Rust `from_html` parser options.

@@ -8,6 +8,41 @@ identifiers.
 
 ## [Unreleased]
 
+### Added
+
+- Add `FontResource.unicode_range` so each subset of a family registers under one
+  `name` and serves only the codepoints its `@font-face` declares.
+- Decode `data:` URI images through the renderer's resource cache, so repeated
+  renders that inline the same image decode it once.
+
+### Changed
+
+- Update Takumi from 2.5.4 to 2.17.1, including `takumi-core` 0.32.0,
+  `takumi-raster` 0.5.9, `takumi-svg` 0.3.31, and `takumi-html` 0.6.0. Layout,
+  text, filters, backgrounds, decorations, and paint order now follow Chrome more
+  closely; see the upstream changelog for the rendering changes.
+- The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
+- `<img>` without a `src` now parses as an empty box instead of raising
+  `HtmlParseError`.
+- Run the core fixture smoke test over upstream's relocated `fixtures-html`
+  sources, which restores coverage to all 336 HTML fixtures.
+
+### Deprecated
+
+- `FontResource.subset_of` now only sets the family name, taking precedence over
+  `name`; use `name` with `unicode_range` instead.
+- `dithering="floyd-steinberg"` is an alias of `"ordered-bayer"` now that Takumi
+  has dropped its whole-image error-diffusion pass.
+
+### Removed
+
+- Drop the unused direct `parley` dependency, which Takumi no longer uses.
+
+### Fixed
+
+- Document that `set_glyph_cache_max_bytes` has no effect once the glyph cache is
+  in use, instead of claiming it raises `RuntimeError`.
+
 ## [0.3.0] - 2026-08-02
 
 ### Added

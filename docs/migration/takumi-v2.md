@@ -22,9 +22,10 @@ calls all receive document-level CSS explicitly through `stylesheets=[...]`. Use
 
 ## Fonts and language
 
-- `FontResource` accepts `name`, `weight`, `style`, `subset_of`, and
-  `generic_family` descriptors. A weight override must be finite and within
-  1 through 1000.
+- `FontResource` accepts `name`, `weight`, `style`, `generic_family`, and
+  `unicode_range` descriptors. A weight override must be finite and within
+  1 through 1000. Register each subset of a family under one `name` with its own
+  `unicode_range`; `subset_of` is deprecated and only sets the family name.
 - `register_font(s)` returns the actual family names, which can be passed to render
   calls as `font_families`.
 - Render-level `lang` affects shaping and line breaking; CSS `:lang()` still depends
