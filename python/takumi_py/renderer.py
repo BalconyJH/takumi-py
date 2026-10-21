@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, TypeGuard, cast
+import sys
+from typing import Any, TypeGuard, TypeVar, cast
 from warnings import warn
 
 from takumi_py import _core
@@ -16,11 +17,12 @@ from takumi_py.options import (
     HtmlOptions,
     ImageCacheMode,
     ImageOutputFormat,
+    ImageResource,
     ImageResourceInput,
     KeyframesInput,
     RenderOptions,
     UnsetType,
-    normalize_font_resources,
+    native_render_settings,
     normalize_image_resource,
     normalize_image_resources,
 )
@@ -97,7 +99,7 @@ class Renderer:
             warn_deprecated("persistent_images", "per-render images")
         self._native = _core.NativeRenderer(
             load_default_fonts=load_default_fonts,
-            fonts=normalize_font_resources(fonts),
+            fonts=None if fonts is None else list(fonts),
             persistent_images=normalize_image_resources(persistent_images),
             cache_max_bytes=cache_max_bytes,
         )
@@ -124,7 +126,7 @@ class Renderer:
         """
         if validate:
             node = validate_node(node)
-        return self._native.compile_node_py(node)
+        return self._native.compile_node(node)
 
     def compile_stylesheet(self, css: str) -> CompiledStyleSheet:
         """Compile CSS and fail if it cannot be parsed.
@@ -178,8 +180,7 @@ class Renderer:
         Raises:
             FontError: If Takumi cannot decode or register the font.
         """
-        normalized = normalize_font_resources([font]) or []
-        return tuple(self._native.register_font(normalized[0]))
+        return tuple(self._native.register_font(font))
 
     def register_fonts(self, fonts: Sequence[FontResourceInput]) -> tuple[str, ...]:
         """Register multiple font resources with this renderer.
@@ -193,7 +194,7 @@ class Renderer:
         Raises:
             FontError: If Takumi cannot decode or register a font.
         """
-        return tuple(self._native.register_fonts(normalize_font_resources(fonts) or []))
+        return tuple(self._native.register_fonts(list(fonts)))
 
     def unregister_font(self, name: str) -> bool:
         """Remove every face registered under a font-family name.
@@ -273,12 +274,9 @@ class Renderer:
         if isinstance(resource, str):
             if data is None:
                 raise TypeError("data is required when resource is a src string")
-            src = resource
-            payload = data
-        else:
-            src, payload, cache = normalize_image_resource(resource)
+            resource = ImageResource(resource, data, cache)
 
-        self._native.put_persistent_image(src, payload, cache)
+        self._native.put_persistent_image(normalize_image_resource(resource))
 
     def clear_image_store(self) -> None:
         """Remove all renderer-wide persistent images.
@@ -364,28 +362,11 @@ class Renderer:
             lang=lang,
             fetched_resources=fetched_resources,
         )
-        compiled_stylesheets = tuple(
-            stylesheets or ()
-        ) + self._compile_keyframes_option(render_options.keyframes)
         return self._native.render_compiled(
             node,
-            stylesheets=compiled_stylesheets,
-            width=render_options.width,
-            height=render_options.height,
-            font_size=render_options.font_size,
-            device_pixel_ratio=render_options.device_pixel_ratio,
-            draw_debug_border=render_options.draw_debug_border,
-            time_ms=render_options.time_ms,
-            dithering=render_options.dithering,
-            fetched_resources=normalize_image_resources(
-                render_options.fetched_resources
-            ),
-            images=normalize_image_resources(render_options.images),
-            font_families=normalize_string_sequence(render_options.font_families),
-            lang=render_options.lang,
-            format=render_options.format,
-            quality=render_options.quality,
-            lossless=render_options.lossless,
+            self._with_keyframes(stylesheets, render_options.keyframes),
+            native_render_settings(render_options),
+            render_options,
         )
 
     def measure_compiled(
@@ -453,25 +434,10 @@ class Renderer:
             lang=lang,
             fetched_resources=fetched_resources,
         )
-        compiled_stylesheets = tuple(
-            stylesheets or ()
-        ) + self._compile_keyframes_option(render_options.keyframes)
         measured = self._native.measure_compiled(
             node,
-            stylesheets=compiled_stylesheets,
-            width=render_options.width,
-            height=render_options.height,
-            font_size=render_options.font_size,
-            device_pixel_ratio=render_options.device_pixel_ratio,
-            draw_debug_border=render_options.draw_debug_border,
-            time_ms=render_options.time_ms,
-            dithering=render_options.dithering,
-            fetched_resources=normalize_image_resources(
-                render_options.fetched_resources
-            ),
-            images=normalize_image_resources(render_options.images),
-            font_families=normalize_string_sequence(render_options.font_families),
-            lang=render_options.lang,
+            self._with_keyframes(stylesheets, render_options.keyframes),
+            native_render_settings(render_options),
         )
         return measured_node_from_mapping(measured)
 
@@ -963,22 +929,10 @@ class Renderer:
             lang=lang,
             fetched_resources=fetched_resources,
         )
-        compiled_stylesheets = tuple(
-            stylesheets or ()
-        ) + self._compile_keyframes_option(render_options.keyframes)
         return self._native.render_svg_compiled(
             node,
-            stylesheets=compiled_stylesheets,
-            width=render_options.width,
-            height=render_options.height,
-            font_size=render_options.font_size,
-            time_ms=render_options.time_ms,
-            fetched_resources=normalize_image_resources(
-                render_options.fetched_resources
-            ),
-            images=normalize_image_resources(render_options.images),
-            font_families=normalize_string_sequence(render_options.font_families),
-            lang=render_options.lang,
+            self._with_keyframes(stylesheets, render_options.keyframes),
+            native_render_settings(render_options, raster=False),
         )
 
     def render_svg_node(
@@ -1252,29 +1206,12 @@ class Renderer:
             lang=lang,
             fetched_resources=fetched_resources,
         )
-        compiled_scenes = self._compile_animation_scenes(scenes, validate=validate)
         return self._native.render_sequence_at_time_compiled(
-            compiled_scenes,
+            self._compile_animation_scenes(scenes, validate=validate),
             time_ms,
-            stylesheets=self._compile_stylesheets(
-                stylesheets,
-                render_options.keyframes,
-            ),
-            width=render_options.width,
-            height=render_options.height,
-            font_size=render_options.font_size,
-            device_pixel_ratio=render_options.device_pixel_ratio,
-            draw_debug_border=render_options.draw_debug_border,
-            dithering=render_options.dithering,
-            fetched_resources=normalize_image_resources(
-                render_options.fetched_resources
-            ),
-            images=normalize_image_resources(render_options.images),
-            font_families=normalize_string_sequence(render_options.font_families),
-            lang=render_options.lang,
-            format=render_options.format,
-            quality=render_options.quality,
-            lossless=render_options.lossless,
+            self._compile_stylesheets(stylesheets, render_options.keyframes),
+            native_render_settings(render_options, time_ms=0),
+            render_options,
         )
 
     def render_animation(
@@ -1376,33 +1313,12 @@ class Renderer:
             webp_dispose=webp_dispose,
             webp_speed=webp_speed,
         )
-        compiled_scenes = self._compile_animation_scenes(scenes, validate=validate)
         return self._native.render_animation_compiled(
-            compiled_scenes,
-            stylesheets=self._compile_stylesheets(
-                stylesheets,
-                render_options.keyframes,
-            ),
-            width=render_options.width,
-            height=render_options.height,
-            font_size=render_options.font_size,
-            device_pixel_ratio=render_options.device_pixel_ratio,
-            draw_debug_border=render_options.draw_debug_border,
-            dithering=render_options.dithering,
-            fetched_resources=normalize_image_resources(
-                render_options.fetched_resources
-            ),
-            images=normalize_image_resources(render_options.images),
-            font_families=normalize_string_sequence(render_options.font_families),
-            lang=render_options.lang,
-            fps=fps,
-            format=resolved_encode_options.format,
-            quality=resolved_encode_options.quality,
-            lossless=resolved_encode_options.lossless,
-            loop_count=resolved_encode_options.loop_count,
-            webp_blend=resolved_encode_options.webp_blend,
-            webp_dispose=resolved_encode_options.webp_dispose,
-            webp_speed=resolved_encode_options.webp_speed,
+            self._compile_animation_scenes(scenes, validate=validate),
+            self._compile_stylesheets(stylesheets, render_options.keyframes),
+            native_render_settings(render_options, time_ms=0),
+            fps,
+            resolved_encode_options,
         )
 
     def encode_frames(
@@ -1453,19 +1369,7 @@ class Renderer:
             webp_dispose=webp_dispose,
             webp_speed=webp_speed,
         )
-        return self._native.encode_frames(
-            [
-                (frame.data, frame.width, frame.height, frame.duration_ms)
-                for frame in frames
-            ],
-            format=resolved_encode_options.format,
-            quality=resolved_encode_options.quality,
-            lossless=resolved_encode_options.lossless,
-            loop_count=resolved_encode_options.loop_count,
-            webp_blend=resolved_encode_options.webp_blend,
-            webp_dispose=resolved_encode_options.webp_dispose,
-            webp_speed=resolved_encode_options.webp_speed,
-        )
+        return self._native.encode_frames(list(frames), resolved_encode_options)
 
     def _compile_stylesheets(
         self,
@@ -1473,10 +1377,10 @@ class Renderer:
         keyframes: KeyframesInput | None = None,
     ) -> tuple[CompiledStyleSheet, ...]:
         """Strictly compile node CSS followed by optional keyframes."""
-        compiled = tuple(
-            self.compile_stylesheet(stylesheet) for stylesheet in stylesheets or ()
+        return self._with_keyframes(
+            [self.compile_stylesheet(stylesheet) for stylesheet in stylesheets or ()],
+            keyframes,
         )
-        return compiled + self._compile_keyframes_option(keyframes)
 
     def _compile_html_stylesheets(
         self,
@@ -1484,19 +1388,24 @@ class Renderer:
         keyframes: KeyframesInput | None = None,
     ) -> tuple[CompiledStyleSheet, ...]:
         """Lossily compile HTML CSS followed by optional keyframes."""
-        compiled = tuple(
-            self.compile_stylesheet_lossy(stylesheet)
-            for stylesheet in stylesheets or ()
+        return self._with_keyframes(
+            [
+                self.compile_stylesheet_lossy(stylesheet)
+                for stylesheet in stylesheets or ()
+            ],
+            keyframes,
         )
-        return compiled + self._compile_keyframes_option(keyframes)
 
-    def _compile_keyframes_option(
-        self, keyframes: KeyframesInput | None
+    def _with_keyframes(
+        self,
+        stylesheets: Sequence[CompiledStyleSheet] | None,
+        keyframes: KeyframesInput | None,
     ) -> tuple[CompiledStyleSheet, ...]:
-        """Compile optional keyframes into a zero-or-one stylesheet tuple."""
+        """Append the compiled structured keyframes, if any, to compiled stylesheets."""
+        compiled = tuple(stylesheets or ())
         if keyframes is None:
-            return ()
-        return (self.compile_keyframes(keyframes),)
+            return compiled
+        return (*compiled, self.compile_keyframes(keyframes))
 
     def _compile_animation_scenes(
         self, scenes: Sequence[AnimationScene], *, validate: bool
@@ -1541,43 +1450,30 @@ def resolve_render_options(
     lang: str | None | UnsetType = UNSET,
     fetched_resources: Sequence[ImageResourceInput] | None | UnsetType = UNSET,
 ) -> RenderOptions:
+    """Apply the explicit keyword overrides, those not ``UNSET``, to ``options``."""
     resolved = RenderOptions() if options is None else options
     if resolved.fetched_resources is not None:
         warn_deprecated("RenderOptions.fetched_resources", "RenderOptions.images")
-    updates: dict[str, Any] = {}
-    if width is not UNSET:
-        updates["width"] = width
-    if height is not UNSET:
-        updates["height"] = height
-    if format is not UNSET:
-        updates["format"] = format
-    if quality is not UNSET:
-        updates["quality"] = quality
-    if lossless is not UNSET:
-        updates["lossless"] = lossless
-    if font_size is not UNSET:
-        updates["font_size"] = font_size
-    if device_pixel_ratio is not UNSET:
-        updates["device_pixel_ratio"] = device_pixel_ratio
-    if draw_debug_border is not UNSET:
-        updates["draw_debug_border"] = draw_debug_border
-    if time_ms is not UNSET:
-        updates["time_ms"] = time_ms
-    if dithering is not UNSET:
-        updates["dithering"] = dithering
-    if images is not UNSET:
-        updates["images"] = images
-    if keyframes is not UNSET:
-        updates["keyframes"] = keyframes
-    if font_families is not UNSET:
-        updates["font_families"] = font_families
-    if lang is not UNSET:
-        updates["lang"] = lang
     if fetched_resources is not UNSET:
         warn_deprecated("fetched_resources", "images")
-        updates["fetched_resources"] = fetched_resources
-    if updates:
-        resolved = replace(resolved, **updates)
+    resolved = apply_overrides(
+        resolved,
+        width=width,
+        height=height,
+        format=format,
+        quality=quality,
+        lossless=lossless,
+        font_size=font_size,
+        device_pixel_ratio=device_pixel_ratio,
+        draw_debug_border=draw_debug_border,
+        time_ms=time_ms,
+        dithering=dithering,
+        images=images,
+        keyframes=keyframes,
+        font_families=font_families,
+        lang=lang,
+        fetched_resources=fetched_resources,
+    )
     if resolved.dithering == "floyd-steinberg":
         warn_deprecated('dithering="floyd-steinberg"', 'dithering="ordered-bayer"')
     return resolved
@@ -1594,40 +1490,53 @@ def resolve_animation_encode_options(
     webp_dispose: bool | UnsetType = UNSET,
     webp_speed: int | None | UnsetType = UNSET,
 ) -> AnimationEncodeOptions:
-    resolved = AnimationEncodeOptions() if options is None else options
-    updates: dict[str, Any] = {}
-    if format is not UNSET:
-        updates["format"] = format
-    if quality is not UNSET:
-        updates["quality"] = quality
-    if lossless is not UNSET:
-        updates["lossless"] = lossless
-    if loop_count is not UNSET:
-        updates["loop_count"] = loop_count
-    if webp_blend is not UNSET:
-        updates["webp_blend"] = webp_blend
-    if webp_dispose is not UNSET:
-        updates["webp_dispose"] = webp_dispose
-    if webp_speed is not UNSET:
-        updates["webp_speed"] = webp_speed
+    """Apply the explicit keyword overrides, those not ``UNSET``, to ``options``."""
+    return apply_overrides(
+        AnimationEncodeOptions() if options is None else options,
+        format=format,
+        quality=quality,
+        lossless=lossless,
+        loop_count=loop_count,
+        webp_blend=webp_blend,
+        webp_dispose=webp_dispose,
+        webp_speed=webp_speed,
+    )
+
+
+_OptionsT = TypeVar("_OptionsT", RenderOptions, AnimationEncodeOptions)
+
+
+def apply_overrides(options: _OptionsT, **overrides: object) -> _OptionsT:
+    """Replace the fields of ``options`` whose override is not ``UNSET``."""
+    updates = {name: value for name, value in overrides.items() if value is not UNSET}
     if not updates:
-        return resolved
-    return replace(resolved, **updates)
+        return options
+    return replace(options, **cast(Any, updates))
 
 
 def is_compiled_node(node: object) -> TypeGuard[CompiledNode]:
     return isinstance(node, _core.CompiledNode)
 
 
-def normalize_string_sequence(values: Sequence[str] | None) -> list[str] | None:
-    if values is None:
-        return None
-    return list(values)
+_PACKAGE_DIR = Path(__file__).resolve().parent
 
 
 def warn_deprecated(name: str, replacement: str) -> None:
+    """Warn on behalf of the first caller outside ``takumi_py``.
+
+    Public methods call one another, so a fixed ``stacklevel`` would point inside the
+    package, where default warning filters hide the warning.
+    """
+    level = 2
+    frame = sys._getframe(1)
+    while (
+        frame.f_back is not None
+        and Path(frame.f_code.co_filename).resolve().parent == _PACKAGE_DIR
+    ):
+        frame = frame.f_back
+        level += 1
     warn(
         f"{name} is deprecated; use {replacement} instead",
         DeprecationWarning,
-        stacklevel=3,
+        stacklevel=level,
     )

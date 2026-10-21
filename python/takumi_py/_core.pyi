@@ -2,6 +2,15 @@ from collections.abc import Sequence
 from typing import Literal, TypeAlias, final, type_check_only
 from typing_extensions import TypedDict
 
+from takumi_py.options import (
+    AnimationEncodeOptions,
+    FontResource,
+    ImageResource,
+    NativeRenderSettings,
+    RenderOptions,
+)
+from takumi_py.types import RawAnimationFrame
+
 __all__ = [
     "AnimationError",
     "CompiledNode",
@@ -37,21 +46,7 @@ class CompiledNode:
 @final
 class CompiledStyleSheet: ...
 
-_ImageOutputFormat: TypeAlias = Literal["png", "jpeg", "jpg", "webp", "ico", "raw"]
-_AnimationOutputFormat: TypeAlias = Literal["webp", "apng", "gif"]
-_DitheringAlgorithm: TypeAlias = Literal["none", "ordered-bayer", "floyd-steinberg"]
-_ImageCacheMode: TypeAlias = Literal["auto", "none"]
-_ImageResourceInput: TypeAlias = tuple[str, bytes, _ImageCacheMode]
-_FontResourceInput: TypeAlias = tuple[
-    bytes,
-    str | None,
-    float | None,
-    str | None,
-    str | None,
-    str | None,
-    Sequence[tuple[int, int]] | None,
-]
-_RawAnimationFrameInput: TypeAlias = tuple[bytes, int, int, int]
+_FontInput: TypeAlias = bytes | FontResource
 
 def set_glyph_cache_max_bytes(max_bytes: int) -> None: ...
 
@@ -77,11 +72,11 @@ class NativeRenderer:
         cls,
         *,
         load_default_fonts: bool = True,
-        fonts: Sequence[_FontResourceInput] | None = None,
-        persistent_images: Sequence[_ImageResourceInput] | None = None,
+        fonts: Sequence[_FontInput] | None = None,
+        persistent_images: Sequence[ImageResource] | None = None,
         cache_max_bytes: int | None = None,
     ) -> NativeRenderer: ...
-    def compile_node_py(self, node: object) -> CompiledNode: ...
+    def compile_node(self, node: object) -> CompiledNode: ...
     def compile_html(
         self,
         html: str,
@@ -93,120 +88,49 @@ class NativeRenderer:
     def compile_stylesheet(self, css: str) -> CompiledStyleSheet: ...
     def compile_stylesheet_lossy(self, css: str) -> CompiledStyleSheet: ...
     def compile_keyframes(self, keyframes: object) -> CompiledStyleSheet: ...
-    def register_font(self, font: _FontResourceInput) -> list[str]: ...
-    def register_fonts(self, fonts: Sequence[_FontResourceInput]) -> list[str]: ...
+    def register_font(self, font: _FontInput) -> list[str]: ...
+    def register_fonts(self, fonts: Sequence[_FontInput]) -> list[str]: ...
     def unregister_font(self, family: str) -> bool: ...
     def clear_fonts(self) -> None: ...
-    def load_font(self, font: _FontResourceInput) -> None: ...
-    def load_fonts(self, fonts: Sequence[_FontResourceInput]) -> None: ...
-    def put_persistent_image(
-        self, src: str, data: bytes, cache: _ImageCacheMode = "auto"
-    ) -> None: ...
+    def put_persistent_image(self, resource: ImageResource) -> None: ...
     def clear_image_store(self) -> None: ...
     def render_compiled(
         self,
         node: CompiledNode,
-        *,
-        stylesheets: Sequence[CompiledStyleSheet] | None = None,
-        width: int | None = 1200,
-        height: int | None = 630,
-        font_size: float = 16.0,
-        device_pixel_ratio: float = 1.0,
-        draw_debug_border: bool = False,
-        time_ms: int = 0,
-        dithering: _DitheringAlgorithm = "none",
-        fetched_resources: Sequence[_ImageResourceInput] | None = None,
-        images: Sequence[_ImageResourceInput] | None = None,
-        font_families: Sequence[str] | None = None,
-        lang: str | None = None,
-        format: _ImageOutputFormat = "png",
-        quality: int | None = None,
-        lossless: bool | None = None,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
+        encoding: RenderOptions,
     ) -> bytes: ...
     def measure_compiled(
         self,
         node: CompiledNode,
-        *,
-        stylesheets: Sequence[CompiledStyleSheet] | None = None,
-        width: int | None = 1200,
-        height: int | None = 630,
-        font_size: float = 16.0,
-        device_pixel_ratio: float = 1.0,
-        draw_debug_border: bool = False,
-        time_ms: int = 0,
-        dithering: _DitheringAlgorithm = "none",
-        fetched_resources: Sequence[_ImageResourceInput] | None = None,
-        images: Sequence[_ImageResourceInput] | None = None,
-        font_families: Sequence[str] | None = None,
-        lang: str | None = None,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
     ) -> _MeasuredNodeOutput: ...
     def render_svg_compiled(
         self,
         node: CompiledNode,
-        *,
-        stylesheets: Sequence[CompiledStyleSheet] | None = None,
-        width: int | None = 1200,
-        height: int | None = 630,
-        font_size: float = 16.0,
-        time_ms: int = 0,
-        fetched_resources: Sequence[_ImageResourceInput] | None = None,
-        images: Sequence[_ImageResourceInput] | None = None,
-        font_families: Sequence[str] | None = None,
-        lang: str | None = None,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
     ) -> str: ...
     def render_sequence_at_time_compiled(
         self,
         scenes: Sequence[tuple[CompiledNode, int]],
         time_ms: int,
-        *,
-        stylesheets: Sequence[CompiledStyleSheet] | None = None,
-        width: int | None = 1200,
-        height: int | None = 630,
-        font_size: float = 16.0,
-        device_pixel_ratio: float = 1.0,
-        draw_debug_border: bool = False,
-        dithering: _DitheringAlgorithm = "none",
-        fetched_resources: Sequence[_ImageResourceInput] | None = None,
-        images: Sequence[_ImageResourceInput] | None = None,
-        font_families: Sequence[str] | None = None,
-        lang: str | None = None,
-        format: _ImageOutputFormat = "png",
-        quality: int | None = None,
-        lossless: bool | None = None,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
+        encoding: RenderOptions,
     ) -> bytes: ...
     def render_animation_compiled(
         self,
         scenes: Sequence[tuple[CompiledNode, int]],
-        *,
-        stylesheets: Sequence[CompiledStyleSheet] | None = None,
-        width: int | None = 1200,
-        height: int | None = 630,
-        font_size: float = 16.0,
-        device_pixel_ratio: float = 1.0,
-        draw_debug_border: bool = False,
-        dithering: _DitheringAlgorithm = "none",
-        fetched_resources: Sequence[_ImageResourceInput] | None = None,
-        images: Sequence[_ImageResourceInput] | None = None,
-        font_families: Sequence[str] | None = None,
-        lang: str | None = None,
-        fps: int = 30,
-        format: _AnimationOutputFormat = "webp",
-        quality: int | None = None,
-        lossless: bool | None = None,
-        loop_count: int | None = None,
-        webp_blend: bool = True,
-        webp_dispose: bool = False,
-        webp_speed: int | None = None,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
+        fps: int,
+        encoding: AnimationEncodeOptions,
     ) -> bytes: ...
     def encode_frames(
         self,
-        frames: Sequence[_RawAnimationFrameInput],
-        *,
-        format: _AnimationOutputFormat = "webp",
-        quality: int | None = None,
-        lossless: bool | None = None,
-        loop_count: int | None = None,
-        webp_blend: bool = True,
-        webp_dispose: bool = False,
-        webp_speed: int | None = None,
+        frames: Sequence[RawAnimationFrame],
+        encoding: AnimationEncodeOptions,
     ) -> bytes: ...

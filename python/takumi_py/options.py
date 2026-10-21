@@ -145,64 +145,62 @@ class AnimationEncodeOptions:
     webp_speed: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class NativeRenderSettings:
+    """Resolved render settings in the shape the native extension reads."""
+
+    width: int | None
+    height: int | None
+    font_size: float
+    device_pixel_ratio: float
+    draw_debug_border: bool
+    time_ms: int
+    dithering: DitheringAlgorithm
+    images: list[ImageResource]
+    font_families: list[str] | None
+    lang: str | None
+
+
+def native_render_settings(
+    options: RenderOptions,
+    *,
+    raster: bool = True,
+    time_ms: int | None = None,
+) -> NativeRenderSettings:
+    """Flatten resolved options for the native extension.
+
+    ``raster=False`` drops the raster-only settings that SVG output ignores, and
+    ``time_ms`` overrides the sampling time for scene sequences, which keep their own
+    timeline.
+    """
+    return NativeRenderSettings(
+        width=options.width,
+        height=options.height,
+        font_size=options.font_size,
+        device_pixel_ratio=options.device_pixel_ratio if raster else 1.0,
+        draw_debug_border=options.draw_debug_border if raster else False,
+        time_ms=options.time_ms if time_ms is None else time_ms,
+        dithering=options.dithering if raster else "none",
+        # Later resources replace earlier ones with the same src.
+        images=[
+            *normalize_image_resources(options.fetched_resources),
+            *normalize_image_resources(options.images),
+        ],
+        font_families=(
+            None if options.font_families is None else list(options.font_families)
+        ),
+        lang=options.lang,
+    )
+
+
 def normalize_image_resources(
     resources: Sequence[ImageResourceInput] | None,
-) -> list[tuple[str, bytes, ImageCacheMode]] | None:
-    if resources is None:
-        return None
-
-    normalized: list[tuple[str, bytes, ImageCacheMode]] = []
-    for resource in resources:
-        if isinstance(resource, ImageResource):
-            normalized.append((resource.src, resource.data, resource.cache))
-        else:
-            src, data = resource
-            normalized.append((src, data, "auto"))
-    return normalized
+) -> list[ImageResource]:
+    return [normalize_image_resource(resource) for resource in resources or ()]
 
 
-def normalize_image_resource(
-    resource: ImageResourceInput,
-) -> tuple[str, bytes, ImageCacheMode]:
+def normalize_image_resource(resource: ImageResourceInput) -> ImageResource:
     if isinstance(resource, ImageResource):
-        return resource.src, resource.data, resource.cache
+        return resource
     src, data = resource
-    return src, data, "auto"
-
-
-NativeFontResource: TypeAlias = tuple[
-    bytes,
-    str | None,
-    float | None,
-    str | None,
-    str | None,
-    str | None,
-    list[UnicodeRange] | None,
-]
-
-
-def normalize_font_resources(
-    resources: Sequence[FontResourceInput] | None,
-) -> list[NativeFontResource] | None:
-    if resources is None:
-        return None
-
-    normalized: list[NativeFontResource] = []
-    for resource in resources:
-        if isinstance(resource, FontResource):
-            normalized.append(
-                (
-                    resource.data,
-                    resource.name,
-                    resource.weight,
-                    resource.style,
-                    resource.subset_of,
-                    resource.generic_family,
-                    None
-                    if resource.unicode_range is None
-                    else [(start, end) for start, end in resource.unicode_range],
-                )
-            )
-        else:
-            normalized.append((resource, None, None, None, None, None, None))
-    return normalized
+    return ImageResource(src, data)
