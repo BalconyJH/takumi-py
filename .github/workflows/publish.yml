@@ -677,15 +677,31 @@ jobs:
           PY
             )
 
-            deploy_succeeded=false
-            if [[ "${update_latest}" == "true" ]]; then
-              if uv run mike deploy --update-aliases "${VERSION}" latest 2>&1 | tee -a "${DEPLOY_LOG}" \
-                && uv run mike set-default latest 2>&1 | tee -a "${DEPLOY_LOG}"; then
-                deploy_succeeded=true
-              fi
-            elif uv run mike deploy "${VERSION}" 2>&1 | tee -a "${DEPLOY_LOG}"; then
-              deploy_succeeded=true
+            # English deploys at the site root; Simplified Chinese, when the release
+            # tag ships it, deploys under zh/ with its own versions.json.
+            deploy_targets=("zensical.toml:")
+            if [[ -f zensical.zh.toml ]]; then
+              deploy_targets+=("zensical.zh.toml:zh")
             fi
+
+            deploy_succeeded=true
+            for target in "${deploy_targets[@]}"; do
+              mike_args=(--config-file "${target%%:*}")
+              if [[ -n "${target#*:}" ]]; then
+                mike_args+=(--deploy-prefix "${target#*:}")
+              fi
+
+              if [[ "${update_latest}" == "true" ]]; then
+                if ! { uv run mike deploy "${mike_args[@]}" --update-aliases "${VERSION}" latest 2>&1 | tee -a "${DEPLOY_LOG}" \
+                  && uv run mike set-default "${mike_args[@]}" latest 2>&1 | tee -a "${DEPLOY_LOG}"; }; then
+                  deploy_succeeded=false
+                  break
+                fi
+              elif ! uv run mike deploy "${mike_args[@]}" "${VERSION}" 2>&1 | tee -a "${DEPLOY_LOG}"; then
+                deploy_succeeded=false
+                break
+              fi
+            done
 
             if [[ "${deploy_succeeded}" == "true" ]] \
               && git push origin gh-pages:gh-pages 2>&1 | tee -a "${DEPLOY_LOG}"; then
@@ -707,6 +723,10 @@ jobs:
           git archive gh-pages | tar -x -C "${pages_dir}"
           test -f "${pages_dir}/index.html"
           test -f "${pages_dir}/versions.json"
+          if [[ -f zensical.zh.toml ]]; then
+            test -f "${pages_dir}/zh/index.html"
+            test -f "${pages_dir}/zh/versions.json"
+          fi
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

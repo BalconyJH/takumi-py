@@ -117,13 +117,19 @@ docs-build: docs-check ## Build both documentation languages and fail on warning
 	@echo "==> Building Simplified Chinese documentation"
 	$(ZENSICAL) build --clean --strict --config-file zensical.zh.toml
 
-docs-deploy: ensure-uv ## Stage versioned docs locally (for example VERSION=0.3.0).
+docs-deploy: ensure-uv ## Stage versioned docs in both languages locally (for example VERSION=0.3.0).
 	@test -n "$(VERSION)" || { echo "Error: VERSION is required."; exit 1; }
-	@echo "==> Staging documentation version $(VERSION)"
-	$(UV) run --group docs mike deploy --update-aliases "$(VERSION)" latest
+	@echo "==> Staging English documentation version $(VERSION)"
+	$(UV) run --group docs mike deploy --config-file zensical.toml --update-aliases "$(VERSION)" latest
+	@echo "==> Staging Simplified Chinese documentation version $(VERSION)"
+	$(UV) run --group docs mike deploy --config-file zensical.zh.toml --deploy-prefix zh \
+		--update-aliases "$(VERSION)" latest
 
-docs-list: ensure-uv ## List versioned documentation deployments.
-	$(UV) run --group docs mike list
+docs-list: ensure-uv ## List versioned documentation deployments in both languages.
+	@echo "==> English"
+	$(UV) run --group docs mike list --config-file zensical.toml
+	@echo "==> Simplified Chinese"
+	$(UV) run --group docs mike list --config-file zensical.zh.toml --deploy-prefix zh
 
 ##@ Code quality
 
