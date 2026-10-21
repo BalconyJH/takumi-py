@@ -5,8 +5,8 @@ site_author = "BalconyJH"
 site_url = "https://balconyjh.github.io/takumi-py/"
 repo_url = "https://github.com/BalconyJH/takumi-py"
 repo_name = "BalconyJH/takumi-py"
-edit_uri = "edit/main/docs/"
-docs_dir = "docs"
+edit_uri = "edit/main/docs/en/"
+docs_dir = "docs/en"
 site_dir = "site"
 copyright = "Copyright &copy; 2026 takumi-py contributors"
 nav = [
@@ -19,6 +19,8 @@ nav = [
   { "Guides" = [
     "guides/index.md",
     { "Rendering model" = "guides/rendering.md" },
+    { "HTML and CSS" = "guides/html.md" },
+    { "Output formats" = "guides/output.md" },
     { "Fonts and images" = "guides/resources.md" },
     { "Jinja templates" = "guides/templates.md" },
     { "Animation" = "guides/animation.md" },
@@ -86,6 +88,18 @@ toggle.name = "Switch to dark mode"
 scheme = "slate"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
+
+# Each language builds as its own site; the switcher links follow the deployed layout,
+# English at the version root and Chinese under zh/.
+[[project.extra.alternate]]
+name = "English"
+link = "./"
+lang = "en"
+
+[[project.extra.alternate]]
+name = "简体中文"
+link = "../zh/"
+lang = "zh"
 
 [project.extra.version]
 provider = "mike"

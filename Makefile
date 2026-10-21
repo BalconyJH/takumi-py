@@ -96,16 +96,26 @@ test: develop ## Run pytest.
 
 ##@ Documentation
 
-.PHONY: docs docs-serve docs-build docs-deploy docs-list
-docs: docs-serve ## Preview the documentation site locally.
+.PHONY: docs docs-serve docs-serve-zh docs-check docs-build docs-deploy docs-list
+docs: docs-serve ## Preview the English documentation site locally.
 
-docs-serve: ensure-uv ## Preview the documentation site locally.
-	@echo "==> Serving documentation"
+docs-serve: ensure-uv ## Preview the English documentation site locally.
+	@echo "==> Serving English documentation"
 	$(ZENSICAL) serve
 
-docs-build: ensure-uv ## Build documentation and fail on warnings.
-	@echo "==> Building documentation"
+docs-serve-zh: ensure-uv ## Preview the Simplified Chinese documentation site locally.
+	@echo "==> Serving Simplified Chinese documentation"
+	$(ZENSICAL) serve --config-file zensical.zh.toml
+
+docs-check: ensure-uv ## Check that the Chinese documentation mirrors the English source.
+	@echo "==> Checking documentation translations"
+	$(UV) run --group docs python .github/scripts/check-docs-i18n.py
+
+docs-build: docs-check ## Build both documentation languages and fail on warnings.
+	@echo "==> Building English documentation"
 	$(ZENSICAL) build --clean --strict
+	@echo "==> Building Simplified Chinese documentation"
+	$(ZENSICAL) build --clean --strict --config-file zensical.zh.toml
 
 docs-deploy: ensure-uv ## Stage versioned docs locally (for example VERSION=0.3.0).
 	@test -n "$(VERSION)" || { echo "Error: VERSION is required."; exit 1; }
