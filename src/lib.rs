@@ -1,6 +1,18 @@
+//! Native extension for takumi-py. `renderer` holds the Python-facing entry point;
+//! the other modules read its inputs and run Takumi's render pipeline.
+
+mod encode;
 mod errors;
+mod fonts;
+mod images;
+mod measure;
+mod nodes;
 mod options;
+mod pipeline;
 mod renderer;
+mod settings;
+mod stylesheets;
+mod validate;
 
 use pyo3::{prelude::*, types::PyModule};
 
@@ -12,8 +24,8 @@ fn set_glyph_cache_max_bytes(max_bytes: usize) {
 #[pymodule]
 fn _core(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
   module.add_class::<renderer::NativeRenderer>()?;
-  module.add_class::<renderer::CompiledNode>()?;
-  module.add_class::<renderer::CompiledStyleSheet>()?;
+  module.add_class::<nodes::CompiledNode>()?;
+  module.add_class::<stylesheets::CompiledStyleSheet>()?;
   module.add_function(wrap_pyfunction!(set_glyph_cache_max_bytes, module)?)?;
 
   module.add("TakumiError", py.get_type::<errors::TakumiError>())?;

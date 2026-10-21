@@ -1,8 +1,7 @@
+//! Output format and dithering names accepted by the Python API.
+
 use pyo3::PyResult;
-use pyo3::exceptions::PyValueError;
-use takumi::prelude::{
-  DitheringAlgorithm as CoreDitheringAlgorithm, OutputFormat as CoreOutputFormat, Quality,
-};
+use takumi::prelude::DitheringAlgorithm as CoreDitheringAlgorithm;
 
 use crate::errors::{AnimationError, UnsupportedFormatError};
 
@@ -77,38 +76,6 @@ impl OutputFormat {
       other => Err(UnsupportedFormatError::new_err(format!(
         "unsupported output format {other:?}"
       ))),
-    }
-  }
-
-  pub(crate) fn image_format(
-    self,
-    quality: Option<u8>,
-    lossless: Option<bool>,
-  ) -> PyResult<Option<CoreOutputFormat>> {
-    if lossless.is_some() && self != Self::WebP {
-      return Err(PyValueError::new_err(
-        "lossless is only supported when format is 'webp'",
-      ));
-    }
-    if self == Self::WebP && lossless == Some(true) && quality.is_some() {
-      return Err(PyValueError::new_err(
-        "quality cannot be set when lossless WebP is requested",
-      ));
-    }
-
-    match self {
-      Self::Png => Ok(Some(CoreOutputFormat::Png)),
-      Self::Jpeg => Ok(Some(CoreOutputFormat::Jpeg {
-        quality: quality.map_or_else(Quality::default, Quality::new),
-      })),
-      Self::WebP if lossless.unwrap_or(quality.is_none()) => {
-        Ok(Some(CoreOutputFormat::WebPLossless))
-      }
-      Self::WebP => Ok(Some(CoreOutputFormat::WebP {
-        quality: quality.map_or_else(Quality::default, Quality::new),
-      })),
-      Self::Ico => Ok(Some(CoreOutputFormat::Ico)),
-      Self::Raw => Ok(None),
     }
   }
 }
