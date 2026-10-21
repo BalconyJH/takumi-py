@@ -24,8 +24,9 @@ calls all receive document-level CSS explicitly through `stylesheets=[...]`. Use
 
 - `FontResource` accepts `name`, `weight`, `style`, `generic_family`, and
   `unicode_range` descriptors. A weight override must be finite and within
-  1 through 1000. Register each subset of a family under one `name` with its own
-  `unicode_range`; `subset_of` is deprecated and only sets the family name.
+  1 through 1000. Since Takumi 2.17, register each subset of a family under one
+  `name` with its own `unicode_range`; see
+  [Upgrade to Takumi 2.17](takumi-2.17.md#font-subsets).
 - `register_font(s)` returns the actual family names, which can be passed to render
   calls as `font_families`.
 - Render-level `lang` affects shaping and line breaking; CSS `:lang()` still depends
