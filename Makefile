@@ -54,6 +54,18 @@ install-prek: ensure-uv ## Install prek and git hooks.
 prepare: sync-all install-prek ## Prepare local dev environment.
 	@echo "==> Environment prepared"
 
+##@ Release
+
+.PHONY: changelog changelog-preview
+CHANGELOG_VERSION := $(if $(VERSION),--version "$(VERSION)",)
+
+changelog: ensure-uv ## Date [Unreleased] as the project version and append its commits and contributors.
+	@echo "==> Writing the CHANGELOG.md release entry"
+	$(UV) run --group dev python .github/scripts/changelog.py release $(CHANGELOG_VERSION)
+
+changelog-preview: ensure-uv ## Print the entry `make changelog` would write (for example VERSION=0.4.0).
+	$(UV) run --group dev python .github/scripts/changelog.py release --dry-run $(CHANGELOG_VERSION)
+
 ##@ Distribution
 
 .PHONY: clean-dist verify-artifacts build-artifacts

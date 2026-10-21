@@ -200,6 +200,7 @@ build-backend = "maturin"
 
 [dependency-groups]
 dev = [
+    "git-changelog>=2.10.0",
     "maturin>=1.13.3",
     "mypy>=2.3.0",
     "ruff>=0.15.16",

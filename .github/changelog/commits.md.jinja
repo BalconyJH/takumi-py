@@ -1,0 +1,26 @@
+{#-
+  The generated end of a CHANGELOG.md release entry, rendered by
+  .github/scripts/changelog.py: the release's commits grouped by type, a link to the
+  full diff, and the GitHub accounts that wrote or committed them. Every block opens
+  with a blank line and ends without a newline, so the spacing holds whichever blocks
+  appear.
+-#}
+### Commits
+{%- for group in groups %}
+
+#### {{ group.title }}
+
+{% for entry in group.entries -%}
+- {% if entry.label %}**{{ entry.label }}:** {% endif %}{{ entry.subject }} ([{{ entry.commit.hash[:7] }}]({{ entry.commit.url }}))
+{%- if not loop.last %}
+{% endif %}
+{%- endfor %}
+{%- endfor %}
+{%- if version.previous_version %}
+
+**Full diff**: [{{ version.previous_version.tag }}...{{ version.planned_tag }}]({{ version.compare_url }})
+{%- endif %}
+{%- if contributors %}
+
+**Contributors**: {{ contributors|join(", ") }}
+{%- endif %}
