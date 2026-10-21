@@ -19,7 +19,7 @@ use takumi::{
     FromHtmlOptions, GenericFamily, ImageCacheMode, ImageSource, KeyframesRule, Lang,
     MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun, Node,
     RenderOptions as CoreRenderOptions, SequentialScene, StylePresets, StyleSheet, SvgOptions,
-    Viewport,
+    UnicodeRange, UnicodeRangeSet, Viewport,
   },
   render, render_animation as render_sequence_animation, render_svg, write_animated_gif,
   write_animated_png, write_animated_webp, write_image,
@@ -42,8 +42,11 @@ type FontResourceInput = (
   Option<String>,
   Option<String>,
   Option<String>,
+  Option<Vec<(u32, u32)>>,
 );
 type RawAnimationFrameInput = (Vec<u8>, u32, u32, u32);
+
+const MAX_CODEPOINT: u32 = 0x10_FFFF;
 
 #[derive(Deserialize)]
 struct KeyframesInput {
@@ -155,7 +158,7 @@ struct RenderSettingsInput<'a> {
 #[pyclass(module = "takumi_py._core")]
 pub struct NativeRenderer {
   fonts: Arc<RwLock<Fonts>>,
-  resource_cache: Arc<ResourceCache>,
+  resource_cache: ResourceCache,
   legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
 }
 
@@ -179,8 +182,7 @@ impl NativeRenderer {
       drop(register_font_input(&mut font_store, font)?);
     }
 
-    let resource_cache =
-      Arc::new(cache_max_bytes.map_or_else(ResourceCache::default, ResourceCache::new));
+    let resource_cache = cache_max_bytes.map_or_else(ResourceCache::default, ResourceCache::new);
     let mut legacy_images = HashMap::new();
     for (src, data, cache) in persistent_images.unwrap_or_default() {
       let image = decode_image_resource(&resource_cache, &data, parse_image_cache_mode(&cache)?)?;
@@ -708,7 +710,7 @@ impl NativeRenderer {
   fn resources(&self) -> RendererResources {
     RendererResources {
       fonts: Arc::clone(&self.fonts),
-      resource_cache: Arc::clone(&self.resource_cache),
+      resource_cache: self.resource_cache.clone(),
       legacy_images: Arc::clone(&self.legacy_images),
     }
   }
@@ -725,7 +727,7 @@ impl NativeRenderer {
 #[derive(Clone)]
 struct RendererResources {
   fonts: Arc<RwLock<Fonts>>,
-  resource_cache: Arc<ResourceCache>,
+  resource_cache: ResourceCache,
   legacy_images: Arc<RwLock<HashMap<Arc<str>, ImageSource>>>,
 }
 
@@ -810,7 +812,7 @@ fn normalize_node_input_for_serde(py: Python<'_>, value: Bound<'_, PyAny>) -> Py
 }
 
 fn register_font_input(fonts: &mut Fonts, input: FontResourceInput) -> PyResult<Vec<String>> {
-  let (data, name, weight, style, subset_of, generic_family) = input;
+  let (data, name, weight, style, subset_of, generic_family, unicode_range) = input;
   let style = match style.as_deref() {
     Some(style) => Some(
       FontStyle::from_css_str(style)
@@ -818,20 +820,20 @@ fn register_font_input(fonts: &mut Fonts, input: FontResourceInput) -> PyResult<
     ),
     None => None,
   };
-  let mut resource = FontResource::new(data).override_info(FontOverride {
-    family_name: name.map(Arc::from),
-    width: None,
-    style,
-    weight: weight.map(validate_font_weight).transpose()?,
-    axes: Vec::new(),
-  });
+  // Since Takumi 2.16 `subset_of` only names the family, taking precedence over
+  // `name`; `unicode_range` decides which subset serves a codepoint.
+  let mut resource = FontResource::new(data)
+    .override_info(FontOverride {
+      family_name: subset_of.or(name).map(Arc::from),
+      width: None,
+      style,
+      weight: weight.map(validate_font_weight).transpose()?,
+      axes: Vec::new(),
+    })
+    .unicode_range(parse_unicode_range(unicode_range.unwrap_or_default())?);
 
   if let Some(generic_family) = generic_family {
     resource = resource.generic_family(parse_generic_family(&generic_family)?);
-  }
-
-  if let Some(logical) = subset_of {
-    resource = resource.subset_of(logical);
   }
 
   register_font_resource(fonts, resource)
@@ -842,6 +844,20 @@ fn register_font_resource(fonts: &mut Fonts, font: FontResource<'_>) -> PyResult
     .register(font)
     .map_err(|error| FontError::new_err(format!("failed to register font: {error}")))?;
   Ok(families.into_iter().map(|family| family.name).collect())
+}
+
+fn parse_unicode_range(ranges: Vec<(u32, u32)>) -> PyResult<UnicodeRangeSet> {
+  ranges
+    .into_iter()
+    .map(|(from, to)| {
+      if from > to || to > MAX_CODEPOINT {
+        return Err(PyValueError::new_err(format!(
+          "unicode_range entries must satisfy 0 <= start <= end <= 0x10FFFF, got ({from:#X}, {to:#X})"
+        )));
+      }
+      Ok(UnicodeRange::new(from, to))
+    })
+    .collect()
 }
 
 fn parse_generic_family(value: &str) -> PyResult<GenericFamily> {
@@ -996,6 +1012,7 @@ fn render_to_bitmap(
       .viewport(settings.viewport())
       .draw_debug_border(settings.draw_debug_border)
       .images(images)
+      .resource_cache(resources.resource_cache.clone())
       .stylesheet(stylesheet.into())
       .time_ms(settings.time_ms)
       .dithering(settings.dithering.into())
@@ -1058,6 +1075,7 @@ fn measure_to_node(
       .viewport(settings.viewport())
       .draw_debug_border(settings.draw_debug_border)
       .images(images)
+      .resource_cache(resources.resource_cache.clone())
       .stylesheet(stylesheet.into())
       .time_ms(settings.time_ms)
       .dithering(settings.dithering.into())
@@ -1108,7 +1126,14 @@ fn render_animation_to_vec(
     settings.images.clone(),
   )?;
   let fonts = read_lock(&resources.fonts, "renderer font lock poisoned")?;
-  let scenes = build_sequence_scenes(&fonts, scenes, stylesheet, settings, images);
+  let scenes = build_sequence_scenes(
+    &fonts,
+    &resources.resource_cache,
+    scenes,
+    stylesheet,
+    settings,
+    images,
+  );
   let frames = render_sequence_animation(&scenes, fps)
     .map_err(|error| RenderError::new_err(error.to_string()))?;
 
@@ -1117,6 +1142,7 @@ fn render_animation_to_vec(
 
 fn build_sequence_scenes<'g>(
   fonts: &'g Fonts,
+  resource_cache: &ResourceCache,
   scenes: Vec<(Node, u32)>,
   stylesheet: StyleSheet,
   settings: RenderSettings,
@@ -1134,6 +1160,7 @@ fn build_sequence_scenes<'g>(
             .viewport(settings.viewport())
             .draw_debug_border(settings.draw_debug_border)
             .images(images.clone())
+            .resource_cache(resource_cache.clone())
             .stylesheet(Arc::clone(&stylesheet))
             .dithering(settings.dithering.into())
             .node(node)

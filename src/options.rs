@@ -59,8 +59,9 @@ impl From<DitheringAlgorithm> for CoreDitheringAlgorithm {
   fn from(value: DitheringAlgorithm) -> Self {
     match value {
       DitheringAlgorithm::None => Self::None,
-      DitheringAlgorithm::OrderedBayer => Self::OrderedBayer,
-      DitheringAlgorithm::FloydSteinberg => Self::FloydSteinberg,
+      // Takumi 2.15 dropped the whole-image error-diffusion pass; its
+      // `FloydSteinberg` variant is a deprecated alias of `OrderedBayer`.
+      DitheringAlgorithm::OrderedBayer | DitheringAlgorithm::FloydSteinberg => Self::OrderedBayer,
     }
   }
 }

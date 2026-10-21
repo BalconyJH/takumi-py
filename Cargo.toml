@@ -11,12 +11,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 image = { version = "0.25", default-features = false }
-parley = { version = "0.11", default-features = false, features = ["std"] }
 pyo3 = { version = "0.28.2", default-features = false, features = ["extension-module", "abi3-py310"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde-pyobject = "0.8.0"
-takumi = { version = "2.5.4", path = "takumilib/takumi", features = ["from-html", "svg-backend"] }
-takumi-core = { version = "0.11.0", path = "takumilib/takumi-core" }
+takumi = { version = "2.17.1", path = "takumilib/takumi", features = ["from-html", "svg-backend"] }
+takumi-core = { version = "0.32.0", path = "takumilib/takumi-core" }
 
 [lints.clippy]
 redundant_closure_for_method_calls = "deny"
