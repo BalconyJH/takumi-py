@@ -289,6 +289,52 @@ def test_register_font_rejects_invalid_unicode_range(
         )
 
 
+def test_unregister_font_removes_every_subset_of_a_family() -> None:
+    renderer = Renderer(load_default_fonts=False)
+    renderer.register_fonts(
+        [
+            FontResource(
+                GEIST_FONT.read_bytes(),
+                name="Alpha",
+                unicode_range=[(0x0000, 0x024F)],
+            ),
+            FontResource(
+                NOTO_DEVANAGARI_FONT.read_bytes(),
+                name="Alpha",
+                unicode_range=[(0x0900, 0x097F)],
+            ),
+        ]
+    )
+    assert inked_pixels(render_devanagari_raw(renderer, "Alpha")) > 500
+
+    assert renderer.unregister_font("Alpha") is True
+    assert renderer.unregister_font("Alpha") is False
+    assert inked_pixels(render_devanagari_raw(renderer, "Alpha")) == 0
+
+
+def test_clear_fonts_restores_the_initial_font_state() -> None:
+    node: NodeInput = {
+        "type": "text",
+        "text": "Hello",
+        "style": {"fontSize": "32px", "color": "black"},
+    }
+    renderer = Renderer()
+    default = renderer.render_node(node, width=160, height=64, format="raw")
+    renderer.register_font(FontResource(GEIST_MONO_FONT.read_bytes(), name="Override"))
+    renderer.clear_fonts()
+
+    assert renderer.unregister_font("Override") is False
+    assert renderer.render_node(node, width=160, height=64, format="raw") == default
+
+    empty = Renderer(load_default_fonts=False)
+    empty.register_font(GEIST_FONT.read_bytes())
+    empty.clear_fonts()
+
+    assert (
+        inked_pixels(empty.render_node(node, width=160, height=64, format="raw")) == 0
+    )
+
+
 def test_floyd_steinberg_dithering_is_a_deprecated_ordered_bayer_alias() -> None:
     node: NodeInput = {
         "type": "container",

@@ -195,6 +195,28 @@ class Renderer:
         """
         return tuple(self._native.register_fonts(normalize_font_resources(fonts) or []))
 
+    def unregister_font(self, name: str) -> bool:
+        """Remove every face registered under a font-family name.
+
+        All ``unicode_range`` subsets registered under ``name`` are removed
+        together, so later renders treat the family as unknown and fall back.
+
+        Args:
+            name: Font-family name returned by ``register_font()``.
+
+        Returns:
+            ``True`` if the family had registered faces, otherwise ``False``.
+        """
+        return self._native.unregister_font(name)
+
+    def clear_fonts(self) -> None:
+        """Remove every registered font, including fonts passed to ``__init__``.
+
+        Only the bundled default font remains, and only when the renderer was
+        created with ``load_default_fonts=True``.
+        """
+        self._native.clear_fonts()
+
     def load_font(self, font: FontResourceInput) -> None:
         """Register one font without returning its family names.
 

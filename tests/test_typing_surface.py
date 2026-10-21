@@ -5,6 +5,7 @@ from takumi_py import _core
 from takumi_py.renderer import Renderer
 
 RENDERER_PUBLIC_METHODS = {
+    "clear_fonts",
     "clear_image_store",
     "compile_html",
     "compile_keyframes",
@@ -30,6 +31,7 @@ RENDERER_PUBLIC_METHODS = {
     "render_svg_node",
     "render_svg_template",
     "render_template",
+    "unregister_font",
 }
 
 
