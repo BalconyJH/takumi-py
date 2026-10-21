@@ -23,6 +23,9 @@ identifiers.
   `takumi-raster` 0.5.9, `takumi-svg` 0.3.31, and `takumi-html` 0.6.0. Layout,
   text, filters, backgrounds, decorations, and paint order now follow Chrome more
   closely; see the upstream changelog for the rendering changes.
+- Update PyO3 from 0.28 to 0.30 and refresh compatible Rust dependencies.
+- Declare `rust-version = "1.91"` so dependency resolution stays within the
+  pinned CI toolchain.
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
 - `<img>` without a `src` now parses as an empty box instead of raising
   `HtmlParseError`.
