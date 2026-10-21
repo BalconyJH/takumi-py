@@ -14,15 +14,15 @@ use serde::Deserialize;
 use takumi::{
   from_html, measure,
   prelude::{
-    AnimatedGifOptions, AnimatedPngOptions, AnimatedWebpOptions, AnimationFrame, Bitmap,
-    DEFAULT_MAX_DEPTH, FontFamily, FontOverride, FontResource, FontStyle, Fonts, FromCssStr,
-    FromHtmlOptions, GenericFamily, ImageCacheMode, ImageSource, KeyframesRule, Lang,
-    MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun, Node,
-    RenderOptions as CoreRenderOptions, SequentialScene, StylePresets, StyleSheet, SvgOptions,
-    UnicodeRange, UnicodeRangeSet, Viewport,
+    AnimatedGifOptions, AnimatedPngOptions, AnimatedWebpOptions, AnimationFormat, AnimationFrame,
+    Bitmap, DEFAULT_MAX_DEPTH, Error as CoreError, FontFamily, FontOverride, FontResource,
+    FontStyle, Fonts, FromCssStr, FromHtmlOptions, GenericFamily, ImageCacheMode, ImageSource,
+    KeyframesRule, Lang, MeasuredNode as CoreMeasuredNode, MeasuredTextRun as CoreMeasuredTextRun,
+    Node, RenderOptions as CoreRenderOptions, SequentialScene, StylePresets, StyleSheet,
+    SvgOptions, UnicodeRange, UnicodeRangeSet, Viewport,
   },
-  render, render_animation as render_sequence_animation, render_svg, write_animated_gif,
-  write_animated_png, write_animated_webp, write_image,
+  render, render_svg, write_animated_gif, write_animated_png, write_animated_webp, write_animation,
+  write_image,
 };
 use takumi_core::resources::image::ResourceCache;
 
@@ -640,7 +640,7 @@ impl NativeRenderer {
       font_families,
       lang,
     })?;
-    let encoder_settings = AnimationEncoderSettings {
+    let animation_format = encode_animation_format(AnimationEncoderSettings {
       format: animation_format,
       quality,
       lossless,
@@ -648,7 +648,8 @@ impl NativeRenderer {
       webp_blend,
       webp_dispose,
       webp_speed,
-    };
+    })?;
+    validate_animation_fps(fps, animation_format)?;
     let scenes = clone_scene_nodes(scenes);
     let stylesheet = merge_stylesheets(stylesheets.unwrap_or_default())?;
     let resources = self.resources();
@@ -660,7 +661,7 @@ impl NativeRenderer {
         stylesheet,
         settings,
         fps,
-        encoder_settings,
+        animation_format,
       )
     })?;
 
@@ -1138,7 +1139,7 @@ fn render_animation_to_vec(
   stylesheet: StyleSheet,
   settings: RenderSettings,
   fps: u32,
-  encoder_settings: AnimationEncoderSettings,
+  format: AnimationFormat,
 ) -> PyResult<Vec<u8>> {
   let images = decode_render_images(
     &resources.resource_cache,
@@ -1154,10 +1155,27 @@ fn render_animation_to_vec(
     settings,
     images,
   );
-  let frames = render_sequence_animation(&scenes, fps)
-    .map_err(|error| RenderError::new_err(error.to_string()))?;
+  let mut buffer = Vec::new();
+  // Streams each frame into the encoder as it renders, holding one raw frame
+  // at a time instead of the whole animation.
+  write_animation(&scenes, fps, format, &mut buffer).map_err(animation_error)?;
 
-  encode_animation_frames(frames, encoder_settings)
+  Ok(buffer)
+}
+
+/// Splits a streamed animation failure into the encoder errors that
+/// `encode_frames` also raises and the render errors a single frame raises.
+fn animation_error(error: CoreError) -> PyErr {
+  match error {
+    CoreError::Encode(_)
+    | CoreError::WebPError(_)
+    | CoreError::IoError(_)
+    | CoreError::EmptyAnimationFrames
+    | CoreError::AnimationFrameRateTooHigh { .. }
+    | CoreError::MixedAnimationFrameDimensions
+    | CoreError::GifFrameDimensionsTooLarge { .. } => AnimationError::new_err(error.to_string()),
+    error => RenderError::new_err(error.to_string()),
+  }
 }
 
 fn build_sequence_scenes<'g>(
@@ -1241,43 +1259,66 @@ fn encode_animation_frames(
 ) -> PyResult<Vec<u8>> {
   let mut buffer = Vec::new();
   match settings.format {
-    AnimationOutputFormat::WebP => {
-      let mut options = AnimatedWebpOptions::default();
-      options.blend = settings.webp_blend;
-      options.dispose = settings.webp_dispose;
-      options.loop_count = settings.loop_count;
-      options.lossless = webp_lossless(settings.quality, settings.lossless)?;
-      if let Some(quality) = settings.quality {
-        options.quality = quality;
-      }
-      options.speed = settings.webp_speed;
-      write_animated_webp(Cow::Owned(frames), &mut buffer, options)
-        .map_err(|error| AnimationError::new_err(error.to_string()))?;
-    }
+    AnimationOutputFormat::WebP => write_animated_webp(
+      Cow::Owned(frames),
+      &mut buffer,
+      webp_animation_options(settings)?,
+    ),
     AnimationOutputFormat::Apng => {
-      if settings.lossless.is_some() {
-        return Err(PyValueError::new_err(
-          "lossless is only supported when format is 'webp'",
-        ));
-      }
-      let mut options = AnimatedPngOptions::default();
-      options.loop_count = settings.loop_count;
-      write_animated_png(&frames, &mut buffer, options)
-        .map_err(|error| AnimationError::new_err(error.to_string()))?;
+      write_animated_png(&frames, &mut buffer, png_animation_options(settings)?)
     }
-    AnimationOutputFormat::Gif => {
-      if settings.lossless.is_some() {
-        return Err(PyValueError::new_err(
-          "lossless is only supported when format is 'webp'",
-        ));
-      }
-      let mut options = AnimatedGifOptions::default();
-      options.loop_count = settings.loop_count;
-      write_animated_gif(Cow::Owned(frames), &mut buffer, options)
-        .map_err(|error| AnimationError::new_err(error.to_string()))?;
-    }
+    AnimationOutputFormat::Gif => write_animated_gif(
+      Cow::Owned(frames),
+      &mut buffer,
+      gif_animation_options(settings)?,
+    ),
   }
+  .map_err(|error| AnimationError::new_err(error.to_string()))?;
   Ok(buffer)
+}
+
+fn encode_animation_format(settings: AnimationEncoderSettings) -> PyResult<AnimationFormat> {
+  Ok(match settings.format {
+    AnimationOutputFormat::WebP => AnimationFormat::WebP(webp_animation_options(settings)?),
+    AnimationOutputFormat::Apng => AnimationFormat::Apng(png_animation_options(settings)?),
+    AnimationOutputFormat::Gif => AnimationFormat::Gif(gif_animation_options(settings)?),
+  })
+}
+
+fn webp_animation_options(settings: AnimationEncoderSettings) -> PyResult<AnimatedWebpOptions> {
+  let mut options = AnimatedWebpOptions::default();
+  options.blend = settings.webp_blend;
+  options.dispose = settings.webp_dispose;
+  options.loop_count = settings.loop_count;
+  options.lossless = webp_lossless(settings.quality, settings.lossless)?;
+  if let Some(quality) = settings.quality {
+    options.quality = quality;
+  }
+  options.speed = settings.webp_speed;
+  Ok(options)
+}
+
+fn png_animation_options(settings: AnimationEncoderSettings) -> PyResult<AnimatedPngOptions> {
+  reject_non_webp_lossless(settings.lossless)?;
+  let mut options = AnimatedPngOptions::default();
+  options.loop_count = settings.loop_count;
+  Ok(options)
+}
+
+fn gif_animation_options(settings: AnimationEncoderSettings) -> PyResult<AnimatedGifOptions> {
+  reject_non_webp_lossless(settings.lossless)?;
+  let mut options = AnimatedGifOptions::default();
+  options.loop_count = settings.loop_count;
+  Ok(options)
+}
+
+fn reject_non_webp_lossless(lossless: Option<bool>) -> PyResult<()> {
+  if lossless.is_some() {
+    return Err(PyValueError::new_err(
+      "lossless is only supported when format is 'webp'",
+    ));
+  }
+  Ok(())
 }
 
 fn webp_lossless(quality: Option<u8>, lossless: Option<bool>) -> PyResult<bool> {
@@ -1365,6 +1406,18 @@ fn validate_scenes(scenes: &[(PyRef<'_, CompiledNode>, u32)]) -> PyResult<()> {
 fn validate_fps(fps: u32) -> PyResult<()> {
   if fps == 0 {
     return Err(PyValueError::new_err("fps must be greater than zero"));
+  }
+  Ok(())
+}
+
+/// Rejects a frame rate whose frame delays decoders would clamp to 100ms:
+/// 50 fps for GIF, which stores centiseconds, and 90 fps for WebP and APNG.
+fn validate_animation_fps(fps: u32, format: AnimationFormat) -> PyResult<()> {
+  let max_fps = format.max_fps();
+  if fps > max_fps {
+    return Err(PyValueError::new_err(format!(
+      "fps must not exceed {max_fps} for this animation format, got {fps}"
+    )));
   }
   Ok(())
 }
