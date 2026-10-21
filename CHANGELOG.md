@@ -18,6 +18,9 @@ identifiers.
   renders that inline the same image decode it once.
 - Add a Takumi 2.17 migration guide, and document font subsets, font release,
   animation frame-rate limits, and the Takumi submodule upgrade procedure.
+- Publish the documentation in Simplified Chinese alongside the American English
+  primary, with a language switcher, a Chinese README, and a docs build check that
+  keeps both languages' pages, anchors, code samples, and configuration in sync.
 
 ### Changed
 
@@ -31,6 +34,10 @@ identifiers.
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
 - Stream `render_animation` frames straight into the encoder, so an animation holds
   one raw frame at a time instead of all of them.
+- Restructure the documentation: English sources move to `docs/en/`, new HTML and
+  CSS and Output formats guides take over from the overloaded rendering guide, the
+  release guide is now in English, and the README keeps only the overview,
+  installation, and quickstart.
 - `<img>` without a `src` now parses as an empty box instead of raising
   `HtmlParseError`.
 - Run the core fixture smoke test over upstream's relocated `fixtures-html`
