@@ -16,6 +16,8 @@ identifiers.
   fonts.
 - Decode `data:` URI images through the renderer's resource cache, so repeated
   renders that inline the same image decode it once.
+- Add a Takumi 2.17 migration guide, and document font subsets, font release,
+  animation frame-rate limits, and the Takumi submodule upgrade procedure.
 
 ### Changed
 
