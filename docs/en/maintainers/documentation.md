@@ -48,6 +48,9 @@ recurring concepts consistently:
 | deprecation warning | 弃用警告 |
 | source distribution (sdist) | 源码分发包（sdist） |
 
+Give every Chinese heading the English page's anchor, such as
+`## 字体子集 { #font-subsets }`, so in-page links match across both languages.
+
 ## Information architecture
 
 Each language tree is divided by audience and task:
@@ -116,6 +119,31 @@ Use framework components when they improve comprehension:
 | Explain one line without interrupting a runnable example | Code annotation |
 
 Avoid decorative components that add no information hierarchy.
+
+### Icons
+
+Icons come from the sets bundled with Zensical: Lucide, Material Design, FontAwesome,
+Octicons, and Simple Icons. Both configurations enable them through `attr_list` and
+`pymdownx.emoji` with Zensical's `to_svg` generator and `twemoji` index, which inline
+each icon as SVG; keep those settings identical in both files. See the Zensical
+[icons and emojis guide](https://zensical.org/docs/authoring/icons-emojis/) for the
+syntax.
+
+- In front matter and in the configuration, reference an icon by its path under
+  `.icons` without the extension, such as `icon: lucide/rocket` or
+  `repo = "fontawesome/brands/github"`.
+- In Markdown, replace each `/` in that path with `-` and wrap it in colons, such as
+  `:material-rocket-launch:`. Add classes with an attribute list.
+- Section index pages set a Lucide page icon in front matter. Each card in a card grid
+  opens with an icon marked `{ .lg .middle }` and links onward with
+  `:octicons-arrow-right-24:`. Brand logos come from Simple Icons, such as
+  `:simple-jinja:`.
+- A Chinese page uses the same icons, attributes, and page icon as its English source.
+- A misspelled shortcode renders as literal text and does not fail the strict build.
+  Confirm the icon exists under `zensical/templates/.icons/` in the installed package,
+  because the bundled sets can lag behind the icon sites, then check the rendered page.
+- The documentation does not use emoji shortcodes such as `:smile:`. Twemoji renders
+  them as images loaded from a CDN rather than as inline SVG.
 
 ## Versioning
 
