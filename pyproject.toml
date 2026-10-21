@@ -13,11 +13,10 @@ license-files = [
 authors = [
     { name = "BalconyJH", email = "balconyjh@gmail.com" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "jinja2>=3.1.6",
     "msgspec>=0.21.1",
-    "typing-extensions>=4.0",
 ]
 
 [tool.maturin]
@@ -56,7 +55,7 @@ exclude_lines = [
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py310"
+target-version = "py311"
 exclude = [
     ".bzr",
     ".direnv",
@@ -176,7 +175,6 @@ builtins-ignorelist = ["id"]
 length-sort = false
 force-sort-within-sections = true
 known-first-party = ["takumi_py", "tests"]
-extra-standard-library = ["typing_extensions"]
 
 [tool.ruff.lint.flake8-pytest-style]
 fixture-parentheses = false
