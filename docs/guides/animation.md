@@ -79,7 +79,9 @@ animation = Renderer().render_animation(
 )
 ```
 
-Use `encode_frames` with `RawAnimationFrame` when frames are produced elsewhere.
+`render_animation` streams each frame into the encoder as it renders, so it holds one
+raw frame at a time rather than the whole animation. Use `encode_frames` with
+`RawAnimationFrame` when frames are produced elsewhere.
 
 Every `AnimationScene.duration_ms` and `RawAnimationFrame.duration_ms` value must be a
 positive integer. Zero-duration scenes or frames raise `ValueError` rather than being
@@ -87,6 +89,7 @@ silently skipped.
 
 `fps` must be positive and must not exceed the delay precision of the selected
 format: WebP and APNG support at most 90 fps, while GIF supports at most 50 fps.
+`render_animation` raises `ValueError` before rendering when `fps` is higher.
 `webp_speed`, when provided, must be an integer from 0 through 6. A raw frame must
 have positive dimensions and exactly `width * height * 4` RGBA bytes.
 
