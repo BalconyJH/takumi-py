@@ -153,7 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dist_dir", nargs="?", default=Path("dist"), type=Path)
     parser.add_argument("--expected-version", required=True)
-    parser.add_argument("--python", default="3.10")
+    parser.add_argument("--python", default="3.11")
     parser.add_argument("--uv", default=os.environ.get("UV", "uv"))
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--wheel-only", action="store_true")

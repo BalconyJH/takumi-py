@@ -42,7 +42,7 @@ def check_metadata(metadata: Message, version: str, source: Path) -> None:
     expected = {
         "Name": PROJECT_NAME,
         "Version": version,
-        "Requires-Python": ">=3.10",
+        "Requires-Python": ">=3.11",
         "License-Expression": "GPL-3.0-or-later",
     }
     for field, value in expected.items():
@@ -99,14 +99,14 @@ def wheel_platform(tag: str, *, allow_native: bool = False) -> str:
     if "win_amd64" in tag:
         return "windows-x64"
     if allow_native:
-        _, separator, platform_tag = tag.removesuffix(".whl").rpartition("cp310-abi3-")
+        _, separator, platform_tag = tag.removesuffix(".whl").rpartition("cp311-abi3-")
         if separator and platform_tag:
             return f"native:{platform_tag}"
     fail(f"unsupported wheel platform tag: {tag}")
 
 
 def check_wheel(path: Path, version: str, *, allow_native: bool = False) -> str:
-    expected_prefix = f"{PACKAGE_NAME}-{version}-cp310-abi3-"
+    expected_prefix = f"{PACKAGE_NAME}-{version}-cp311-abi3-"
     if not path.name.startswith(expected_prefix):
         fail(f"{path}: wheel filename must start with {expected_prefix}")
 
@@ -155,8 +155,8 @@ def check_wheel(path: Path, version: str, *, allow_native: bool = False) -> str:
     if wheel_metadata["Root-Is-Purelib"] != "false":
         fail(f"{path}: native wheel must set Root-Is-Purelib: false")
     tags = wheel_metadata.get_all("Tag", [])
-    if not tags or any(not tag.startswith("cp310-abi3-") for tag in tags):
-        fail(f"{path}: expected only cp310-abi3 wheel tags, got {tags}")
+    if not tags or any(not tag.startswith("cp311-abi3-") for tag in tags):
+        fail(f"{path}: expected only cp311-abi3 wheel tags, got {tags}")
     tag_platforms = {wheel_platform(tag, allow_native=allow_native) for tag in tags}
     if tag_platforms != {filename_platform}:
         fail(

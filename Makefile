@@ -7,7 +7,7 @@ TWINE ?= $(UV) run --no-project --with twine==6.2.0 twine
 VERIFY_DISTRIBUTIONS ?= python3 .github/scripts/verify-distributions.py
 
 DIST_DIR ?= $(CURDIR)/dist
-DIST_SMOKE_PYTHON ?= 3.10
+DIST_SMOKE_PYTHON ?= 3.11
 
 .DEFAULT_GOAL := help
 
