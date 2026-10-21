@@ -12,6 +12,8 @@ identifiers.
 
 - Add `FontResource.unicode_range` so each subset of a family registers under one
   `name` and serves only the codepoints its `@font-face` declares.
+- Add `Renderer.unregister_font` and `Renderer.clear_fonts` to release registered
+  fonts.
 - Decode `data:` URI images through the renderer's resource cache, so repeated
   renders that inline the same image decode it once.
 

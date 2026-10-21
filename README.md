@@ -290,6 +290,8 @@ FontResource(
 Register each subset of a family under the same `name` with its own
 `unicode_range`; a subset only serves the codepoints in its ranges.
 `subset_of` is deprecated and now only sets the family name.
+`unregister_font(name)` releases a family with all of its subsets, and
+`clear_fonts()` releases every registered font except the bundled fallback.
 
 `style` uses CSS font-style syntax such as `"normal"`, `"italic"`, or
 `"oblique 12deg"`. Invalid style values raise `FontError` during registration.
@@ -431,6 +433,7 @@ renderer-level global context to explicit per-render resources:
 - `FontResource` accepts Takumi v2 descriptor fields: `name`, `weight`, `style`,
   `generic_family`, and `unicode_range`. `subset_of` is deprecated and only sets
   the family name.
+- `unregister_font(name)` and `clear_fonts()` release registered fonts.
 - `dithering="floyd-steinberg"` is a deprecated alias of `"ordered-bayer"`.
 - The built-in fallback font follows Takumi v2: a Latin Geist subset marked as
   last resort, so caller-registered fonts win ordinary fallback selection.

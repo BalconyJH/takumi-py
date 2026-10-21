@@ -18,6 +18,8 @@ cache is process-wide and configured separately before first use.
         - compile_keyframes
         - register_font
         - register_fonts
+        - unregister_font
+        - clear_fonts
         - load_font
         - load_fonts
         - put_persistent_image

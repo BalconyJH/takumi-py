@@ -107,6 +107,19 @@ Each range must satisfy `0 <= start <= end <= 0x10FFFF`; anything else raises
 `ValueError`. `FontResource.subset_of` is deprecated: Takumi now only uses it as the
 family name, in place of `name`.
 
+### Releasing fonts
+
+`unregister_font(name)` removes every face registered under a family, all its
+`unicode_range` subsets included, and returns whether it had any. `clear_fonts()`
+removes every registered font, including those passed to the constructor; only the
+bundled Geist fallback remains, and only when the renderer was created with
+`load_default_fonts=True`.
+
+```python
+renderer.unregister_font("Inter")
+renderer.clear_fonts()
+```
+
 !!! warning "The bundled font is intentionally narrow"
 
     Built-in Geist is a Latin last-resort font. Register suitable fonts for non-Latin
