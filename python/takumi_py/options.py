@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Final, Literal, TypeAlias
-from typing_extensions import TypedDict
+from typing import Final, Literal, TypeAlias, TypedDict
 from warnings import warn
 
 ImageOutputFormat: TypeAlias = Literal["png", "jpeg", "jpg", "webp", "ico", "raw"]

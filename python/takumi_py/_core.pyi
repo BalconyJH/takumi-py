@@ -1,6 +1,5 @@
 from collections.abc import Sequence
-from typing import Literal, TypeAlias, final, type_check_only
-from typing_extensions import TypedDict
+from typing import Literal, TypeAlias, TypedDict, final, type_check_only
 
 from takumi_py.options import (
     AnimationEncodeOptions,
