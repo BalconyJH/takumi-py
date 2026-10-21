@@ -43,7 +43,13 @@ _DitheringAlgorithm: TypeAlias = Literal["none", "ordered-bayer", "floyd-steinbe
 _ImageCacheMode: TypeAlias = Literal["auto", "none"]
 _ImageResourceInput: TypeAlias = tuple[str, bytes, _ImageCacheMode]
 _FontResourceInput: TypeAlias = tuple[
-    bytes, str | None, float | None, str | None, str | None, str | None
+    bytes,
+    str | None,
+    float | None,
+    str | None,
+    str | None,
+    str | None,
+    Sequence[tuple[int, int]] | None,
 ]
 _RawAnimationFrameInput: TypeAlias = tuple[bytes, int, int, int]
 

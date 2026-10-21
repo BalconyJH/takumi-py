@@ -12,6 +12,7 @@ from takumi_py import (
     HtmlOptions,
     ImageResource,
     NodeDecodeError,
+    NodeInput,
     RawAnimationFrame,
     RawRgbaImage,
     Renderer,
@@ -252,12 +253,62 @@ def test_register_font_accepts_v2_descriptor_fields() -> None:
             name="Descriptor Geist",
             weight=500,
             style="normal",
-            subset_of="DescriptorLogical",
             generic_family="sans-serif",
+            unicode_range=[(0x0000, 0x00FF)],
         )
     )
 
     assert families == ("Descriptor Geist",)
+
+
+def test_font_subset_of_is_deprecated_and_names_the_family() -> None:
+    renderer = Renderer(load_default_fonts=False)
+
+    with pytest.warns(DeprecationWarning, match="subset_of"):
+        font = FontResource(
+            data=GEIST_FONT.read_bytes(),
+            name="Descriptor Geist",
+            subset_of="DescriptorLogical",
+        )
+
+    assert renderer.register_font(font) == ("DescriptorLogical",)
+
+
+@pytest.mark.parametrize(
+    "unicode_range",
+    [[(0x0100, 0x00FF)], [(0x0000, 0x110000)]],
+)
+def test_register_font_rejects_invalid_unicode_range(
+    unicode_range: list[tuple[int, int]],
+) -> None:
+    renderer = Renderer(load_default_fonts=False)
+
+    with pytest.raises(ValueError, match="unicode_range"):
+        renderer.register_font(
+            FontResource(data=GEIST_FONT.read_bytes(), unicode_range=unicode_range)
+        )
+
+
+def test_floyd_steinberg_dithering_is_a_deprecated_ordered_bayer_alias() -> None:
+    node: NodeInput = {
+        "type": "container",
+        "style": {
+            "width": "64px",
+            "height": "16px",
+            "backgroundImage": "linear-gradient(to right, #101010, #202020)",
+        },
+    }
+    renderer = Renderer()
+    ordered = renderer.render_node(
+        node, width=64, height=16, format="raw", dithering="ordered-bayer"
+    )
+
+    with pytest.warns(DeprecationWarning, match="floyd-steinberg"):
+        floyd = renderer.render_node(
+            node, width=64, height=16, format="raw", dithering="floyd-steinberg"
+        )
+
+    assert floyd == ordered
 
 
 def test_registered_generic_font_family_is_used_for_resolution() -> None:
@@ -389,26 +440,29 @@ def test_default_font_matches_upstream_geist_last_resort() -> None:
     assert default == explicit
 
 
-def test_font_subset_groups_route_per_family() -> None:
+def test_font_unicode_range_subsets_route_per_family() -> None:
+    latin = [(0x0000, 0x024F)]
+    devanagari = [(0x0900, 0x097F)]
     renderer = Renderer(load_default_fonts=False)
-    for path, unique_name, logical_name in [
-        (GEIST_FONT, "Alpha-latin", "Alpha"),
-        (NOTO_DEVANAGARI_FONT, "Alpha-deva", "Alpha"),
-        (ARCHIVO_FONT, "Beta-latin", "Beta"),
-        (POPPINS_DEVANAGARI_FONT, "Beta-deva", "Beta"),
+    for path, family, unicode_range in [
+        (GEIST_FONT, "Alpha", latin),
+        (NOTO_DEVANAGARI_FONT, "Alpha", devanagari),
+        (ARCHIVO_FONT, "Beta", latin),
+        (POPPINS_DEVANAGARI_FONT, "Beta", devanagari),
+        (POPPINS_DEVANAGARI_FONT, "Beta Devanagari", None),
     ]:
         renderer.register_font(
             FontResource(
                 path.read_bytes(),
-                name=unique_name,
-                subset_of=logical_name,
+                name=family,
                 generic_family="sans-serif",
+                unicode_range=unicode_range,
             )
         )
 
     alpha = render_devanagari_raw(renderer, "Alpha")
     beta = render_devanagari_raw(renderer, "Beta")
-    beta_explicit = render_devanagari_raw(renderer, '"Beta-latin", "Beta-deva"')
+    beta_explicit = render_devanagari_raw(renderer, '"Beta Devanagari"')
 
     assert inked_pixels(alpha) > 500
     assert inked_pixels(beta) > 500

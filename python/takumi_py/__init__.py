@@ -32,6 +32,7 @@ from takumi_py.options import (
     StyleInput,
     StyleMap,
     StyleValue,
+    UnicodeRange,
 )
 from takumi_py.renderer import CompiledHtml, Renderer, set_glyph_cache_max_bytes
 from takumi_py.template import TemplateRenderer
@@ -97,6 +98,7 @@ __all__ = [
     "TakumiError",
     "TemplateRenderer",
     "TextNode",
+    "UnicodeRange",
     "UnsupportedFormatError",
     "parse_html",
     "set_glyph_cache_max_bytes",

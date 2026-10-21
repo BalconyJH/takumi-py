@@ -25,9 +25,13 @@ def test_parse_html_compiled_node_can_render() -> None:
     assert png.startswith(b"\x89PNG")
 
 
-def test_parse_html_rejects_img_without_src() -> None:
-    with pytest.raises(HtmlParseError, match="src"):
-        parse_html("<img>")
+def test_parse_html_renders_img_without_src_as_empty_box() -> None:
+    parsed = parse_html('<img width="10" height="20">')
+
+    measured = Renderer().measure_compiled(parsed.node, width=None, height=None)
+
+    assert parsed.node.resource_urls() == []
+    assert (measured.width, measured.height) == (10.0, 20.0)
 
 
 def test_parse_html_drops_style_elements() -> None:

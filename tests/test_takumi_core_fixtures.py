@@ -8,17 +8,15 @@ from takumi_py import Renderer
 
 CORE_VIEWPORT_WIDTH = 1200
 CORE_VIEWPORT_HEIGHT = 630
-CORE_FIXTURE_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "takumilib"
-    / "takumi"
-    / "tests"
-    / "fixtures-generated"
-)
+CORE_TESTS_DIR = Path(__file__).resolve().parents[1] / "takumilib" / "takumi" / "tests"
+# Upstream keeps HTML fixture sources in fixtures-html/ and writes their goldens
+# to fixtures-generated/.
+CORE_HTML_FIXTURE_DIR = CORE_TESTS_DIR / "fixtures-html"
+CORE_FIXTURE_DIR = CORE_TESTS_DIR / "fixtures-generated"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 CORE_HTML_FIXTURE_IDS = tuple(
-    fixture_path.stem for fixture_path in sorted(CORE_FIXTURE_DIR.glob("*.html"))
+    fixture_path.stem for fixture_path in sorted(CORE_HTML_FIXTURE_DIR.glob("*.html"))
 )
 
 
@@ -28,6 +26,7 @@ def renderer() -> Renderer:
 
 
 def test_core_fixture_directory_is_available() -> None:
+    assert CORE_HTML_FIXTURE_DIR.is_dir()
     assert CORE_FIXTURE_DIR.is_dir()
     assert CORE_HTML_FIXTURE_IDS
 
@@ -37,7 +36,7 @@ def test_core_generated_html_fixture_renders_png(
     renderer: Renderer,
     fixture_id: str,
 ) -> None:
-    fixture_path = CORE_FIXTURE_DIR / f"{fixture_id}.html"
+    fixture_path = CORE_HTML_FIXTURE_DIR / f"{fixture_id}.html"
     golden_path = CORE_FIXTURE_DIR / f"{fixture_id}.webp"
 
     html = load_fixture_html(fixture_path)

@@ -52,9 +52,11 @@ def set_glyph_cache_max_bytes(max_bytes: int) -> None:
         max_bytes: Maximum retained glyph-cache size in bytes. Use ``0`` to
             disable retention.
 
+    The budget only applies to a glyph cache that has not been used yet, so
+    later calls do not resize it.
+
     Raises:
         ValueError: If ``max_bytes`` is negative.
-        RuntimeError: If Takumi has already initialized the glyph cache.
     """
     if max_bytes < 0:
         raise ValueError("max_bytes must be greater than or equal to 0")
@@ -1548,9 +1550,11 @@ def resolve_render_options(
     if fetched_resources is not UNSET:
         warn_deprecated("fetched_resources", "images")
         updates["fetched_resources"] = fetched_resources
-    if not updates:
-        return resolved
-    return replace(resolved, **updates)
+    if updates:
+        resolved = replace(resolved, **updates)
+    if resolved.dithering == "floyd-steinberg":
+        warn_deprecated('dithering="floyd-steinberg"', 'dithering="ordered-bayer"')
+    return resolved
 
 
 def resolve_animation_encode_options(

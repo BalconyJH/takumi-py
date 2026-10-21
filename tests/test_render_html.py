@@ -70,4 +70,4 @@ def test_compile_stylesheet_keeps_strict_errors() -> None:
     renderer = Renderer()
 
     with pytest.raises(StyleSheetError):
-        renderer.compile_stylesheet("a { text-decoration: none; }")
+        renderer.compile_stylesheet("a { display: weird; }")
