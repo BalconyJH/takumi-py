@@ -105,6 +105,27 @@ make docs-build
 
 避免使用不增加信息层次的装饰性组件。
 
+### 图标 { #icons }
+
+图标来自 Zensical 内置的图标集：Lucide、Material Design、FontAwesome、Octicons 和
+Simple Icons。两份配置都通过 `attr_list` 和 `pymdownx.emoji` 启用图标，并使用 Zensical 的
+`to_svg` 生成器与 `twemoji` 索引，把每个图标内联为 SVG；两份文件中的这些设置必须保持一致。
+语法详见 Zensical 的[图标与 emoji 指南](https://zensical.org/docs/authoring/icons-emojis/)。
+
+- 在 front matter 和配置中，用图标在 `.icons` 下去掉扩展名的路径引用图标，例如
+  `icon: lucide/rocket` 或 `repo = "fontawesome/brands/github"`。
+- 在 Markdown 中，把该路径里的每个 `/` 替换为 `-` 并用冒号包裹，例如
+  `:material-rocket-launch:`。需要添加 CSS 类时使用属性列表。
+- 各栏目的索引页在 front matter 中设置 Lucide 页面图标。卡片网格中的每张卡片以标注
+  `{ .lg .middle }` 的图标开头，并用 `:octicons-arrow-right-24:` 链接到后续页面。品牌标志
+  使用 Simple Icons，例如 `:simple-jinja:`。
+- 中文页面使用与英文源页面相同的图标、属性和页面图标。
+- 拼错的短代码会原样显示为文本，严格构建也不会因此失败。请在已安装软件包的
+  `zensical/templates/.icons/` 下确认图标存在，因为内置图标集可能落后于各图标集的网站，
+  然后检查渲染后的页面。
+- 文档不使用 `:smile:` 这类 emoji 短代码。Twemoji 会把它们渲染为从 CDN 加载的图片，而不是
+  内联 SVG。
+
 ## 版本管理 { #versioning }
 
 站点使用兼容 Zensical 的 mike 分支。版本准备在
