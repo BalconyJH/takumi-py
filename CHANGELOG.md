@@ -58,6 +58,10 @@ identifiers.
 
 ### Removed
 
+- Drop Python 3.10 support. takumi-py now requires Python 3.11 or later and
+  publishes `cp311-abi3` wheels.
+- Drop the `typing-extensions` runtime dependency; `TypedDict` and `NotRequired`
+  come from the standard library on Python 3.11.
 - Drop the unused direct `parley` dependency, which Takumi no longer uses.
 
 ### Fixed
