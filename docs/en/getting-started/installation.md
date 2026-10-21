@@ -1,6 +1,6 @@
 # Installation
 
-`takumi-py` requires Python 3.10 or later. Choose a published wheel for normal use or
+`takumi-py` requires Python 3.11 or later. Choose a published wheel for normal use or
 a source checkout when developing the binding.
 
 === "PyPI"
@@ -16,7 +16,7 @@ a source checkout when developing the binding.
 
 === "Source checkout"
 
-    A source build requires Rust 1.91 or later, Python 3.10+, and `uv`. Takumi is a
+    A source build requires Rust 1.91 or later, Python 3.11+, and `uv`. Takumi is a
     Git submodule, so clone it recursively:
 
     ```bash

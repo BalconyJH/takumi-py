@@ -4,8 +4,8 @@
 
 | Component | Supported range |
 | --- | --- |
-| Python | 3.10+ |
-| ABI | CPython abi3, minimum cp310 |
+| Python | 3.11+ |
+| ABI | CPython abi3, minimum cp311 |
 | Linux wheels | x86_64 and aarch64, manylinux2014 |
 | macOS wheels | Apple Silicon, macOS 11+ |
 | Windows wheels | x64 |

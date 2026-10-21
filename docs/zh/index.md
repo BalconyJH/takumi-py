@@ -4,7 +4,7 @@ icon: lucide/image
 
 # takumi-py
 
-[Takumi](https://github.com/kane50613/takumi) Rust 渲染器的 Python 3.10+ 绑定。无需
+[Takumi](https://github.com/kane50613/takumi) Rust 渲染器的 Python 3.11+ 绑定。无需
 浏览器运行时，即可把类型化的节点树、HTML 或 Jinja 模板渲染为位图、SVG 和动画。
 
 [开始使用 :material-arrow-right:](getting-started/index.md){ .md-button .md-button--primary }

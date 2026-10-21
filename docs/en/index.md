@@ -4,7 +4,7 @@ icon: lucide/image
 
 # takumi-py
 
-Python 3.10+ bindings for the [Takumi](https://github.com/kane50613/takumi) Rust
+Python 3.11+ bindings for the [Takumi](https://github.com/kane50613/takumi) Rust
 renderer. Turn typed node trees, HTML, or Jinja templates into raster images, SVG,
 and animation without a browser runtime.
 

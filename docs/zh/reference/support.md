@@ -4,8 +4,8 @@
 
 | 组件 | 支持范围 |
 | --- | --- |
-| Python | 3.10+ |
-| ABI | CPython abi3，最低 cp310 |
+| Python | 3.11+ |
+| ABI | CPython abi3，最低 cp311 |
 | Linux wheel | x86_64 与 aarch64，manylinux2014 |
 | macOS wheel | Apple Silicon，macOS 11+ |
 | Windows wheel | x64 |

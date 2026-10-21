@@ -1,6 +1,6 @@
 # 安装
 
-`takumi-py` 需要 Python 3.10 或更高版本。日常使用请选择已发布的 wheel，开发绑定时请
+`takumi-py` 需要 Python 3.11 或更高版本。日常使用请选择已发布的 wheel，开发绑定时请
 使用源码检出。
 
 === "PyPI"
@@ -16,7 +16,7 @@
 
 === "源码检出"
 
-    源码构建需要 Rust 1.91 或更高版本、Python 3.10+ 和 `uv`。Takumi 是 Git 子模块，
+    源码构建需要 Rust 1.91 或更高版本、Python 3.11+ 和 `uv`。Takumi 是 Git 子模块，
     因此请递归克隆：
 
     ```bash

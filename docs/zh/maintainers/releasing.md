@@ -51,7 +51,7 @@ flowchart TD
 ```
 
 发布构建包含 Linux x86_64、Linux aarch64、macOS arm64、Windows x64 四个
-`cp310-abi3` wheel 和一个 sdist。验证层会：
+`cp311-abi3` wheel 和一个 sdist。验证层会：
 
 1. 检查完整制品集合、包元数据、许可证、ABI/平台标签及内置字体边界。
 2. 在仓库外的临时虚拟环境安装并执行渲染 smoke，避免意外导入 checkout。

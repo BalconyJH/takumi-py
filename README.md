@@ -2,7 +2,7 @@
 
 **English** | [简体中文](https://github.com/BalconyJH/takumi-py/blob/main/README.zh-CN.md)
 
-Python 3.10+ bindings for the [Takumi](https://github.com/kane50613/takumi) Rust
+Python 3.11+ bindings for the [Takumi](https://github.com/kane50613/takumi) Rust
 renderer. Render node trees, HTML, and Jinja templates to PNG, JPEG, WebP, ICO, raw
 RGBA, SVG, and WebP, APNG, or GIF animations, without a browser runtime.
 
@@ -32,7 +32,7 @@ sources live in [`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs)
 uv add takumi-py
 ```
 
-Published `cp310-abi3` wheels cover Linux x86_64 and aarch64, macOS on Apple Silicon,
+Published `cp311-abi3` wheels cover Linux x86_64 and aarch64, macOS on Apple Silicon,
 and Windows x64. Other platforms build from the source distribution, which needs
 Rust 1.91 or later. See
 [Installation](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/getting-started/installation.md)

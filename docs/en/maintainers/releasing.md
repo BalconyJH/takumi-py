@@ -54,7 +54,7 @@ flowchart TD
     X --> Y["Deploy through a GitHub Pages artifact and OIDC"]
 ```
 
-A release build produces four `cp310-abi3` wheels, for Linux x86_64, Linux aarch64,
+A release build produces four `cp311-abi3` wheels, for Linux x86_64, Linux aarch64,
 macOS arm64, and Windows x64, plus one sdist. The verification layer:
 
 1. Checks the complete artifact set, package metadata, licenses, ABI and platform tags,

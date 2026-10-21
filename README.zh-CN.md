@@ -2,7 +2,7 @@
 
 [English](https://github.com/BalconyJH/takumi-py/blob/main/README.md) | **简体中文**
 
-[Takumi](https://github.com/kane50613/takumi) Rust 渲染器的 Python 3.10+ 绑定。无需浏览器
+[Takumi](https://github.com/kane50613/takumi) Rust 渲染器的 Python 3.11+ 绑定。无需浏览器
 运行时，即可把节点树、HTML 和 Jinja 模板渲染为 PNG、JPEG、WebP、ICO、原始 RGBA、SVG，以及
 WebP、APNG 或 GIF 动画。
 
@@ -33,7 +33,7 @@ WebP、APNG 或 GIF 动画。
 uv add takumi-py
 ```
 
-已发布的 `cp310-abi3` wheel 覆盖 Linux x86_64 与 aarch64、Apple Silicon 上的 macOS，以及
+已发布的 `cp311-abi3` wheel 覆盖 Linux x86_64 与 aarch64、Apple Silicon 上的 macOS，以及
 Windows x64。其他平台从源码分发包构建，需要 Rust 1.91 或更高版本。源码检出方式见
 [安装](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/getting-started/installation.md)。
 
