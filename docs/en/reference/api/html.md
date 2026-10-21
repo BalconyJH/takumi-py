@@ -20,7 +20,8 @@ Use `HtmlOptions` to select parser presets, map Tailwind classes from another
 attribute, or cap nesting depth. Document-level CSS remains an explicit render input;
 compile it with `Renderer.compile_stylesheet` before passing it to a compiled API.
 HTML compilation is performed directly by the native parser; HTML entry points do not
-have a separate Python-side `validate` switch.
+have a separate Python-side `validate` switch. See [HTML and CSS](../../guides/html.md)
+for the full parsing behavior.
 
 ## parse_html
 

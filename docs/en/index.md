@@ -34,9 +34,12 @@ and animation without a browser runtime.
 
     ---
 
-    Choose between node trees, HTML, compiled content, raster output, and SVG.
+    Choose between node trees, HTML, and compiled content, then pick raster, SVG, or
+    measurement output.
 
-    [:octicons-arrow-right-24: Rendering model](guides/rendering.md)
+    [:octicons-arrow-right-24: Rendering model](guides/rendering.md) ·
+    [:octicons-arrow-right-24: HTML and CSS](guides/html.md) ·
+    [:octicons-arrow-right-24: Output formats](guides/output.md)
 
 -   :material-folder-image:{ .lg .middle } **Manage resources**
 

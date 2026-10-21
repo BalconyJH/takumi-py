@@ -8,6 +8,9 @@
 
 ## Images
 
+Image nodes refer to images by `src`. Supply the bytes for each `src` through the
+per-render `images` option:
+
 ```python
 from pathlib import Path
 
@@ -28,8 +31,9 @@ png = renderer.render_node(
 )
 ```
 
-`ImageResource.cache` accepts `"auto"` or `"none"`. The tuple shorthand
-`("memory://logo", data)` remains supported and uses `"auto"` by default.
+`ImageResource.cache` accepts `"auto"` or `"none"` and is forwarded to the renderer's
+resource cache. The tuple shorthand `("memory://logo", data)` remains supported and
+uses `"auto"`. Images embedded as `data:` URIs need no resource at all.
 
 ### Raw RGBA pixels
 
@@ -58,6 +62,8 @@ the alpha multiplication.
 
 ## Fonts
 
+Fonts register on a renderer and stay registered for its lifetime:
+
 ```python
 from pathlib import Path
 
@@ -83,10 +89,24 @@ png = renderer.render_node(
 )
 ```
 
-`register_font` returns the family names actually registered by Takumi. Pass that
-result to `font_families` to select a deterministic fallback stack for a render.
-When supplied, `FontResource.weight` must be a finite number from 1 through 1000;
-invalid overrides raise `ValueError` before font registration.
+`register_font` returns the family names Takumi registered. Pass that result to
+`font_families` to select a deterministic fallback stack for a render. Takumi reads
+TrueType, OpenType, WOFF, and WOFF2 data.
+
+`FontResource` fields override what the font file declares:
+
+| Field | Contract |
+| --- | --- |
+| `name` | Family name to register under; defaults to the name in the file |
+| `weight` | Finite number from 1 through 1000; otherwise `ValueError` |
+| `style` | CSS `font-style` syntax such as `"normal"`, `"italic"`, or `"oblique 12deg"`; otherwise `FontError` |
+| `generic_family` | Generic keyword the font resolves, such as `"sans-serif"` or `"monospace"` |
+| `unicode_range` | Inclusive codepoint ranges the font serves; see [Font subsets](#font-subsets) |
+
+!!! warning "The bundled font is intentionally narrow"
+
+    Built-in Geist is a Latin last-resort font. Register suitable fonts for non-Latin
+    scripts, emoji, or brand glyphs; do not depend on fonts installed on the host OS.
 
 ### Font subsets
 
@@ -124,36 +144,46 @@ renderer.unregister_font("Inter")
 renderer.clear_fonts()
 ```
 
-!!! warning "The bundled font is intentionally narrow"
+## Language
 
-    Built-in Geist is a Latin last-resort font. Register suitable fonts for non-Latin
-    scripts, emoji, or brand glyphs; do not depend on fonts installed on the host OS.
+The render-level `lang` option affects text shaping and line breaking. It must be a
+valid BCP-47 language tag; every render, measure, SVG, and animation entry point
+rejects an invalid tag with `ValueError`.
 
-## Language and CSS
+Render-level `lang` does not write a node attribute, so it does not make CSS `:lang()`
+selectors match. Set `lang` on the HTML element or node that establishes the language:
 
-The render-level `lang` option affects text shaping and line breaking, but it does not
-write a node attribute and therefore does not activate CSS `:lang()`. Set `lang` on
-the HTML or node when a selector must match:
+=== "HTML"
 
-```python
-renderer.render_html(
-    '<section lang="zh-Hant"><div class="headline">Typography</div></section>',
-    stylesheets=[
-        '.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }',
-    ],
-)
-```
+    ```python
+    renderer.render_html(
+        '<section lang="zh-Hant"><div class="headline">你好</div></section>',
+        stylesheets=[
+            '.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }',
+        ],
+    )
+    ```
 
-Render-level `lang` must be a valid BCP-47 language tag. Every render, measure, SVG,
-and animation entry point rejects an invalid tag with `ValueError`.
+=== "Node tree"
+
+    ```python
+    renderer.render_node(
+        {
+            "type": "container",
+            "lang": "ja",
+            "children": [{"type": "text", "text": "こんにちは"}],
+        },
+        stylesheets=[':lang(ja) { font-family: "Noto Sans JP"; }'],
+    )
+    ```
 
 ## Cache budgets
 
-`Renderer(cache_max_bytes=...)` sets the byte budget shared by that renderer's
-decoded images, scaled image variants, SVG rasters, and related render resources.
-Images embedded as `data:` URIs decode through the same cache, so a template that
-inlines its logo decodes it once per renderer rather than on every render. The Takumi
-default is 64 MiB; pass `0` to disable retention.
+`Renderer(cache_max_bytes=...)` sets the byte budget shared by that renderer's decoded
+images, scaled image variants, SVG rasters, and related render resources. Images
+embedded as `data:` URIs decode through the same cache, so a template that inlines its
+logo decodes it once per renderer rather than on every render. The default is 64 MiB;
+pass `0` to disable retention.
 
 Glyph masks and outlines use a separate process-wide cache with an 8 MiB default.
 For CJK-heavy workloads, configure it before the first render in the process:
@@ -177,6 +207,11 @@ process-wide caches.
 
 ??? info "Compatibility APIs"
 
-    `load_font(s)`, `fetched_resources`, and the persistent image APIs remain only as
-    compatibility shims. New code should not expand its dependency on those deprecated
-    interfaces.
+    `load_font`, `load_fonts`, `fetched_resources`, `persistent_images`,
+    `put_persistent_image`, and `clear_image_store` remain only as deprecated
+    compatibility shims from the 0.2 line and emit `DeprecationWarning`. New code
+    should pass `images` per render and use `register_font` or `register_fonts`.
+
+See the runnable
+[`examples/render_resources.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_resources.py)
+example.

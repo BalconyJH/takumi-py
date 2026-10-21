@@ -39,11 +39,13 @@ Path("out.png").write_bytes(png)
 
 <div class="grid cards" markdown>
 
-- **HTML already exists** — use `render_html`.
-- **Content is structured data** — use `render_node`.
-- **The same structure is rendered repeatedly** — call `compile_node` or
+- **HTML already exists**: use `render_html`; see [HTML and CSS](../guides/html.md).
+- **Content is structured data**: use `render_node`; see
+  [node trees](../guides/rendering.md#node-trees).
+- **The same structure is rendered repeatedly**: call `compile_node` or
   `compile_html`, then follow the [compiled rendering contract](../guides/rendering.md#compile-and-reuse).
-- **Templates live on disk** — use `TemplateRenderer`.
+- **Templates live on disk**: use `TemplateRenderer`; see
+  [Jinja templates](../guides/templates.md).
 
 </div>
 

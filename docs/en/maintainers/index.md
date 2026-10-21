@@ -16,7 +16,8 @@ This section defines repository workflows. It is not part of the binding's publi
 
 -   :material-file-document-edit:{ .lg .middle } **Documentation**
 
-    Information architecture, content ownership, local builds, and versioning.
+    Languages, information architecture, content ownership, local builds, and
+    versioning.
 
     [:octicons-arrow-right-24: Documentation](documentation.md)
 

@@ -130,3 +130,9 @@ flowchart LR
 
     Treat filter functions and template directories as trusted application inputs.
     Autoescape protects interpolated markup; it does not sandbox Python filter code.
+
+See the runnable
+[`examples/render_template.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_template.py)
+example and its
+[`card.html.jinja`](https://github.com/BalconyJH/takumi-py/blob/main/examples/templates/card.html.jinja)
+template.

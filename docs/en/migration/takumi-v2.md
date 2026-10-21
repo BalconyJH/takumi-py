@@ -17,8 +17,9 @@ should use the explicit model directly.
 ## HTML and stylesheets
 
 HTML parsing now lives in Takumi's Rust parser. HTML render, measure, SVG, and template
-calls all receive document-level CSS explicitly through `stylesheets=[...]`. Use
-`HtmlOptions` to customize parser presets, the Tailwind attribute, or the depth limit.
+calls all receive document-level CSS explicitly through `stylesheets=[...]`, and inline
+`style` attributes are parsed with the HTML. Use `HtmlOptions` to customize parser
+presets, the Tailwind attribute, or the depth limit. See [HTML and CSS](../guides/html.md).
 
 ## Fonts and language
 
@@ -36,14 +37,17 @@ calls all receive document-level CSS explicitly through `stylesheets=[...]`. Use
 
 ## Images and URLs
 
-`ImageResource.cache` maps directly to the Takumi image cache hint.
-`CompiledNode.resource_urls()` reports HTTP(S) image and style references, but it does
-not download them or report already supplied `memory://` bytes.
+`ImageResource.cache` maps directly to the Takumi image cache hint for per-render,
+constructor, and deprecated persistent images. Image nodes also accept decoded
+`RawRgbaImage` pixels. `CompiledNode.resource_urls()` reports HTTP(S) image and style
+references, but it does not download them or report already supplied `memory://` bytes.
+See [Fonts and images](../guides/resources.md).
 
 ## Animation and output
 
 - Pass structured keyframes through `keyframes=` or `RenderOptions(keyframes=...)`.
-- WebP defaults to lossless when neither `quality` nor `lossless` is specified.
+- WebP defaults to lossless when neither `quality` nor `lossless` is specified, and
+  `quality` together with `lossless=True` is rejected.
 - Render SVG with `render_svg_node`, `render_svg_html`, `render_svg_template`, or
   `render_svg_compiled`.
 

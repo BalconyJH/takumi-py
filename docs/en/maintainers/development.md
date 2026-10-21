@@ -22,10 +22,24 @@ prek run actionlint --all-files --hook-stage=manual
 ```
 
 `make check` runs Ruff, ty, `mypy.stubtest` for the native extension, pytest,
-Rustfmt, and Clippy. The strict documentation build runs separately because it uses
-the docs dependency group and treats warnings as failures. The manual Actionlint
+Rustfmt, and Clippy. The documentation build runs separately because it uses the docs
+dependency group: it checks that the Chinese pages mirror the English source, then
+builds both languages strictly, treating warnings as failures. The manual Actionlint
 stage validates embedded workflow shell scripts in addition to the normal repository
 hooks.
+
+## Tests
+
+The pytest suite lives in `tests/` and runs in parallel through `make test`:
+
+| Module | Covers |
+| --- | --- |
+| `test_render_node.py`, `test_render_html.py`, `test_render_template.py` | The node, HTML, and template entry points |
+| `test_html_adapter.py`, `test_inline_style.py` | HTML parsing and inline styles |
+| `test_core_binding_features.py` | Options, fonts, images, caches, measurement, SVG, and animation |
+| `test_takumi_core_fixtures.py` | Every upstream HTML fixture under `takumilib/takumi/tests/fixtures-html` renders |
+| `test_examples.py` | Every script in `examples/` runs and writes its output |
+| `test_typing_surface.py` | The documented public `Renderer` surface and native typing artifacts |
 
 ## Distribution contract
 

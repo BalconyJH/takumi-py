@@ -67,7 +67,7 @@ range covers it:
     )
     ```
 
-`subset_of` still works, but it raises a `DeprecationWarning` and takes precedence
+`subset_of` still works, but it emits a `DeprecationWarning` and takes precedence
 over `name`, so `register_font` returns the `subset_of` value. Without
 `unicode_range`, a later font registered under the same name and descriptors shadows
 the earlier one, as a later `@font-face` rule does in a browser.
