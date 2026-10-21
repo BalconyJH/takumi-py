@@ -27,6 +27,8 @@ identifiers.
 - Declare `rust-version = "1.91"` so dependency resolution stays within the
   pinned CI toolchain.
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
+- Stream `render_animation` frames straight into the encoder, so an animation holds
+  one raw frame at a time instead of all of them.
 - `<img>` without a `src` now parses as an empty box instead of raising
   `HtmlParseError`.
 - Run the core fixture smoke test over upstream's relocated `fixtures-html`
@@ -45,6 +47,9 @@ identifiers.
 
 ### Fixed
 
+- Enforce the documented frame-rate limits in `render_animation`: above 90 fps for
+  WebP and APNG, or 50 fps for GIF, it now raises `ValueError` instead of writing
+  frame delays that decoders clamp to 100 ms.
 - Document that `set_glyph_cache_max_bytes` has no effect once the glyph cache is
   in use, instead of claiming it raises `RuntimeError`.
 
