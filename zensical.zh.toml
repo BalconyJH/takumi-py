@@ -1,0 +1,157 @@
+# Simplified Chinese site. Keep every key outside the language-specific ones in sync
+# with zensical.toml; .github/scripts/check-docs-i18n.py enforces it.
+[project]
+site_name = "takumi-py"
+site_description = "Takumi Rust 渲染器的 Python 绑定"
+site_author = "BalconyJH"
+site_url = "https://balconyjh.github.io/takumi-py/zh/"
+repo_url = "https://github.com/BalconyJH/takumi-py"
+repo_name = "BalconyJH/takumi-py"
+edit_uri = "edit/main/docs/zh/"
+docs_dir = "docs/zh"
+site_dir = "site-zh"
+copyright = "Copyright &copy; 2026 takumi-py contributors"
+nav = [
+  { "首页" = "index.md" },
+  { "快速入门" = [
+    "getting-started/index.md",
+    { "安装" = "getting-started/installation.md" },
+    { "快速上手" = "getting-started/quickstart.md" },
+  ] },
+  { "指南" = [
+    "guides/index.md",
+    { "渲染模型" = "guides/rendering.md" },
+    { "HTML 与 CSS" = "guides/html.md" },
+    { "输出格式" = "guides/output.md" },
+    { "字体与图片" = "guides/resources.md" },
+    { "Jinja 模板" = "guides/templates.md" },
+    { "动画" = "guides/animation.md" },
+  ] },
+  { "参考" = [
+    "reference/index.md",
+    { "支持矩阵" = "reference/support.md" },
+    { "异常" = "reference/exceptions.md" },
+    { "Python API" = [
+      { "Renderer" = "reference/api/renderer.md" },
+      { "选项与资源" = "reference/api/options.md" },
+      { "节点与结果" = "reference/api/types.md" },
+      { "HTML 解析" = "reference/api/html.md" },
+      { "模板" = "reference/api/templates.md" },
+    ] },
+  ] },
+  { "迁移" = [
+    "migration/index.md",
+    { "Takumi v2" = "migration/takumi-v2.md" },
+    { "Takumi 2.17" = "migration/takumi-2.17.md" },
+  ] },
+  { "维护者" = [
+    "maintainers/index.md",
+    { "开发" = "maintainers/development.md" },
+    { "文档" = "maintainers/documentation.md" },
+    { "发布" = "maintainers/releasing.md" },
+  ] },
+]
+
+[project.theme]
+language = "zh"
+features = [
+  "content.action.edit",
+  "content.action.view",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.progress",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.share",
+  "search.suggest",
+  "toc.follow",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "切换到深色模式"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "切换到浅色模式"
+
+# Each language builds as its own site; the switcher links follow the deployed layout,
+# English at the version root and Chinese under zh/.
+[[project.extra.alternate]]
+name = "English"
+link = "../../"
+lang = "en"
+
+[[project.extra.alternate]]
+name = "简体中文"
+link = "./"
+lang = "zh"
+
+[project.extra.version]
+provider = "mike"
+default = "latest"
+alias = true
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["python"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+members_order = "source"
+separate_signature = true
+show_if_no_docstring = true
+show_root_heading = true
+show_signature_annotations = true
+show_source = false
+
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
