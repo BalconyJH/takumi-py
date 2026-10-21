@@ -895,3 +895,15 @@ def test_render_options_dataclass_can_drive_rendering() -> None:
     )
 
     assert len(raw) == 3 * 2 * 4
+
+
+def test_deprecation_warnings_point_at_the_caller() -> None:
+    renderer = Renderer()
+    node: NodeInput = {"type": "container", "style": {"width": "2px", "height": "2px"}}
+
+    with pytest.warns(DeprecationWarning) as caught:
+        renderer.render_node(node, width=2, height=2, fetched_resources=[])
+        renderer.render_html("<b>x</b>", width=2, height=2, dithering="floyd-steinberg")
+        renderer.load_font(GEIST_FONT.read_bytes())
+
+    assert [Path(warning.filename) for warning in caught] == [Path(__file__)] * 3
