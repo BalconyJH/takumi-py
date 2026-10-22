@@ -96,7 +96,8 @@ flowchart TD
 GitHub Pages，因此 `main` 上的文档变更几分钟内即可上线。
 
 - `dev (main)` 位于版本选择器的最上方、各发布版本之上，地址为 `/takumi-py/dev/` 和
-  `/takumi-py/zh/dev/`。`latest` 和站点根目录仍指向最新发布版本。
+  `/takumi-py/zh/dev/`。`latest` 和站点根目录仍指向最新发布版本；尚无发布版本的语言在
+  首次发布之前，其站点根目录会打开 `dev`。
 - 较新提交的预览会取消仍在运行的旧预览。
 - 发布与预览的 Pages 部署共用 `github-pages` 并发组，并且每次部署时都导出 `gh-pages`
   的最新状态，因此谁也不会丢失对方的版本。

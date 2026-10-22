@@ -98,6 +98,12 @@ def deploy_once(version: str, title: str | None, *, release: bool) -> None:
             run("mike", "set-default", *options, "latest")
         else:
             run(*deploy, version)
+            # A language with no release yet opens this version until a release does.
+            default = f"{prefix}/index.html" if prefix else "index.html"
+            if run(
+                "git", "cat-file", "-e", f"gh-pages:{default}", check=False
+            ).returncode:
+                run("mike", "set-default", *options, version)
         manifest = f"{prefix}/versions.json" if prefix else "versions.json"
         run("git", "cat-file", "-e", f"gh-pages:{manifest}")
 
