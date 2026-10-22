@@ -291,6 +291,12 @@ def parse_args() -> argparse.Namespace:
 
     notes_parser = commands.add_parser("notes", help="print a released section")
     notes_parser.add_argument("version", help="released version, without the v prefix")
+    notes_parser.add_argument(
+        "--changelog",
+        type=Path,
+        default=CHANGELOG,
+        help="changelog to read, such as a release tag's (default: this checkout's)",
+    )
     return parser.parse_args()
 
 
@@ -305,7 +311,7 @@ def main() -> int:
                 dry_run=args.dry_run,
             )
         else:
-            text = CHANGELOG.read_text(encoding="utf-8")
+            text = args.changelog.read_text(encoding="utf-8")
             sys.stdout.write(released_section(text, args.version) + "\n")
     except ChangelogError as error:
         sys.stderr.write(f"error: {error}\n")
