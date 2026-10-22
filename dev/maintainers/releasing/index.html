@@ -1945,7 +1945,8 @@ languages with <code>.github/scripts/deploy-docs.py dev</code> and deploys GitHu
 documentation change on <code>main</code> is online within minutes.</p>
 <ul>
 <li><code>dev (main)</code> heads the version selector, above the releases, at <code>/takumi-py/dev/</code> and
-  <code>/takumi-py/zh/dev/</code>. <code>latest</code> and the site root stay on the newest release.</li>
+  <code>/takumi-py/zh/dev/</code>. <code>latest</code> and the site root stay on the newest release; a
+  language without a release yet opens <code>dev</code> at its root until its first release.</li>
 <li>A newer commit's preview cancels one that is still running.</li>
 <li>Release and preview Pages deployments share the <code>github-pages</code> concurrency group, and
   each exports the <code>gh-pages</code> tip when it deploys, so neither drops the other's
