@@ -53,6 +53,7 @@ nav = [
 ]
 
 [project.theme]
+custom_dir = "docs/overrides"
 language = "zh"
 features = [
   "content.action.edit",
@@ -91,17 +92,20 @@ scheme = "slate"
 toggle.icon = "lucide/moon"
 toggle.name = "切换到浅色模式"
 
-# Each language builds as its own site; the switcher links follow the deployed layout,
-# English at the version root and Chinese under zh/.
+# Each language builds as its own site: English at the root, Chinese under zh/. The
+# header's language button (docs/overrides/partials/alternate.html) swaps one
+# site_url for the other to keep the version and page; `link` is its fallback.
 [[project.extra.alternate]]
 name = "English"
 link = "../../"
 lang = "en"
+site_url = "https://balconyjh.github.io/takumi-py/"
 
 [[project.extra.alternate]]
 name = "简体中文"
 link = "./"
 lang = "zh"
+site_url = "https://balconyjh.github.io/takumi-py/zh/"
 
 [project.extra.version]
 provider = "mike"
