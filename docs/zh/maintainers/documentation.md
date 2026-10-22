@@ -83,8 +83,10 @@ make docs-serve
 make docs-serve-zh
 ```
 
-语言切换器链接到已发布站点的布局，即站点根目录和 `zh/`，因此只在部署后的站点上生效。
-提交变更之前，运行与 CI 相同的检查和严格构建：
+页眉中的语言按钮位于深浅色切换按钮旁边，会打开另一种语言中相同的页面、版本和锚点。它是
+`docs/overrides/partials/alternate.html` 中的主题覆盖，通过替换两个 `extra.alternate`
+条目中不含版本的 `site_url` 来切换，因此遵循已发布站点的布局，即站点根目录和 `zh/`，
+只在部署后的站点上生效。提交变更之前，运行与 CI 相同的检查和严格构建：
 
 ```bash
 make docs-build

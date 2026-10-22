@@ -96,9 +96,12 @@ make docs-serve
 make docs-serve-zh
 ```
 
-The language switcher links to the published layout, the site root and `zh/`, so it
-only works on the deployed site. Run the same checks and strict builds used by CI
-before submitting a change:
+The header's language button, next to the light and dark toggle, opens the same page,
+version, and anchor in the other language. It is a theme override in
+`docs/overrides/partials/alternate.html` that swaps the versionless `site_url` of the
+two `extra.alternate` entries, so it follows the published layout, the site root and
+`zh/`, and only switches on the deployed site. Run the same checks and strict builds
+used by CI before submitting a change:
 
 ```bash
 make docs-build

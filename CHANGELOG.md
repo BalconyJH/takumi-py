@@ -23,8 +23,9 @@ contributors, and the release's section is published as its GitHub Release notes
   and appends the release's commits, grouped by type and linked by hash, with
   @-mentions of its contributors, generated with git-changelog.
 - Publish the documentation in Simplified Chinese alongside the American English
-  primary, with a language switcher, a Chinese README, and a docs build check that
-  keeps both languages' pages, anchors, code samples, and configuration in sync.
+  primary, with a one-click language toggle in the header that keeps the version,
+  page, and anchor, a Chinese README, and a docs build check that keeps both
+  languages' pages, anchors, code samples, and configuration in sync.
 
 ### Changed
 
