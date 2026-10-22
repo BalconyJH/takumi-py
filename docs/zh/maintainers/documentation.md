@@ -136,5 +136,6 @@ Simple Icons。两份配置都通过 `attr_list` 和 `pymdownx.emoji` 启用图�
 [自动发布链路](releasing.md#automatic-release-pipeline) 末尾、基于已验证的发布标签运行。
 生成的 `gh-pages` 分支是持久的版本状态，而不是 Pages 的发布来源；发布工作流把它导出为
 Pages 制品，并通过 `github-pages` 环境部署。英文版本位于分支根目录，中文版本位于 `zh/`
-之下，各自维护 `versions.json`，因此每个站点的版本选择器只列出自己的部署。普通的文档构建
-只校验站点，不会更新任何一个目标。
+之下，各自维护 `versions.json`，因此每个站点的版本选择器只列出自己的部署。每次推送到
+`main` 时，其文档还会部署为 `dev` 版本，详见[文档预览](releasing.md#documentation-preview)；
+针对 pull request 的普通文档构建只校验站点，不会更新任何一个目标。

@@ -97,15 +97,29 @@ macOS arm64, and Windows x64, plus one sdist. The verification layer:
    notes, only after the PyPI check succeeds. An existing published Release only allows
    an idempotent rerun with matching digests, and an existing draft can be recovered
    with the artifacts this run verified, taking the changelog notes.
-7. Updates both documentation languages from the same release tag with mike: English
-   at the site root and Simplified Chinese under the `zh/` prefix, each with its own
-   `versions.json`. A tag that predates the Chinese site deploys English only. Only a
-   release no older than the newest deployed version moves `latest`, and concurrent
-   writes to the `gh-pages` branch, which stores the version state, retry a bounded
-   number of times.
-8. Exports the full static tree from the updated `gh-pages`, uploads a standard
+7. Updates both documentation languages from the same release tag with
+   `.github/scripts/deploy-docs.py`, which runs mike: English at the site root and
+   Simplified Chinese under the `zh/` prefix, each with its own `versions.json`. A tag
+   that predates the Chinese site deploys English only. Only a release no older than
+   the newest released version moves `latest`, and concurrent writes to the
+   `gh-pages` branch, which stores the version state, retry a bounded number of times.
+8. Exports the full static tree from the current `gh-pages`, uploads a standard
    `github-pages` artifact, and deploys it through OIDC to the protected
    `github-pages` environment.
+
+## Documentation preview { #documentation-preview }
+
+`Preview · Docs` publishes `main` as the `dev` documentation version. After every
+successful `Check · Docs` run for a push to `main`, it builds that exact commit in both
+languages with `.github/scripts/deploy-docs.py dev` and deploys GitHub Pages, so a
+documentation change on `main` is online within minutes.
+
+- `dev (main)` heads the version selector, above the releases, at `/takumi-py/dev/` and
+  `/takumi-py/zh/dev/`. `latest` and the site root stay on the newest release.
+- A newer commit's preview cancels one that is still running.
+- Release and preview Pages deployments share the `github-pages` concurrency group, and
+  each exports the `gh-pages` tip when it deploys, so neither drops the other's
+  versions.
 
 To check release artifacts locally, run:
 
@@ -132,7 +146,8 @@ on GitHub and PyPI:
 - Bind the PyPI Trusted Publisher to owner `BalconyJH`, repository `takumi-py`, workflow
   `publish.yml`, and environment `release`.
 - Set the GitHub Pages source to `GitHub Actions`, and let the `github-pages`
-  environment deploy only from trusted `v*` release tags.
+  environment deploy only from `main`, for the dev preview, and trusted `v*` release
+  tags.
 - Enable immutable GitHub Releases; the workflow only verifies digests of a published
   Release and never rewrites it.
 - Keep the weekly Dependabot updates for GitHub Actions, and route SHA pin updates

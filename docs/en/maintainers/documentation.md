@@ -159,5 +159,7 @@ verified release tag at the end of the
 the release workflow exports it as a Pages artifact and deploys it through the
 `github-pages` environment. English versions live at the branch root and Chinese
 versions under `zh/`, each with its own `versions.json`, so each site's version
-selector lists its own deployments. Ordinary documentation builds validate the site
-without updating either destination.
+selector lists its own deployments. Every push to `main` also deploys its docs as the
+`dev` version, as the [documentation preview](releasing.md#documentation-preview)
+describes; ordinary documentation builds for pull requests validate the site without
+updating either destination.

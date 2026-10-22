@@ -19,6 +19,9 @@ contributors, and the release's section is published as its GitHub Release notes
   renders that inline the same image decode it once.
 - Add a Takumi 2.17 migration guide, and document font subsets, font release,
   animation frame-rate limits, and the Takumi submodule upgrade procedure.
+- Deploy the documentation on `main` as a `dev` version in both languages, listed
+  above the releases in the version selector, through the new `Preview · Docs`
+  workflow; `latest` stays on the newest release.
 - Add `make changelog`, which dates the `[Unreleased]` notes as the project version
   and appends the release's commits, grouped by type and linked by hash, with
   @-mentions of its contributors, generated with git-changelog.

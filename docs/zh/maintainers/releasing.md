@@ -82,12 +82,24 @@ flowchart TD
 6. 仅在 PyPI 核验成功后发布 GitHub Release，并以该版本的 `CHANGELOG.md` 章节作为
    发布说明；现有已发布 Release 只允许摘要一致的幂等重跑，现有草稿可以用本次已验证
    制品恢复，并换用 changelog 中的说明。
-7. 从同一个 release tag 通过 mike 更新两种语言的文档：英文位于站点根目录，简体中文
-   位于 `zh/` 前缀下，各自维护 `versions.json`。早于中文站点的标签只部署英文。只有不
-   旧于现有最高版本的发布才能移动 `latest`，并对作为版本状态存储的 `gh-pages` 并发
-   写入进行有限重试。
-8. 从更新后的 `gh-pages` 导出完整静态树，上传标准 `github-pages` artifact，并通过
+7. 从同一个 release tag 通过运行 mike 的 `.github/scripts/deploy-docs.py` 更新两种语言
+   的文档：英文位于站点根目录，简体中文位于 `zh/` 前缀下，各自维护 `versions.json`。
+   早于中文站点的标签只部署英文。只有不旧于现有最高发布版本的发布才能移动 `latest`，
+   并对作为版本状态存储的 `gh-pages` 并发写入进行有限重试。
+8. 从当前的 `gh-pages` 导出完整静态树，上传标准 `github-pages` artifact，并通过
    OIDC 部署到受保护的 `github-pages` environment。
+
+## 文档预览 { #documentation-preview }
+
+`Preview · Docs` 把 `main` 发布为 `dev` 文档版本。每次 `main` 上的推送使 `Check · Docs`
+成功运行之后，它会用 `.github/scripts/deploy-docs.py dev` 以两种语言构建该提交，并部署
+GitHub Pages，因此 `main` 上的文档变更几分钟内即可上线。
+
+- `dev (main)` 位于版本选择器的最上方、各发布版本之上，地址为 `/takumi-py/dev/` 和
+  `/takumi-py/zh/dev/`。`latest` 和站点根目录仍指向最新发布版本。
+- 较新提交的预览会取消仍在运行的旧预览。
+- 发布与预览的 Pages 部署共用 `github-pages` 并发组，并且每次部署时都导出 `gh-pages`
+  的最新状态，因此谁也不会丢失对方的版本。
 
 本地检查发布物时使用：
 
@@ -110,7 +122,7 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 - 将 PyPI Trusted Publisher 绑定到 owner `BalconyJH`、repository `takumi-py`、
   workflow `publish.yml` 和 environment `release`。
 - 将 GitHub Pages Source 配置为 `GitHub Actions`，并让 `github-pages` environment
-  只允许受信任的 `v*` release tag 部署。
+  只允许 `main`（用于 dev 预览）和受信任的 `v*` release tag 部署。
 - 启用 immutable GitHub Releases；工作流对已发布 Release 只做摘要核验，不会改写。
 - 保留 Dependabot 的 GitHub Actions 周更，并让 SHA pin 更新通过相同门禁。
 
