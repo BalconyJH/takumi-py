@@ -111,6 +111,11 @@ make docs-build
 part of the public information architecture: update it in both files whenever a page
 is added, moved, or removed.
 
+Zensical is pinned to one exact version in the `docs` dependency group, because a
+0.0.x release can change the theme templates that the overrides in `docs/overrides/`
+build on. To upgrade it, raise the pin, run `uv lock`, rebuild with `make docs-build`,
+and check the header's language button in both languages before you commit.
+
 ### Available authoring components
 
 Use framework components when they improve comprehension:

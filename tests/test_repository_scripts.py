@@ -268,7 +268,9 @@ def test_docs_i18n_reports_drifted_anchors_and_code(
 
     assert errors == [
         "zh/only-english.md is missing",
-        "zh/guides/page.md: heading anchors ['first-step', 'second-step'] "
-        "do not match English ['first-step', 'second']",
+        (
+            "zh/guides/page.md: heading anchors ['first-step', 'second-step'] "
+            "do not match English ['first-step', 'second']"
+        ),
         "zh/guides/page.md: code blocks or API directives differ from the English page",
     ]

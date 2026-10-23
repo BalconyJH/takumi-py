@@ -95,6 +95,10 @@ make docs-build
 `zensical.toml` 和 `zensical.zh.toml` 位于仓库根目录。显式的 `nav` 是公共信息架构的一部分：
 新增、移动或删除页面时，必须同时更新两份文件。
 
+`docs` 依赖组把 Zensical 固定在一个确切版本上，因为 0.0.x 版本可能改动 `docs/overrides/`
+中覆盖所依赖的主题模板。升级时，提高固定版本，运行 `uv lock`，用 `make docs-build` 重新
+构建，并在提交前检查两种语言页眉中的语言按钮。
+
 ### 可用的编写组件 { #available-authoring-components }
 
 在有助于理解时使用框架组件：

@@ -25,6 +25,11 @@ Clippy。文档构建使用 docs 依赖组，因此单独运行：它先检查�
 镜像，再以严格模式构建两种语言，并把警告视为失败。手动的 Actionlint 阶段在常规仓库钩子
 之外，还会校验工作流中内嵌的 shell 脚本。
 
+检查工具均已固定版本，因此只有仓库本身变化时结果才会变化：Prek hook 由 `prek.toml` 中的
+`rev` 固定，仍处于 0.0.x 的 ty 在 `dev` 依赖组中固定为一个确切版本。升级 ty 时，提高其固定
+版本，并在同一提交中修复 `make typecheck` 报告的问题；Ruff hook 的 `rev` 与锁定的 Ruff 版本
+需保持一致。
+
 ## 测试 { #tests }
 
 pytest 测试套件位于 `tests/`，通过 `make test` 并行运行：

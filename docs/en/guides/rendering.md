@@ -96,9 +96,7 @@ renderer = Renderer()
 compiled = renderer.compile_html('<div class="card">Reusable HTML</div>')
 stylesheets = (
     *compiled.stylesheets,
-    renderer.compile_stylesheet(
-        ".card { width: 320px; height: 160px; color: black; }"
-    ),
+    renderer.compile_stylesheet(".card { width: 320px; height: 160px; color: black; }"),
 )
 
 png = renderer.render_compiled(

@@ -198,18 +198,21 @@ deprecated = "ignore"
 requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
+# ty and Zensical are still 0.0.x, where any release may break checks, templates, or
+# the theme overrides, so they are pinned exactly and upgraded on purpose: bump the
+# pin, then run `make typecheck` or `make docs-build`.
 [dependency-groups]
 dev = [
     "git-changelog>=2.10.0",
-    "maturin>=1.13.3",
-    "mypy>=2.3.0",
-    "ruff>=0.15.16",
-    "ty>=0.0.46",
+    "maturin>=1.15.0",
+    "mypy>=2.4.0",
+    "ruff>=0.17.2",
+    "ty==0.0.91",
 ]
 docs = [
     "mike",
-    "mkdocstrings-python>=2.0.5",
-    "zensical>=0.0.52",
+    "mkdocstrings-python>=2.0.10",
+    "zensical==0.0.71",
 ]
 test = [
     "pytest>=9.0.3",

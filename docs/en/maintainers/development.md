@@ -28,6 +28,12 @@ builds both languages strictly, treating warnings as failures. The manual Action
 stage validates embedded workflow shell scripts in addition to the normal repository
 hooks.
 
+The checkers are pinned so that results only change when the repository does: the
+Prek hooks by `rev` in `prek.toml`, and ty, which is still at 0.0.x, to one exact
+version in the `dev` dependency group. Upgrade ty by raising its pin and fixing what
+`make typecheck` reports in the same commit; keep the Ruff hook `rev` and the locked
+Ruff version in step.
+
 ## Tests
 
 The pytest suite lives in `tests/` and runs in parallel through `make test`:

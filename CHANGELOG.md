@@ -35,6 +35,7 @@ contributors, and the release's section is published as its GitHub Release notes
 - Release alphas, betas, and release candidates, such as `0.4.0rc1` (`0.4.0-rc.1` in
   `Cargo.toml`): they publish as GitHub prereleases, and their documentation never
   takes `latest`.
+- Smoke-test the `cp311-abi3` wheel on Python 3.15.
 
 ### Changed
 
@@ -50,6 +51,10 @@ contributors, and the release's section is published as its GitHub Release notes
   GitHub's generated notes.
 - `Release · Tag` and `Release · Publish` share one release-contract check, which now
   also requires the commit list `make changelog` generates.
+- Refresh the toolchain to Zensical 0.0.71, ty 0.0.91, Ruff 0.17, mypy 2.4, and
+  maturin 1.15, with current Prek hooks. ty and Zensical, still at 0.0.x, are pinned
+  exactly so that each upgrade is deliberate, and the commit message hook now
+  accepts `chore` and `typing` commits.
 - Name the GitHub Actions workflows by stage: `Check · Build and test`, `Check · Docs`,
   `Check · Lint`, `Release · Tag`, and `Release · Publish`, with verb-first job names.
   Workflow file names, and so the PyPI Trusted Publisher binding, are unchanged.
