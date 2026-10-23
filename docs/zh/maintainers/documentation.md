@@ -97,7 +97,7 @@ make docs-build
 
 `docs` 依赖组把 Zensical 固定在一个确切版本上，因为 0.0.x 版本可能改动 `docs/overrides/`
 中覆盖所依赖的主题模板。升级时，提高固定版本，运行 `uv lock`，用 `make docs-build` 重新
-构建，并在提交前检查两种语言页眉中的语言按钮。
+构建，并在提交前检查两种语言页眉中的语言按钮和版本横幅。
 
 ### 可用的编写组件 { #available-authoring-components }
 
@@ -143,3 +143,7 @@ Pages 制品，并通过 `github-pages` 环境部署。英文版本位于分支�
 之下，各自维护 `versions.json`，因此每个站点的版本选择器只列出自己的部署。每次推送到
 `main` 时，其文档还会部署为 `dev` 版本，详见[文档预览](releasing.md#documentation-preview)；
 针对 pull request 的普通文档构建只校验站点，不会更新任何一个目标。
+
+所有不带 `latest` 别名的版本都会在顶部显示一条横幅，定义在 `docs/overrides/main.html` 中：
+在 `dev` 上，它说明页面来自 `main`，可能包含尚未发布的变更；在旧版本和预发布版本上，它说明
+这不是最新发布版本。该语言有发布版本后，横幅会链接到最新发布版本。

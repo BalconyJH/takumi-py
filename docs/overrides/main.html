@@ -1,0 +1,64 @@
+{#-
+  The version banner. The theme reveals it on every version without the `latest`
+  alias (extra.version.default): the dev preview of main, older releases, and
+  prereleases. The script names the dev preview as such and hides the link to the
+  latest release until this language has one.
+-#}
+{% extends "base.html" %}
+
+{% block outdated %}
+  {%- if config.theme.language == "zh" %}
+    <span data-md-version-notice="release">你正在查看旧版本或预发布版本的文档。</span>
+    <span data-md-version-notice="dev" hidden>
+      你正在查看 <code>main</code> 分支的开发版文档，其中可能包含尚未发布的变更。
+    </span>
+    <a href="{{ '../' ~ base_url }}" data-md-version-latest>
+      <strong>前往最新发布版本。</strong>
+    </a>
+  {%- else %}
+    <span data-md-version-notice="release">
+      You're viewing the documentation for an older release or a prerelease.
+    </span>
+    <span data-md-version-notice="dev" hidden>
+      You're viewing the development documentation from <code>main</code>, which can
+      describe unreleased changes.
+    </span>
+    <a href="{{ '../' ~ base_url }}" data-md-version-latest>
+      <strong>Go to the latest release.</strong>
+    </a>
+  {%- endif %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      // Resolved once, on the first page: every page of a version shares its root.
+      var root = new URL("{{ base_url }}/", location.href)
+      var version = root.pathname.split("/").filter(Boolean).pop()
+      var released = fetch(new URL("../versions.json", root))
+        .then(function (response) { return response.ok ? response.json() : [] })
+        .then(function (versions) {
+          return versions.some(function (entry) {
+            return entry.aliases.indexOf("latest") !== -1
+          })
+        })
+        .catch(function () { return false })
+
+      // Instant navigation swaps in each page's banner, so update it on every page.
+      document$.subscribe(function () {
+        var banner = document.querySelector("[data-md-component=outdated]")
+        if (!banner) return
+        var notice = version === "dev" ? "dev" : "release"
+        banner.querySelectorAll("[data-md-version-notice]").forEach(function (el) {
+          el.hidden = el.getAttribute("data-md-version-notice") !== notice
+        })
+        released.then(function (exists) {
+          banner.querySelectorAll("[data-md-version-latest]").forEach(function (el) {
+            el.hidden = !exists
+          })
+        })
+      })
+    })()
+  </script>
+{% endblock %}

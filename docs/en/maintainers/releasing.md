@@ -134,7 +134,7 @@ languages with `.github/scripts/deploy-docs.py dev` and deploys GitHub Pages, so
 documentation change on `main` is online within minutes.
 
 - `dev (main)` heads the version selector, above the releases, at `/takumi-py/dev/` and
-  `/takumi-py/zh/dev/`. `latest` and the site root stay on the newest release; a
+  `/takumi-py/zh/dev/`, under a banner that marks it as unreleased. `latest` and the site root stay on the newest release; a
   language without a release yet opens `dev` at its root until its first release.
 - A newer commit's preview cancels one that is still running.
 - Release and preview Pages deployments share the `github-pages` concurrency group, and

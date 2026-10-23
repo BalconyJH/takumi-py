@@ -36,6 +36,9 @@ contributors, and the release's section is published as its GitHub Release notes
   `Cargo.toml`): they publish as GitHub prereleases, and their documentation never
   takes `latest`.
 - Smoke-test the `cp311-abi3` wheel on Python 3.15.
+- Show a banner on every documentation version but the latest release: the `dev`
+  preview says it comes from `main` and can describe unreleased changes, and older
+  releases and prereleases link to the latest one.
 
 ### Changed
 

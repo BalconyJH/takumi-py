@@ -114,7 +114,8 @@ is added, moved, or removed.
 Zensical is pinned to one exact version in the `docs` dependency group, because a
 0.0.x release can change the theme templates that the overrides in `docs/overrides/`
 build on. To upgrade it, raise the pin, run `uv lock`, rebuild with `make docs-build`,
-and check the header's language button in both languages before you commit.
+and check the header's language button and the version banner in both languages
+before you commit.
 
 ### Available authoring components
 
@@ -168,3 +169,8 @@ selector lists its own deployments. Every push to `main` also deploys its docs a
 `dev` version, as the [documentation preview](releasing.md#documentation-preview)
 describes; ordinary documentation builds for pull requests validate the site without
 updating either destination.
+
+Every version without the `latest` alias opens under a banner, defined in
+`docs/overrides/main.html`: on `dev` it says the pages come from `main` and can
+describe unreleased changes, and on older releases and prereleases it says they are
+not the latest release. It links to the latest release once the language has one.
