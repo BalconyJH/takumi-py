@@ -944,6 +944,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#caching-fonts-on-demand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Caching fonts on demand
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1795,6 +1806,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#caching-fonts-on-demand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Caching fonts on demand
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2078,6 +2100,29 @@ bundled Geist fallback remains, and only when the renderer was created with
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">unregister_font</span><span class="p">(</span><span class="s2">"Inter"</span><span class="p">)</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">renderer</span><span class="o">.</span><span class="n">clear_fonts</span><span class="p">()</span>
 </span></code></pre></div>
+<h3 id="caching-fonts-on-demand">Caching fonts on demand<a class="headerlink" href="#caching-fonts-on-demand" title="Permanent link">&para;</a></h3>
+<p>A service that loads fonts per request, such as the families its users pick, can let
+the renderer hold them within a budget instead of registering each one for good.
+<code>cache_font(font, key)</code> registers a font under a key, such as the URL it came from, and
+<code>cached_fonts(key)</code> returns its families while the renderer still holds them, or
+<code>None</code>. Here <code>download</code> stands for your own HTTP client:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="n">font_cache_max_bytes</span><span class="o">=</span><span class="mi">64</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">font_families</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">return</span> <span class="n">renderer</span><span class="o">.</span><span class="n">cached_fonts</span><span class="p">(</span><span class="n">url</span><span class="p">)</span> <span class="ow">or</span> <span class="n">renderer</span><span class="o">.</span><span class="n">cache_font</span><span class="p">(</span><span class="n">download</span><span class="p">(</span><span class="n">url</span><span class="p">),</span> <span class="n">url</span><span class="p">)</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">png</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">render_html</span><span class="p">(</span><span class="n">html</span><span class="p">,</span> <span class="n">font_families</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">font_families</span><span class="p">(</span><span class="n">url</span><span class="p">)))</span>
+</span></code></pre></div>
+<p>Past <code>font_cache_max_bytes</code> of decoded font data, the renderer releases the least
+recently used cached families. A render marks the families in its <code>font_families</code>
+used, and so does a <code>cached_fonts()</code> hit; <code>cached_fonts(key, pin=True)</code> keeps a font
+for good. Fonts from <code>register_font</code>, <code>register_fonts</code>, or the constructor are never
+released, and the font cached last stays even when it alone exceeds the budget.
+<code>unregister_font</code> and <code>clear_fonts</code> forget cached fonts as well.</p>
 <h2 id="language">Language<a class="headerlink" href="#language" title="Permanent link">&para;</a></h2>
 <p>The render-level <code>lang</code> option affects text shaping and line breaking. It must be a
 valid BCP-47 language tag; every render, measure, SVG, and animation entry point
@@ -2087,23 +2132,23 @@ selectors match. Set <code>lang</code> on the HTML element or node that establis
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">HTML</label><label for="__tabbed_1_2">Node tree</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_html</span><span class="p">(</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s1">'&lt;section lang="zh-Hant"&gt;&lt;div class="headline"&gt;你好&lt;/div&gt;&lt;/section&gt;'</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="s1">'.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }'</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="p">],</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_html</span><span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s1">'&lt;section lang="zh-Hant"&gt;&lt;div class="headline"&gt;你好&lt;/div&gt;&lt;/section&gt;'</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s1">'.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }'</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="p">],</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span>
 </span></code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_node</span><span class="p">(</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="p">{</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"container"</span><span class="p">,</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s2">"lang"</span><span class="p">:</span> <span class="s2">"ja"</span><span class="p">,</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s2">"children"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"text"</span><span class="p">,</span> <span class="s2">"text"</span><span class="p">:</span> <span class="s2">"こんにちは"</span><span class="p">}],</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">},</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span><span class="s1">':lang(ja) { font-family: "Noto Sans JP"; }'</span><span class="p">],</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_node</span><span class="p">(</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="p">{</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"container"</span><span class="p">,</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        <span class="s2">"lang"</span><span class="p">:</span> <span class="s2">"ja"</span><span class="p">,</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="s2">"children"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"text"</span><span class="p">,</span> <span class="s2">"text"</span><span class="p">:</span> <span class="s2">"こんにちは"</span><span class="p">}],</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="p">},</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span><span class="s1">':lang(ja) { font-family: "Noto Sans JP"; }'</span><span class="p">],</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">)</span>
 </span></code></pre></div>
 </div>
 </div>
@@ -2113,13 +2158,14 @@ selectors match. Set <code>lang</code> on the HTML element or node that establis
 images, scaled image variants, SVG rasters, and related render resources. Images
 embedded as <code>data:</code> URIs decode through the same cache, so a template that inlines its
 logo decodes it once per renderer rather than on every render. The default is 64 MiB;
-pass <code>0</code> to disable retention.</p>
+pass <code>0</code> to disable retention. Fonts held with <code>cache_font</code> have their own budget,
+<code>font_cache_max_bytes</code>, as <a href="#caching-fonts-on-demand">caching fonts on demand</a> explains.</p>
 <p>Glyph masks and outlines use a separate process-wide cache with an 8 MiB default.
 For CJK-heavy workloads, configure it before the first render in the process:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span><span class="p">,</span> <span class="n">set_glyph_cache_max_bytes</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">set_glyph_cache_max_bytes</span><span class="p">(</span><span class="mi">32</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="n">cache_max_bytes</span><span class="o">=</span><span class="mi">128</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span><span class="p">,</span> <span class="n">set_glyph_cache_max_bytes</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">set_glyph_cache_max_bytes</span><span class="p">(</span><span class="mi">32</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="n">cache_max_bytes</span><span class="o">=</span><span class="mi">128</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Changing the glyph budget after glyph rendering begins does not resize the existing
 process-wide caches.</p>
@@ -2137,6 +2183,11 @@ process-wide caches.</p>
 <td>Font</td>
 <td>Renderer lifetime</td>
 <td><code>register_font</code> or <code>register_fonts</code>; release with <code>unregister_font</code> or <code>clear_fonts</code></td>
+</tr>
+<tr>
+<td>Cached font</td>
+<td>Until released for space</td>
+<td><code>cache_font</code>, checked with <code>cached_fonts</code>, bounded by <code>font_cache_max_bytes</code></td>
 </tr>
 <tr>
 <td>Image</td>

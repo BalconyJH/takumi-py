@@ -1964,7 +1964,7 @@ the prereleases' curated notes into <code>[Unreleased]</code> when the final not
 the whole cycle.</p>
 <h2 id="automatic-release-pipeline">Automatic release pipeline<a class="headerlink" href="#automatic-release-pipeline" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
-    M["Version commit lands on main"] --&gt; C["Check · Build and test: tests + four platform wheels + sdist + abi3"]
+    M["Version commit lands on main"] --&gt; C["Check · Build and test: tests + eight platform wheels + sdist + abi3"]
     M --&gt; D["Check · Docs: strict build"]
     M --&gt; K["Check · Lint: repository + Actions lint"]
     C --&gt; T["Release · Tag: aggregate the same source SHA"]
@@ -1972,15 +1972,17 @@ the whole cycle.</p>
     K --&gt; T
     T --&gt; V["Check version, locks, changelog, and main ancestry"]
     V --&gt; G["Create annotated tag and dispatch Release · Publish"]
-    G --&gt; B["Re-check and build four wheels and one sdist"]
+    G --&gt; B["Re-check and build eight wheels and one sdist"]
     B --&gt; A["Verify metadata, licenses, platforms, and isolated installs"]
     A --&gt; P["Generate provenance and publish to PyPI"]
     P --&gt; H["Verify PyPI filenames and SHA-256 digests"]
     H --&gt; R["Publish or recover the GitHub Release"]
     R --&gt; X["Prepare versioned docs from the release tag"]
     X --&gt; Y["Deploy through a GitHub Pages artifact and OIDC"]</code></pre>
-<p>A release build produces four <code>cp311-abi3</code> wheels, for Linux x86_64, Linux aarch64,
-macOS arm64, and Windows x64, plus one sdist. The verification layer:</p>
+<p>A release build produces eight <code>cp311-abi3</code> wheels, plus one sdist: Linux x86_64 and
+aarch64 for manylinux2014 and musllinux_1_2, macOS arm64 and x86_64, and Windows x64
+and arm64. Each wheel builds and runs its smoke test on a runner of its own platform;
+the musllinux wheels run theirs in an Alpine container. The verification layer:</p>
 <ol>
 <li>Checks the complete artifact set, package metadata, licenses, ABI and platform tags,
    and the bundled-font boundary.</li>
@@ -2027,25 +2029,26 @@ documentation change on <code>main</code> is online within minutes.</p>
 and verifies the wheel and the sdist rebuild path in isolated environments.
 <code>DIST_SMOKE_PYTHON</code> selects the Python version the smoke test uses.</p>
 <h2 id="external-repository-settings">External repository settings<a class="headerlink" href="#external-repository-settings" title="Permanent link">&para;</a></h2>
-<p>Repository files cannot enable the following controls; an administrator configures them
-on GitHub and PyPI:</p>
+<p>Repository files cannot hold the following controls. They are configured on GitHub
+and PyPI, and an administrator keeps them this way:</p>
 <ul>
-<li>Protect <code>main</code>, requiring at least <code>Check · Build and test / Required checks</code>,
-  <code>Check · Docs / Build documentation</code>, and <code>Check · Lint / Run repository hooks</code>, plus code-owner review of
-  the release automation.</li>
-<li>Allow the GitHub Actions <code>GITHUB_TOKEN</code> to receive the write permissions the workflows
-  declare. If release tags are protected, configure a controlled bypass for
-  <code>Release · Tag</code>.</li>
-<li>Configure required reviewers on the <code>release</code> environment.</li>
-<li>Bind the PyPI Trusted Publisher to owner <code>BalconyJH</code>, repository <code>takumi-py</code>, workflow
-  <code>publish.yml</code>, and environment <code>release</code>.</li>
-<li>Set the GitHub Pages source to <code>GitHub Actions</code>, and let the <code>github-pages</code>
-  environment deploy only from <code>main</code>, for the dev preview, and trusted <code>v*</code> release
-  tags.</li>
-<li>Enable immutable GitHub Releases; the workflow only verifies digests of a published
-  Release and never rewrites it.</li>
-<li>Keep the weekly Dependabot updates for GitHub Actions, and route SHA pin updates
-  through the same gates.</li>
+<li>The <code>Protect main</code> ruleset forbids force pushes to <code>main</code> and deleting it. Direct
+  pushes stay allowed, so the three Check workflows gate the release tag rather than
+  the push.</li>
+<li>The <code>release</code> environment, which PyPI Trusted Publishing trusts, only deploys from
+  <code>main</code>, for recovery runs, and <code>v*</code> tags. The PyPI Trusted Publisher is bound to
+  owner <code>BalconyJH</code>, repository <code>takumi-py</code>, workflow <code>publish.yml</code>, and environment
+  <code>release</code>.</li>
+<li>The GitHub Pages source is <code>GitHub Actions</code>, and the <code>github-pages</code> environment only
+  deploys from <code>main</code>, for the dev preview, and <code>v*</code> tags.</li>
+<li>GitHub Releases are immutable. The workflow uploads the assets while a release is
+  still a draft, and only verifies the digests of a published one.</li>
+<li>The Actions <code>GITHUB_TOKEN</code> may receive the write permissions the workflows declare.
+  If release tags are ever protected, <code>Release · Tag</code> needs a controlled bypass.</li>
+<li>Secret scanning with push protection, Dependabot alerts and security updates, and
+  private vulnerability reporting, which <code>SECURITY.md</code> points reporters to, are on.</li>
+<li>Dependabot opens weekly grouped updates for GitHub Actions, uv, and Cargo that pass
+  the same gates, with separate pull requests for the exactly pinned ty and Zensical.</li>
 </ul>
 <h2 id="failure-recovery">Failure recovery<a class="headerlink" href="#failure-recovery" title="Permanent link">&para;</a></h2>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">A gate failed before the tag was created</label><label for="__tabbed_1_2">The tag exists, but Publish did not succeed</label><label for="__tabbed_1_3">PyPI already accepted some or all files</label><label for="__tabbed_1_4">The GitHub Release or docs deployment failed</label></div>
