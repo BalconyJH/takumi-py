@@ -16,7 +16,7 @@
         <loc>https://balconyjh.github.io/takumi-py/dev/guides/</loc>
       </url>
       <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/guides/rendering/</loc>
+        <loc>https://balconyjh.github.io/takumi-py/dev/guides/animation/</loc>
       </url>
       <url>
         <loc>https://balconyjh.github.io/takumi-py/dev/guides/html/</loc>
@@ -25,46 +25,13 @@
         <loc>https://balconyjh.github.io/takumi-py/dev/guides/output/</loc>
       </url>
       <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/guides/rendering/</loc>
+      </url>
+      <url>
         <loc>https://balconyjh.github.io/takumi-py/dev/guides/resources/</loc>
       </url>
       <url>
         <loc>https://balconyjh.github.io/takumi-py/dev/guides/templates/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/guides/animation/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/support/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/exceptions/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/renderer/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/options/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/types/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/html/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/templates/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/migration/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/migration/takumi-v2/</loc>
-      </url>
-      <url>
-        <loc>https://balconyjh.github.io/takumi-py/dev/migration/takumi-2.17/</loc>
       </url>
       <url>
         <loc>https://balconyjh.github.io/takumi-py/dev/maintainers/</loc>
@@ -77,5 +44,38 @@
       </url>
       <url>
         <loc>https://balconyjh.github.io/takumi-py/dev/maintainers/releasing/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/migration/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/migration/takumi-2.17/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/migration/takumi-v2/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/html/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/options/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/renderer/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/templates/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/api/types/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/exceptions/</loc>
+      </url>
+      <url>
+        <loc>https://balconyjh.github.io/takumi-py/dev/reference/support/</loc>
       </url>
 </urlset>
