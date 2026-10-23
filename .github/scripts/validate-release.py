@@ -1,3 +1,10 @@
+"""Check that the checkout satisfies the release contract for a version or a tag.
+
+``--version`` checks the source before ``Release · Tag`` creates a tag; ``--tag``
+also checks that the tag points at the checkout and lies on ``main``, and writes the
+release outputs ``Release · Publish`` uses.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -8,7 +15,34 @@ import re
 import subprocess
 import sys
 
-TAG_PATTERN = re.compile(r"v(?P<version>[0-9]+[.][0-9]+[.][0-9]+)")
+# A final release, or an alpha, beta, or release candidate of one. Cargo spells the
+# same versions as SemVer prereleases: 0.4.0a1, 0.4.0b1, 0.4.0rc1 are 0.4.0-alpha.1,
+# 0.4.0-beta.1, 0.4.0-rc.1.
+VERSION_PATTERN = re.compile(
+    r"(?P<release>[0-9]+[.][0-9]+[.][0-9]+)(?:(?P<phase>a|b|rc)(?P<number>[0-9]+))?"
+)
+CARGO_PHASES = {"a": "alpha", "b": "beta", "rc": "rc"}
+
+
+def parse_version(version: str) -> re.Match[str]:
+    match = VERSION_PATTERN.fullmatch(version)
+    if match is None or re.search(r"(?:^|[.a-z])0[0-9]", version):
+        raise SystemExit(
+            f"release version must be X.Y.Z, X.Y.ZaN, X.Y.ZbN, or X.Y.ZrcN, got {version}"
+        )
+    return match
+
+
+def cargo_spelling(version: str) -> str:
+    """The SemVer version Cargo.toml uses for a release version."""
+    match = parse_version(version)
+    if match["phase"] is None:
+        return match["release"]
+    return f"{match['release']}-{CARGO_PHASES[match['phase']]}.{match['number']}"
+
+
+def is_prerelease(version: str) -> bool:
+    return parse_version(version)["phase"] is not None
 
 
 def run(*command: str) -> str:
@@ -59,19 +93,45 @@ def cargo_version() -> str:
     return str(packages[0]["version"])
 
 
-def validate_changelog(version: str) -> None:
-    changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-    pattern = re.compile(
+def validate_changelog(text: str, version: str) -> None:
+    """Require the dated section `make changelog` writes, with its commit list."""
+    heading = re.search(
         rf"^## \[{re.escape(version)}\] - [0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$",
+        text,
         re.MULTILINE,
     )
-    if pattern.search(changelog) is None:
+    if heading is None:
         raise SystemExit(f"CHANGELOG.md has no dated {version} release heading")
+    following = re.compile(r"^## ", re.MULTILINE).search(text, heading.end())
+    section = text[heading.end() : following.start() if following else len(text)]
+    if re.search(r"^### Commits$", section, re.MULTILINE) is None:
+        raise SystemExit(
+            f"CHANGELOG.md {version} section has no generated `### Commits` list; "
+            "write the entry with `make changelog`"
+        )
+
+
+def validate_source(version: str) -> None:
+    """Check the versions, lock files, and changelog of the checkout."""
+    python_version = run("uv", "version", "--short")
+    if python_version != version:
+        raise SystemExit(
+            f"release version {version} does not match pyproject version {python_version}"
+        )
+    rust_version = cargo_version()
+    if rust_version != cargo_spelling(version):
+        raise SystemExit(
+            f"Cargo version {rust_version} does not spell release version {version}; "
+            f"expected {cargo_spelling(version)}"
+        )
+    run("uv", "lock", "--check")
+    validate_changelog(Path("CHANGELOG.md").read_text(encoding="utf-8"), version)
 
 
 def write_outputs(tag: str, commit: str, version: str, *, publish: bool) -> None:
     lines = (
         f"tag={tag}\nsha={commit}\nversion={version}\npublish={str(publish).lower()}\n"
+        f"prerelease={str(is_prerelease(version)).lower()}\n"
     )
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path is None:
@@ -81,46 +141,53 @@ def write_outputs(tag: str, commit: str, version: str, *, publish: bool) -> None
         output.write(lines)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--tag", required=True)
-    parser.add_argument("--main-ref", default="origin/main")
-    args = parser.parse_args()
+def validate_tag(tag: str, main_ref: str) -> None:
+    if not tag.startswith("v"):
+        raise SystemExit(f"release tag must be v followed by the version, got {tag}")
+    version = tag.removeprefix("v")
+    parse_version(version)
 
-    match = TAG_PATTERN.fullmatch(args.tag)
-    if match is None:
-        raise SystemExit(f"release tag must match vX.Y.Z, got {args.tag}")
-    version = match.group("version")
-
-    commit = run("git", "rev-parse", f"{args.tag}^{{commit}}")
+    commit = run("git", "rev-parse", f"{tag}^{{commit}}")
     head = run("git", "rev-parse", "HEAD")
     if head != commit:
         raise SystemExit(f"HEAD {head} does not match release tag commit {commit}")
-    run("git", "rev-parse", "--verify", args.main_ref)
+    run("git", "rev-parse", "--verify", main_ref)
 
-    python_version = run("uv", "version", "--short")
-    rust_version = cargo_version()
-    if python_version != version:
-        raise SystemExit(
-            f"release tag version {version} does not match pyproject version {python_version}"
-        )
-    if rust_version != version:
-        raise SystemExit(
-            f"release tag version {version} does not match Cargo version {rust_version}"
-        )
-
-    if not is_ancestor(commit, args.main_ref):
+    if not is_ancestor(commit, main_ref):
         sys.stderr.write(
-            f"::notice::Skipping release because {args.tag} points to {commit}, "
-            f"which is not on {args.main_ref}\n"
+            f"::notice::Skipping release because {tag} points to {commit}, "
+            f"which is not on {main_ref}\n"
         )
-        write_outputs(args.tag, commit, version, publish=False)
+        write_outputs(tag, commit, version, publish=False)
         return
 
-    run("uv", "lock", "--check")
-    validate_changelog(version)
-    write_outputs(args.tag, commit, version, publish=True)
+    validate_source(version)
+    write_outputs(tag, commit, version, publish=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Check the release contract for a version or a release tag."
+    )
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--tag", help="release tag to publish, such as v0.4.0")
+    target.add_argument("--version", help="version to check before it is tagged")
+    parser.add_argument("--main-ref", default="origin/main")
+    args = parser.parse_args()
+
+    if args.tag is not None:
+        validate_tag(args.tag, args.main_ref)
+        return
+    parse_version(args.version)
+    validate_source(args.version)
+    sys.stdout.write(f"Source satisfies the release contract for {args.version}.\n")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit as error:
+        # Surface contract violations as annotations on the workflow run.
+        if isinstance(error.code, str) and os.environ.get("GITHUB_ACTIONS") == "true":
+            raise SystemExit(f"::error::{error.code}") from None
+        raise

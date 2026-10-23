@@ -56,8 +56,16 @@ prepare: sync-all install-prek ## Prepare local dev environment.
 
 ##@ Release
 
-.PHONY: changelog changelog-preview
+.PHONY: release changelog changelog-preview
 CHANGELOG_VERSION := $(if $(VERSION),--version "$(VERSION)",)
+
+release: ensure-uv ## Set VERSION everywhere, write its changelog entry, and check the release contract.
+	@test -n "$(VERSION)" || { echo "Error: VERSION is required, for example VERSION=0.4.0."; exit 1; }
+	@echo "==> Setting the project version to $(VERSION)"
+	python3 .github/scripts/set-version.py "$(VERSION)"
+	@$(MAKE) --no-print-directory changelog
+	@echo "==> Checking the release contract"
+	python3 .github/scripts/validate-release.py --version "$(VERSION)"
 
 changelog: ensure-uv ## Date [Unreleased] as the project version and append its commits and contributors.
 	@echo "==> Writing the CHANGELOG.md release entry"

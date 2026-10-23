@@ -29,6 +29,12 @@ contributors, and the release's section is published as its GitHub Release notes
   primary, with a one-click language toggle in the header that keeps the version,
   page, and anchor, a Chinese README, and a docs build check that keeps both
   languages' pages, anchors, code samples, and configuration in sync.
+- Add `make release VERSION=x.y.z`, which sets the version in `pyproject.toml`,
+  `Cargo.toml`, and both lock files, writes the changelog entry, and checks the
+  release contract.
+- Release alphas, betas, and release candidates, such as `0.4.0rc1` (`0.4.0-rc.1` in
+  `Cargo.toml`): they publish as GitHub prereleases, and their documentation never
+  takes `latest`.
 
 ### Changed
 
@@ -42,6 +48,8 @@ contributors, and the release's section is published as its GitHub Release notes
 - The renderer resource cache now defaults to 64 MiB, up from 16 MiB.
 - Publish each version's `CHANGELOG.md` section as its GitHub Release notes, instead of
   GitHub's generated notes.
+- `Release · Tag` and `Release · Publish` share one release-contract check, which now
+  also requires the commit list `make changelog` generates.
 - Name the GitHub Actions workflows by stage: `Check · Build and test`, `Check · Docs`,
   `Check · Lint`, `Release · Tag`, and `Release · Publish`, with verb-first job names.
   Workflow file names, and so the PyPI Trusted Publisher binding, are unchanged.

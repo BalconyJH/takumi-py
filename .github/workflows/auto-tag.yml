@@ -221,30 +221,9 @@ jobs:
               )
           PY
 
-          CARGO_VERSION=$(cargo metadata --locked --no-deps --format-version 1 | jq -r \
-            --arg manifest "${GITHUB_WORKSPACE}/Cargo.toml" \
-            '.packages[] | select(.manifest_path == $manifest) | .version')
-          if [[ "${CARGO_VERSION}" != "${VERSION}" ]]; then
-            echo "::error::Cargo version ${CARGO_VERSION} does not match project version ${VERSION}."
-            exit 1
-          fi
-          uv lock --check
-          python3 - "${VERSION}" <<'PY'
-          from pathlib import Path
-          import re
-          import sys
-
-          version = sys.argv[1]
-          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          pattern = re.compile(
-              rf"^## \[{re.escape(version)}\] - [0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}$",
-              re.MULTILINE,
-          )
-          if pattern.search(changelog) is None:
-              raise SystemExit(
-                  f"::error::CHANGELOG.md has no dated {version} release heading."
-              )
-          PY
+          # Versions, lock files, and the generated changelog entry, as Release · Publish
+          # checks them again for the tag.
+          python3 .github/scripts/validate-release.py --version "${VERSION}"
 
           TAG="v${VERSION}"
           if ! git check-ref-format "refs/tags/${TAG}"; then

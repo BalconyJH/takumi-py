@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing v* tag to publish (for example, v0.3.0)
+        description: Existing v* tag to publish (for example, v0.4.0 or v0.4.0rc1)
         required: true
         type: string
       debug_enabled:
@@ -27,6 +27,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      prerelease: ${{ steps.contract.outputs.prerelease }}
       publishable: ${{ steps.contract.outputs.publish }}
       release_tag: ${{ steps.contract.outputs.tag }}
       source_sha: ${{ steps.contract.outputs.sha }}
@@ -517,17 +518,24 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ needs.release-guard.outputs.prerelease }}
           RELEASE_TAG: ${{ needs.release-guard.outputs.release_tag }}
           SOURCE_SHA: ${{ needs.release-guard.outputs.source_sha }}
         run: |
           set -euo pipefail
           notes_file="${RUNNER_TEMP}/release-notes.md"
+          # An alpha, beta, or release candidate is a GitHub prerelease, never Latest.
+          release_kind=()
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            release_kind=(--prerelease)
+          fi
 
           if ! gh release view "${RELEASE_TAG}" \
             --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release create "${RELEASE_TAG}" dist/* \
               --repo "${GITHUB_REPOSITORY}" \
               --draft \
+              "${release_kind[@]}" \
               --verify-tag \
               --target "${SOURCE_SHA}" \
               --title "${RELEASE_TAG}" \

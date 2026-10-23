@@ -40,6 +40,7 @@ The pytest suite lives in `tests/` and runs in parallel through `make test`:
 | `test_takumi_core_fixtures.py` | Every upstream HTML fixture under `takumilib/takumi/tests/fixtures-html` renders |
 | `test_examples.py` | Every script in `examples/` runs and writes its output |
 | `test_typing_surface.py` | The documented public `Renderer` surface and native typing artifacts |
+| `test_repository_scripts.py` | The release, changelog, docs deployment, and docs translation scripts in `.github/scripts/` |
 
 ## Distribution contract
 

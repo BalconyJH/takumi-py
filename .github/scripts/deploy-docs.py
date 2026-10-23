@@ -3,9 +3,9 @@
 
 Each language the checkout ships deploys with its own configuration: English at the
 branch root and Simplified Chinese under ``zh/``, each with its own ``versions.json``.
-A release (``--release``) also moves the ``latest`` alias and the site default when
-it is not older than the newest released version. Pushes that lose a race with
-another deployment fetch gh-pages again and retry.
+A final release (``--release``) also moves the ``latest`` alias and the site default
+when it is not older than any released version; a prerelease, such as 0.4.0rc1, never
+does. Pushes that lose a race with another deployment fetch gh-pages again and retry.
 """
 
 from __future__ import annotations
@@ -17,8 +17,12 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from typing import TYPE_CHECKING
 
 from packaging.version import InvalidVersion, Version
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 ATTEMPTS = 3
 LANGUAGES = (("zensical.toml", None), ("zensical.zh.toml", "zh"))
@@ -60,28 +64,39 @@ def reset_gh_pages() -> None:
         run("git", "fetch", "--force", "origin", "gh-pages:gh-pages")
 
 
-def newest_release() -> Version | None:
-    """The newest PEP 440 version in the English versions.json; `dev` is not one."""
+def deployed_versions() -> list[str]:
+    """The versions in the English versions.json, such as 0.3.0 and dev."""
     shown = run("git", "show", "gh-pages:versions.json", check=False)
     if shown.returncode != 0:
-        return None
-    releases = []
-    for entry in json.loads(shown.stdout):
+        return []
+    return [entry["version"] for entry in json.loads(shown.stdout)]
+
+
+def moves_latest(version: str, deployed: Iterable[str]) -> bool:
+    """Whether releasing ``version`` takes ``latest``: a final release that is not
+    older than any deployed final release. Neither ``dev`` nor a prerelease counts."""
+    candidate = Version(version)
+    if candidate.is_prerelease:
+        return False
+    for entry in deployed:
         try:
-            releases.append(Version(entry["version"]))
+            released = Version(entry)
         except InvalidVersion:
             continue
-    return max(releases, default=None)
+        if not released.is_prerelease and released > candidate:
+            return False
+    return True
 
 
 def deploy_once(version: str, title: str | None, *, release: bool) -> None:
     reset_gh_pages()
     move_latest = False
     if release:
-        newest = newest_release()
-        move_latest = newest is None or Version(version) >= newest
+        deployed = deployed_versions()
+        move_latest = moves_latest(version, deployed)
         log(
-            f"Docs version {version}; newest release {newest}; move latest: {move_latest}."
+            f"Docs version {version}; deployed {', '.join(deployed) or 'none'}; "
+            f"move latest: {move_latest}."
         )
 
     for config, prefix in LANGUAGES:
@@ -119,7 +134,7 @@ def main() -> int:
     parser.add_argument(
         "--release",
         action="store_true",
-        help="move `latest` and the default here when this is the newest release",
+        help="move `latest` and the default here when this is the newest final release",
     )
     args = parser.parse_args()
 

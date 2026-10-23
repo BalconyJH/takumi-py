@@ -37,6 +37,7 @@ pytest 测试套件位于 `tests/`，通过 `make test` 并行运行：
 | `test_takumi_core_fixtures.py` | `takumilib/takumi/tests/fixtures-html` 下的每个上游 HTML 样例都能渲染 |
 | `test_examples.py` | `examples/` 中的每个脚本都能运行并写出输出 |
 | `test_typing_surface.py` | 文档化的公共 `Renderer` 接口和原生类型文件 |
+| `test_repository_scripts.py` | `.github/scripts/` 中的发布、changelog、文档部署与文档翻译脚本 |
 
 ## 分发约定 { #distribution-contract }
 

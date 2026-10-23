@@ -7,19 +7,24 @@
 
 发布提交必须同时满足以下契约：
 
-- `pyproject.toml` 与根 `Cargo.toml` 的项目版本完全一致。
-- 相对 `main` 第一父提交，项目版本严格递增，并使用规范的 PEP 440 表示。
+- `pyproject.toml` 使用正式版本 `X.Y.Z`，或其预发布版本 `X.Y.ZaN`、`X.Y.ZbN`、
+  `X.Y.ZrcN`；根 `Cargo.toml` 使用对应的 SemVer 写法，例如 `0.4.0rc1` 对应
+  `0.4.0-rc.1`。
+- 相对 `main` 第一父提交，项目版本严格递增。
 - `uv.lock` 与 `Cargo.lock` 已更新且能通过 locked 检查。
-- `CHANGELOG.md` 包含由 `make changelog` 写入的该版本带日期的章节。
+- `CHANGELOG.md` 包含该版本带日期的章节，以及 `make changelog` 生成的提交列表。
 - `make check`、`make docs-build` 和全部 Prek hook 均通过。
 
-使用项目工具更新版本，不要直接编辑版本字段，然后写入 changelog 条目：
+用一个目标完成全部准备：
 
 ```bash
-uv version 0.3.0 --no-sync
-cargo set-version 0.3.0
-make changelog
+make release VERSION=0.4.0
 ```
+
+它通过 `.github/scripts/set-version.py` 设置 `pyproject.toml`、`Cargo.toml` 和两个锁文件中
+的版本，用 `make changelog` 写入 changelog 条目，再用
+`.github/scripts/validate-release.py --version` 检查结果，也就是 `Release · Tag` 创建标签前
+运行的检查。审阅 diff 后将其作为发布提交提交。
 
 ### Changelog 条目 { #changelog-entry }
 
@@ -48,6 +53,18 @@ pull request：squash 或 rebase 合并会改写条目所链接的提交哈希�
 
     自动标签是精确提交门禁的一部分。手工标签会跳过门禁聚合，只应用于管理员明确判断过的
     异常恢复；正常发布不要执行 `git tag` 或直接运行 `Release · Publish`。
+
+### 预发布版本 { #prereleases }
+
+alpha、beta 或 release candidate，例如 `make release VERSION=0.4.0rc1`，与正式版本走同一条
+链路，仅有三点不同：
+
+- PyPI 只会在 `pip install --pre` 或精确指定版本时提供它。
+- 它的 GitHub Release 标记为 prerelease，因此永远不会成为 Latest。
+- 它的文档加入版本选择器，但不会移动 `latest` 或站点默认版本。
+
+正式版本的条目只会列出最后一个预发布标签之后的提交。若正式版本的说明需要覆盖整个周期，
+请把各预发布版本整理过的说明复制到 `[Unreleased]` 中。
 
 ## 自动发布链路 { #automatic-release-pipeline }
 
@@ -80,12 +97,12 @@ flowchart TD
 5. 通过 Trusted Publishing 上传 PyPI；重跑时允许跳过已存在文件，但随后必须与
    PyPI JSON 中的完整文件集合和 SHA-256 完全一致。
 6. 仅在 PyPI 核验成功后发布 GitHub Release，并以该版本的 `CHANGELOG.md` 章节作为
-   发布说明；现有已发布 Release 只允许摘要一致的幂等重跑，现有草稿可以用本次已验证
+   发布说明，预发布版本会标记为 prerelease；现有已发布 Release 只允许摘要一致的幂等重跑，现有草稿可以用本次已验证
    制品恢复，并换用 changelog 中的说明。
 7. 从同一个 release tag 通过运行 mike 的 `.github/scripts/deploy-docs.py` 更新两种语言
    的文档：英文位于站点根目录，简体中文位于 `zh/` 前缀下，各自维护 `versions.json`。
-   早于中文站点的标签只部署英文。只有不旧于现有最高发布版本的发布才能移动 `latest`，
-   并对作为版本状态存储的 `gh-pages` 并发写入进行有限重试。
+   早于中文站点的标签只部署英文。只有不旧于所有已发布正式版本的正式发布才能移动
+   `latest`，预发布版本从不移动它，并对作为版本状态存储的 `gh-pages` 并发写入进行有限重试。
 8. 从当前的 `gh-pages` 导出完整静态树，上传标准 `github-pages` artifact，并通过
    OIDC 部署到受保护的 `github-pages` environment。
 

@@ -8,21 +8,25 @@ version that satisfies both the version contract and the exact-commit gates.
 
 A release commit must satisfy every part of this contract:
 
-- The project versions in `pyproject.toml` and the root `Cargo.toml` match exactly.
-- The project version strictly increases over the first parent on `main` and uses the
-  canonical PEP 440 form.
+- `pyproject.toml` holds a final version, `X.Y.Z`, or a prerelease of one: `X.Y.ZaN`,
+  `X.Y.ZbN`, or `X.Y.ZrcN`. The root `Cargo.toml` holds its SemVer spelling, such as
+  `0.4.0-rc.1` for `0.4.0rc1`.
+- The project version strictly increases over the first parent on `main`.
 - `uv.lock` and `Cargo.lock` are up to date and pass the locked checks.
-- `CHANGELOG.md` has a dated section for the version, written by `make changelog`.
+- `CHANGELOG.md` has a dated section for the version, with the commit list
+  `make changelog` generates.
 - `make check`, `make docs-build`, and every Prek hook pass.
 
-Update versions with the project tools rather than editing the version fields
-directly, then write the changelog entry:
+Prepare all of it with one target:
 
 ```bash
-uv version 0.3.0 --no-sync
-cargo set-version 0.3.0
-make changelog
+make release VERSION=0.4.0
 ```
+
+It sets the version in `pyproject.toml`, `Cargo.toml`, and both lock files with
+`.github/scripts/set-version.py`, writes the changelog entry with `make changelog`, and
+checks the result with `.github/scripts/validate-release.py --version`, the check
+`Release · Tag` runs before it tags. Review the diff and commit it as the release commit.
 
 ### Changelog entry
 
@@ -60,6 +64,20 @@ workflows to succeed, confirms the version, lock files, changelog, and ancestry 
     aggregation and is reserved for recovery an administrator has explicitly approved;
     do not run `git tag` or `Release · Publish` directly for a normal release.
 
+### Prereleases { #prereleases }
+
+An alpha, beta, or release candidate, such as `make release VERSION=0.4.0rc1`, takes
+the same path as a final release, with three differences:
+
+- PyPI serves it only to `pip install --pre` or an exact pin.
+- Its GitHub Release is marked as a prerelease, so it never becomes Latest.
+- Its documentation joins the version selector without moving `latest` or the site
+  default.
+
+The final release's entry lists only the commits since the last prerelease tag. Copy
+the prereleases' curated notes into `[Unreleased]` when the final notes should cover
+the whole cycle.
+
 ## Automatic release pipeline { #automatic-release-pipeline }
 
 ```mermaid
@@ -94,14 +112,15 @@ macOS arm64, and Windows x64, plus one sdist. The verification layer:
    exist, but the result must then match the complete file set and SHA-256 digests in
    the PyPI JSON exactly.
 6. Publishes the GitHub Release, with the version's `CHANGELOG.md` section as its
-   notes, only after the PyPI check succeeds. An existing published Release only allows
+   notes and marked as a prerelease for a prerelease version, only after the PyPI check
+   succeeds. An existing published Release only allows
    an idempotent rerun with matching digests, and an existing draft can be recovered
    with the artifacts this run verified, taking the changelog notes.
 7. Updates both documentation languages from the same release tag with
    `.github/scripts/deploy-docs.py`, which runs mike: English at the site root and
    Simplified Chinese under the `zh/` prefix, each with its own `versions.json`. A tag
-   that predates the Chinese site deploys English only. Only a release no older than
-   the newest released version moves `latest`, and concurrent writes to the
+   that predates the Chinese site deploys English only. Only a final release no older
+   than every released version moves `latest`; a prerelease never does, and concurrent writes to the
    `gh-pages` branch, which stores the version state, retry a bounded number of times.
 8. Exports the full static tree from the current `gh-pages`, uploads a standard
    `github-pages` artifact, and deploys it through OIDC to the protected
