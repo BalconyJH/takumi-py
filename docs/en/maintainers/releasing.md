@@ -153,25 +153,26 @@ and verifies the wheel and the sdist rebuild path in isolated environments.
 
 ## External repository settings
 
-Repository files cannot enable the following controls; an administrator configures them
-on GitHub and PyPI:
+Repository files cannot hold the following controls. They are configured on GitHub
+and PyPI, and an administrator keeps them this way:
 
-- Protect `main`, requiring at least `Check · Build and test / Required checks`,
-  `Check · Docs / Build documentation`, and `Check · Lint / Run repository hooks`, plus code-owner review of
-  the release automation.
-- Allow the GitHub Actions `GITHUB_TOKEN` to receive the write permissions the workflows
-  declare. If release tags are protected, configure a controlled bypass for
-  `Release · Tag`.
-- Configure required reviewers on the `release` environment.
-- Bind the PyPI Trusted Publisher to owner `BalconyJH`, repository `takumi-py`, workflow
-  `publish.yml`, and environment `release`.
-- Set the GitHub Pages source to `GitHub Actions`, and let the `github-pages`
-  environment deploy only from `main`, for the dev preview, and trusted `v*` release
-  tags.
-- Enable immutable GitHub Releases; the workflow only verifies digests of a published
-  Release and never rewrites it.
-- Keep the weekly Dependabot updates for GitHub Actions, and route SHA pin updates
-  through the same gates.
+- The `Protect main` ruleset forbids force pushes to `main` and deleting it. Direct
+  pushes stay allowed, so the three Check workflows gate the release tag rather than
+  the push.
+- The `release` environment, which PyPI Trusted Publishing trusts, only deploys from
+  `main`, for recovery runs, and `v*` tags. The PyPI Trusted Publisher is bound to
+  owner `BalconyJH`, repository `takumi-py`, workflow `publish.yml`, and environment
+  `release`.
+- The GitHub Pages source is `GitHub Actions`, and the `github-pages` environment only
+  deploys from `main`, for the dev preview, and `v*` tags.
+- GitHub Releases are immutable. The workflow uploads the assets while a release is
+  still a draft, and only verifies the digests of a published one.
+- The Actions `GITHUB_TOKEN` may receive the write permissions the workflows declare.
+  If release tags are ever protected, `Release · Tag` needs a controlled bypass.
+- Secret scanning with push protection, Dependabot alerts and security updates, and
+  private vulnerability reporting, which `SECURITY.md` points reporters to, are on.
+- Dependabot opens weekly grouped updates for GitHub Actions, uv, and Cargo that pass
+  the same gates, with separate pull requests for the exactly pinned ty and Zensical.
 
 ## Failure recovery
 

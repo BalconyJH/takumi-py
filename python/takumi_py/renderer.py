@@ -1350,7 +1350,9 @@ def resolve_render_options(
         lang=lang,
     )
     if resolved.dithering == "floyd-steinberg":
-        warn_deprecated('dithering="floyd-steinberg"', 'dithering="ordered-bayer"')
+        warn_deprecated(
+            'dithering="floyd-steinberg"', 'dithering="ordered-bayer"', removal="0.6.0"
+        )
     return resolved
 
 
@@ -1396,7 +1398,7 @@ def is_compiled_node(node: object) -> TypeGuard[CompiledNode]:
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
 
-def warn_deprecated(name: str, replacement: str) -> None:
+def warn_deprecated(name: str, replacement: str, *, removal: str) -> None:
     """Warn on behalf of the first caller outside ``takumi_py``.
 
     Public methods call one another, so a fixed ``stacklevel`` would point inside the
@@ -1411,7 +1413,8 @@ def warn_deprecated(name: str, replacement: str) -> None:
         frame = frame.f_back
         level += 1
     warn(
-        f"{name} is deprecated; use {replacement} instead",
+        f"{name} is deprecated and will be removed in {removal}; "
+        f"use {replacement} instead",
         DeprecationWarning,
         stacklevel=level,
     )

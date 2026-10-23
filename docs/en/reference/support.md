@@ -13,6 +13,23 @@
 Other platforms may build from the source distribution, but they are outside the
 published wheel matrix.[^sdist]
 
+## Versioning and deprecations
+
+While takumi-py is at 0.x, its version numbers mean:
+
+- A patch release, such as 0.4.1, only fixes bugs and keeps the public API.
+- A minor release, such as 0.5.0, may change or remove public APIs. The changelog
+  lists each change, and a [migration guide](../migration/index.md) covers the larger
+  ones.
+- A deprecated API keeps working, with a `DeprecationWarning`, through at least the
+  next minor release. It is removed no earlier than the second minor release after
+  the one that deprecated it, and the warning names that release.
+
+| Deprecated | Since | Removed in | Use instead |
+| --- | --- | --- | --- |
+| `FontResource.subset_of` | 0.4.0 | 0.6.0 | `name` with `unicode_range` |
+| `dithering="floyd-steinberg"` | 0.4.0 | 0.6.0 | `dithering="ordered-bayer"` |
+
 ## Inputs and outputs
 
 | Category | Supported range |

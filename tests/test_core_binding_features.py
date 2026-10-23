@@ -249,7 +249,9 @@ def test_register_font_accepts_v2_descriptor_fields() -> None:
 def test_font_subset_of_is_deprecated_and_names_the_family() -> None:
     renderer = Renderer(load_default_fonts=False)
 
-    with pytest.warns(DeprecationWarning, match="subset_of"):
+    with pytest.warns(
+        DeprecationWarning, match="subset_of is deprecated and will be removed in 0.6.0"
+    ):
         font = FontResource(
             data=GEIST_FONT.read_bytes(),
             name="Descriptor Geist",
@@ -334,7 +336,9 @@ def test_floyd_steinberg_dithering_is_a_deprecated_ordered_bayer_alias() -> None
         node, width=64, height=16, format="raw", dithering="ordered-bayer"
     )
 
-    with pytest.warns(DeprecationWarning, match="floyd-steinberg"):
+    with pytest.warns(
+        DeprecationWarning, match="floyd-steinberg.* will be removed in 0.6.0"
+    ):
         floyd = renderer.render_node(
             node, width=64, height=16, format="raw", dithering="floyd-steinberg"
         )

@@ -12,6 +12,21 @@
 
 其他平台可以从源码分发包构建，但不在已发布的 wheel 矩阵之内。[^sdist]
 
+## 版本与弃用 { #versioning-and-deprecations }
+
+在 takumi-py 处于 0.x 期间，版本号的含义如下：
+
+- 补丁版本（例如 0.4.1）只修复缺陷，保持公共 API 不变。
+- 次版本（例如 0.5.0）可能修改或移除公共 API。changelog 会列出每项变更，较大的变更另有
+  [迁移指南](../migration/index.md)。
+- 弃用的 API 至少在下一个次版本中继续可用，并发出 `DeprecationWarning`。它最早在弃用它的
+  版本之后的第二个次版本中移除，警告会写明该版本。
+
+| 已弃用 | 起始版本 | 移除版本 | 替代方式 |
+| --- | --- | --- | --- |
+| `FontResource.subset_of` | 0.4.0 | 0.6.0 | `name` 搭配 `unicode_range` |
+| `dithering="floyd-steinberg"` | 0.4.0 | 0.6.0 | `dithering="ordered-bayer"` |
+
 ## 输入与输出 { #inputs-and-outputs }
 
 | 类别 | 支持范围 |

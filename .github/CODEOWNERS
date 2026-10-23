@@ -1,8 +1,15 @@
+# Release automation, project metadata, toolchains, and the documentation build.
 /.github/ @BalconyJH
 /Makefile @BalconyJH
 /prek.toml @BalconyJH
 /_typos.toml @BalconyJH
-/Cargo.lock @BalconyJH
+/pyproject.toml @BalconyJH
 /uv.lock @BalconyJH
+/Cargo.toml @BalconyJH
+/Cargo.lock @BalconyJH
+/rust-toolchain.toml @BalconyJH
 /zensical.toml @BalconyJH
-/docs/maintainers/ @BalconyJH
+/zensical.zh.toml @BalconyJH
+/docs/overrides/ @BalconyJH
+/docs/*/maintainers/ @BalconyJH
+/SECURITY.md @BalconyJH

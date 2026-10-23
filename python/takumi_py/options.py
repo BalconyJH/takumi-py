@@ -96,8 +96,8 @@ class FontResource:
     def __post_init__(self) -> None:
         if self.subset_of is not None:
             warn(
-                "FontResource.subset_of is deprecated; register each subset "
-                "under the same name with unicode_range instead",
+                "FontResource.subset_of is deprecated and will be removed in 0.6.0; "
+                "register each subset under the same name with unicode_range instead",
                 DeprecationWarning,
                 stacklevel=3,
             )

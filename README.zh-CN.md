@@ -13,16 +13,16 @@ WebP、APNG 或 GIF 动画。
 ## 文档
 
 文档站点为 [balconyjh.github.io/takumi-py/zh](https://balconyjh.github.io/takumi-py/zh/)，
-另有[英文版](https://balconyjh.github.io/takumi-py/)。源文件位于
-[`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs)：
+另有[英文版](https://balconyjh.github.io/takumi-py/)，由
+[`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs) 构建。最新发布版本的文档：
 
-- [快速上手](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/getting-started/quickstart.md)
-- [指南](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/guides/index.md)：渲染
+- [快速上手](https://balconyjh.github.io/takumi-py/zh/latest/getting-started/quickstart/)
+- [指南](https://balconyjh.github.io/takumi-py/zh/latest/guides/)：渲染
   模型、HTML 与 CSS、输出格式、字体与图片、Jinja 模板和动画
-- [支持矩阵](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/reference/support.md)
-  与[异常](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/reference/exceptions.md)
-- [Takumi v2](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/migration/takumi-v2.md)
-  与 [Takumi 2.17](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/migration/takumi-2.17.md)
+- [支持矩阵](https://balconyjh.github.io/takumi-py/zh/latest/reference/support/)
+  与[异常](https://balconyjh.github.io/takumi-py/zh/latest/reference/exceptions/)
+- [Takumi v2](https://balconyjh.github.io/takumi-py/zh/latest/migration/takumi-v2/)
+  与 [Takumi 2.17](https://balconyjh.github.io/takumi-py/zh/latest/migration/takumi-2.17/)
   的迁移指南
 
 英文文档是权威来源，中文文档逐页与其保持同步。
@@ -35,7 +35,7 @@ uv add takumi-py
 
 已发布的 `cp311-abi3` wheel 覆盖 Linux x86_64 与 aarch64、Apple Silicon 上的 macOS，以及
 Windows x64。其他平台从源码分发包构建，需要 Rust 1.91 或更高版本。源码检出方式见
-[安装](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/getting-started/installation.md)。
+[安装](https://balconyjh.github.io/takumi-py/zh/latest/getting-started/installation/)。
 
 ## 快速上手
 
@@ -84,7 +84,7 @@ Path("out.png").write_bytes(png)
 
 绑定保持资源归属清晰：它从不通过网络抓取资源，也不提供 Playwright 回退、中止信号协议、
 data URL 辅助函数或 Node.js 旁路进程。全部排除项见
-[支持矩阵](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/reference/support.md)。
+[支持矩阵](https://balconyjh.github.io/takumi-py/zh/latest/reference/support/)。
 
 ## 开发
 
@@ -96,8 +96,8 @@ uv run maturin develop
 make check
 ```
 
-[开发指南](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/maintainers/development.md)
-介绍检查、测试和 Takumi 升级，[发布指南](https://github.com/BalconyJH/takumi-py/blob/main/docs/zh/maintainers/releasing.md)
+[开发指南](https://balconyjh.github.io/takumi-py/zh/latest/maintainers/development/)
+介绍检查、测试和 Takumi 升级，[发布指南](https://balconyjh.github.io/takumi-py/zh/latest/maintainers/releasing/)
 介绍自动化发布流水线。
 
 ## 许可证

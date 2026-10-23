@@ -130,19 +130,23 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 
 ## 外部仓库设置 { #external-repository-settings }
 
-仓库文件无法自行启用以下控制，管理员需在 GitHub 与 PyPI 配置：
+仓库文件无法承载以下控制。它们在 GitHub 与 PyPI 上配置，管理员需保持如下状态：
 
-- 保护 `main`，至少要求 `Check · Build and test / Required checks`、`Check · Docs / Build documentation` 和
-  `Check · Lint / Run repository hooks`，并要求 release automation 的 code-owner review。
-- 允许 GitHub Actions 的 `GITHUB_TOKEN` 按工作流声明获得写权限；若保护 release tag，
-  为 `Release · Tag` 配置受控 bypass。
-- 在 `release` environment 配置 required reviewers。
-- 将 PyPI Trusted Publisher 绑定到 owner `BalconyJH`、repository `takumi-py`、
+- `Protect main` ruleset 禁止强制推送和删除 `main`。直接推送仍然允许，因此三个 Check
+  工作流把关的是发布标签，而不是推送本身。
+- PyPI Trusted Publishing 所信任的 `release` environment 只允许 `main`（用于恢复运行）和
+  `v*` 标签部署。PyPI Trusted Publisher 绑定到 owner `BalconyJH`、repository `takumi-py`、
   workflow `publish.yml` 和 environment `release`。
-- 将 GitHub Pages Source 配置为 `GitHub Actions`，并让 `github-pages` environment
-  只允许 `main`（用于 dev 预览）和受信任的 `v*` release tag 部署。
-- 启用 immutable GitHub Releases；工作流对已发布 Release 只做摘要核验，不会改写。
-- 保留 Dependabot 的 GitHub Actions 周更，并让 SHA pin 更新通过相同门禁。
+- GitHub Pages Source 为 `GitHub Actions`，`github-pages` environment 只允许 `main`
+  （用于 dev 预览）和 `v*` 标签部署。
+- GitHub Release 不可变。工作流在 Release 仍为草稿时上传制品，对已发布的 Release 只做
+  摘要核验。
+- Actions 的 `GITHUB_TOKEN` 可按工作流声明获得写权限；若将来保护发布标签，需要为
+  `Release · Tag` 配置受控 bypass。
+- 已启用 secret scanning 与 push protection、Dependabot 警报与安全更新，以及私密漏洞报告，
+  `SECURITY.md` 会引导报告者使用后者。
+- Dependabot 每周为 GitHub Actions、uv 和 Cargo 提交分组更新，并通过相同门禁；被精确
+  固定的 ty 与 Zensical 各自单独提交 pull request。
 
 ## 故障恢复 { #failure-recovery }
 

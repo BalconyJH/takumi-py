@@ -36,6 +36,14 @@ contributors, and the release's section is published as its GitHub Release notes
   `Cargo.toml`): they publish as GitHub prereleases, and their documentation never
   takes `latest`.
 - Smoke-test the `cp311-abi3` wheel on Python 3.15.
+- Publish project links, classifiers, and keywords on PyPI.
+- Document the versioning and deprecation policy in the support matrix. Deprecation
+  warnings now name the release that removes the API: `FontResource.subset_of` and
+  `dithering="floyd-steinberg"` go in 0.6.0.
+- Add `SECURITY.md`, which asks for vulnerability reports through GitHub's private
+  vulnerability reporting.
+- Have Dependabot propose weekly uv and Cargo updates alongside GitHub Actions, with
+  separate pull requests for the exactly pinned ty and Zensical.
 - Show a banner on every documentation version but the latest release: the `dev`
   preview says it comes from `main` and can describe unreleased changes, and older
   releases and prereleases link to the latest one.
@@ -69,6 +77,9 @@ contributors, and the release's section is published as its GitHub Release notes
   unchanged.
 - Reject conflicting encoder options, such as `lossless=True` with PNG output,
   before rendering rather than after.
+- Link the READMEs to the hosted documentation of the latest release instead of the
+  Markdown sources, and check that each link names an existing page in both
+  languages.
 - Restructure the documentation: English sources move to `docs/en/`, new HTML and
   CSS and Output formats guides take over from the overloaded rendering guide, the
   release guide is now in English, and the README keeps only the overview,

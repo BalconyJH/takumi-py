@@ -14,10 +14,37 @@ authors = [
     { name = "BalconyJH", email = "balconyjh@gmail.com" }
 ]
 requires-python = ">=3.11"
+keywords = ["takumi", "image-generation", "og-image", "html-to-image", "svg", "webp", "png"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Rust",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Typing :: Typed",
+]
 dependencies = [
     "jinja2>=3.1.6",
     "msgspec>=0.21.1",
 ]
+
+[project.urls]
+Homepage = "https://balconyjh.github.io/takumi-py/"
+Documentation = "https://balconyjh.github.io/takumi-py/"
+Repository = "https://github.com/BalconyJH/takumi-py"
+Issues = "https://github.com/BalconyJH/takumi-py/issues"
+Changelog = "https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 module-name = "takumi_py._core"

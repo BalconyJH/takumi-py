@@ -274,3 +274,28 @@ def test_docs_i18n_reports_drifted_anchors_and_code(
         ),
         "zh/guides/page.md: code blocks or API directives differ from the English page",
     ]
+
+
+def test_docs_i18n_resolves_readme_links_to_pages(
+    docs_i18n: Any, tmp_path: Path
+) -> None:
+    site = "https://example.invalid/project/zh/"
+    text = (
+        f"[home]({site}latest/) [guides]({site}latest/guides/) "
+        f"[quickstart]({site}latest/getting-started/quickstart/#install) "
+        f"[gone]({site}latest/reference/gone/) [dev]({site}dev/guides/)"
+    )
+    (tmp_path / "guides").mkdir()
+    (tmp_path / "getting-started").mkdir()
+    (tmp_path / "index.md").write_text("# Home\n", encoding="utf-8")
+    (tmp_path / "guides" / "index.md").write_text("# Guides\n", encoding="utf-8")
+    (tmp_path / "getting-started" / "quickstart.md").write_text(
+        "# Quickstart\n", encoding="utf-8"
+    )
+
+    pages = docs_i18n.readme_pages(text, site)
+
+    assert pages == ["", "guides/", "getting-started/quickstart/", "reference/gone/"]
+    assert [page for page in pages if not docs_i18n.page_exists(tmp_path, page)] == [
+        "reference/gone/"
+    ]

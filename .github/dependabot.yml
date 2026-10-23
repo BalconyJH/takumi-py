@@ -16,3 +16,43 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+
+  # The Python toolchain and runtime dependencies in uv.lock. ty and Zensical are
+  # pinned exactly while they are 0.0.x, so their bumps arrive as their own PR.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Asia/Hong_Kong
+    groups:
+      python:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - ty
+          - zensical
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+
+  # Crates.io dependencies; the Takumi crates come from the takumilib submodule.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Asia/Hong_Kong
+    groups:
+      rust:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope

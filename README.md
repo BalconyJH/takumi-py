@@ -14,17 +14,18 @@ RGBA, SVG, and WebP, APNG, or GIF animations, without a browser runtime.
 ## Documentation
 
 The documentation site is [balconyjh.github.io/takumi-py](https://balconyjh.github.io/takumi-py/),
-in English and [Simplified Chinese](https://balconyjh.github.io/takumi-py/zh/). Its
-sources live in [`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs):
+in English and [Simplified Chinese](https://balconyjh.github.io/takumi-py/zh/), built
+from [`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs). For the latest
+release:
 
-- [Quickstart](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/getting-started/quickstart.md)
-- [Guides](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/guides/index.md):
+- [Quickstart](https://balconyjh.github.io/takumi-py/latest/getting-started/quickstart/)
+- [Guides](https://balconyjh.github.io/takumi-py/latest/guides/):
   rendering model, HTML and CSS, output formats, fonts and images, Jinja templates,
   and animation
-- [Support matrix](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/reference/support.md)
-  and [exceptions](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/reference/exceptions.md)
-- Migration guides for [Takumi v2](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/migration/takumi-v2.md)
-  and [Takumi 2.17](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/migration/takumi-2.17.md)
+- [Support matrix](https://balconyjh.github.io/takumi-py/latest/reference/support/)
+  and [exceptions](https://balconyjh.github.io/takumi-py/latest/reference/exceptions/)
+- Migration guides for [Takumi v2](https://balconyjh.github.io/takumi-py/latest/migration/takumi-v2/)
+  and [Takumi 2.17](https://balconyjh.github.io/takumi-py/latest/migration/takumi-2.17/)
 
 ## Installation
 
@@ -35,7 +36,7 @@ uv add takumi-py
 Published `cp311-abi3` wheels cover Linux x86_64 and aarch64, macOS on Apple Silicon,
 and Windows x64. Other platforms build from the source distribution, which needs
 Rust 1.91 or later. See
-[Installation](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/getting-started/installation.md)
+[Installation](https://balconyjh.github.io/takumi-py/latest/getting-started/installation/)
 for source checkouts.
 
 ## Quickstart
@@ -85,7 +86,7 @@ Runnable scripts for every input and output live in
 
 The binding keeps resource ownership explicit: it never fetches over the network and
 ships no Playwright fallback, abort-signal protocol, data URL helpers, or Node.js
-sidecar. The [support matrix](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/reference/support.md)
+sidecar. The [support matrix](https://balconyjh.github.io/takumi-py/latest/reference/support/)
 lists every exclusion.
 
 ## Development
@@ -98,9 +99,9 @@ uv run maturin develop
 make check
 ```
 
-The [development guide](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/maintainers/development.md)
+The [development guide](https://balconyjh.github.io/takumi-py/latest/maintainers/development/)
 covers checks, tests, and Takumi upgrades, and the
-[release guide](https://github.com/BalconyJH/takumi-py/blob/main/docs/en/maintainers/releasing.md)
+[release guide](https://balconyjh.github.io/takumi-py/latest/maintainers/releasing/)
 covers the automated release pipeline.
 
 ## License
