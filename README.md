@@ -33,9 +33,9 @@ release:
 uv add takumi-py
 ```
 
-Published `cp311-abi3` wheels cover Linux x86_64 and aarch64, macOS on Apple Silicon,
-and Windows x64. Other platforms build from the source distribution, which needs
-Rust 1.91 or later. See
+Published `cp311-abi3` wheels cover Linux x86_64 and aarch64, on both glibc and musl
+(Alpine), macOS on Apple Silicon and Intel, and Windows x64 and arm64. Other platforms
+build from the source distribution, which needs Rust 1.91 or later. See
 [Installation](https://balconyjh.github.io/takumi-py/latest/getting-started/installation/)
 for source checkouts.
 

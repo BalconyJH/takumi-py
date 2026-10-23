@@ -299,3 +299,41 @@ def test_docs_i18n_resolves_readme_links_to_pages(
     assert [page for page in pages if not docs_i18n.page_exists(tmp_path, page)] == [
         "reference/gone/"
     ]
+
+
+@pytest.fixture(scope="module")
+def check_distributions() -> ModuleType:
+    return load_script("check-distributions")
+
+
+@pytest.mark.parametrize(
+    ("tag", "platform"),
+    [
+        ("cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64", "linux-x86_64"),
+        ("cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64", "linux-aarch64"),
+        ("cp311-abi3-musllinux_1_2_x86_64", "musllinux-x86_64"),
+        ("cp311-abi3-musllinux_1_2_aarch64", "musllinux-aarch64"),
+        ("cp311-abi3-macosx_11_0_arm64", "macos-aarch64"),
+        ("cp311-abi3-macosx_10_12_x86_64", "macos-x86_64"),
+        ("cp311-abi3-win_amd64", "windows-x64"),
+        ("cp311-abi3-win_arm64", "windows-arm64"),
+    ],
+)
+def test_wheel_tags_map_to_release_platforms(
+    check_distributions: Any, tag: str, platform: str
+) -> None:
+    assert check_distributions.wheel_platform(tag) == platform
+    assert platform in check_distributions.EXPECTED_PLATFORMS
+
+
+def test_wheel_tags_outside_the_release_matrix_are_rejected(
+    check_distributions: Any,
+) -> None:
+    with pytest.raises(SystemExit, match="unsupported wheel platform tag"):
+        check_distributions.wheel_platform("cp311-abi3-linux_riscv64")
+    assert (
+        check_distributions.wheel_platform(
+            "cp311-abi3-linux_riscv64", allow_native=True
+        )
+        == "native:linux_riscv64"
+    )

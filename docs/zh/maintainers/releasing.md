@@ -70,7 +70,7 @@ alpha、beta 或 release candidate，例如 `make release VERSION=0.4.0rc1`，�
 
 ```mermaid
 flowchart TD
-    M["版本提交进入 main"] --> C["Check · Build and test: tests + 四平台 wheel + sdist + abi3"]
+    M["版本提交进入 main"] --> C["Check · Build and test: tests + 八平台 wheel + sdist + abi3"]
     M --> D["Check · Docs: strict build"]
     M --> K["Check · Lint: repository + Actions lint"]
     C --> T["Release · Tag: 聚合同一 source SHA"]
@@ -78,7 +78,7 @@ flowchart TD
     K --> T
     T --> V["校验版本、locks、changelog 与 main 祖先"]
     V --> G["创建 annotated tag 并派发 Release · Publish"]
-    G --> B["重新检查并构建四个 wheel 与一个 sdist"]
+    G --> B["重新检查并构建八个 wheel 与一个 sdist"]
     B --> A["校验元数据、许可证、平台与隔离安装"]
     A --> P["生成 provenance 并发布 PyPI"]
     P --> H["核对 PyPI 文件名与 SHA-256"]
@@ -87,8 +87,10 @@ flowchart TD
     X --> Y["通过 GitHub Pages artifact 与 OIDC 部署"]
 ```
 
-发布构建包含 Linux x86_64、Linux aarch64、macOS arm64、Windows x64 四个
-`cp311-abi3` wheel 和一个 sdist。验证层会：
+发布构建包含八个 `cp311-abi3` wheel 和一个 sdist：manylinux2014 与 musllinux_1_2 上的
+Linux x86_64 与 aarch64、macOS arm64 与 x86_64，以及 Windows x64 与 arm64。每个 wheel 都在
+其所属平台的 runner 上构建并执行 smoke 测试，musllinux wheel 则在 Alpine 容器中执行。
+验证层会：
 
 1. 检查完整制品集合、包元数据、许可证、ABI/平台标签及内置字体边界。
 2. 在仓库外的临时虚拟环境安装并执行渲染 smoke，避免意外导入 checkout。

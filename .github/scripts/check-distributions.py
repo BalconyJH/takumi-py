@@ -8,6 +8,7 @@ from email.message import Message
 from email.parser import BytesParser
 import hashlib
 from pathlib import Path
+import re
 import sys
 import tarfile
 from typing import NoReturn
@@ -25,6 +26,10 @@ EXPECTED_PLATFORMS = {
     "linux-aarch64",
     "linux-x86_64",
     "macos-aarch64",
+    "macos-x86_64",
+    "musllinux-aarch64",
+    "musllinux-x86_64",
+    "windows-arm64",
     "windows-x64",
 }
 DEFAULT_FONT = "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2"
@@ -94,10 +99,18 @@ def wheel_platform(tag: str, *, allow_native: bool = False) -> str:
         return "linux-x86_64"
     if "manylinux2014_aarch64" in tag or "manylinux_2_17_aarch64" in tag:
         return "linux-aarch64"
+    if "musllinux_1_2_x86_64" in tag:
+        return "musllinux-x86_64"
+    if "musllinux_1_2_aarch64" in tag:
+        return "musllinux-aarch64"
     if "macosx_11_0_arm64" in tag:
         return "macos-aarch64"
+    if re.search(r"macosx_\d+_\d+_x86_64", tag):
+        return "macos-x86_64"
     if "win_amd64" in tag:
         return "windows-x64"
+    if "win_arm64" in tag:
+        return "windows-arm64"
     if allow_native:
         _, separator, platform_tag = tag.removesuffix(".whl").rpartition("cp311-abi3-")
         if separator and platform_tag:

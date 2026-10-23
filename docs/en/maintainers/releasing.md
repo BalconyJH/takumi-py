@@ -82,7 +82,7 @@ the whole cycle.
 
 ```mermaid
 flowchart TD
-    M["Version commit lands on main"] --> C["Check · Build and test: tests + four platform wheels + sdist + abi3"]
+    M["Version commit lands on main"] --> C["Check · Build and test: tests + eight platform wheels + sdist + abi3"]
     M --> D["Check · Docs: strict build"]
     M --> K["Check · Lint: repository + Actions lint"]
     C --> T["Release · Tag: aggregate the same source SHA"]
@@ -90,7 +90,7 @@ flowchart TD
     K --> T
     T --> V["Check version, locks, changelog, and main ancestry"]
     V --> G["Create annotated tag and dispatch Release · Publish"]
-    G --> B["Re-check and build four wheels and one sdist"]
+    G --> B["Re-check and build eight wheels and one sdist"]
     B --> A["Verify metadata, licenses, platforms, and isolated installs"]
     A --> P["Generate provenance and publish to PyPI"]
     P --> H["Verify PyPI filenames and SHA-256 digests"]
@@ -99,8 +99,10 @@ flowchart TD
     X --> Y["Deploy through a GitHub Pages artifact and OIDC"]
 ```
 
-A release build produces four `cp311-abi3` wheels, for Linux x86_64, Linux aarch64,
-macOS arm64, and Windows x64, plus one sdist. The verification layer:
+A release build produces eight `cp311-abi3` wheels, plus one sdist: Linux x86_64 and
+aarch64 for manylinux2014 and musllinux_1_2, macOS arm64 and x86_64, and Windows x64
+and arm64. Each wheel builds and runs its smoke test on a runner of its own platform;
+the musllinux wheels run theirs in an Alpine container. The verification layer:
 
 1. Checks the complete artifact set, package metadata, licenses, ABI and platform tags,
    and the bundled-font boundary.

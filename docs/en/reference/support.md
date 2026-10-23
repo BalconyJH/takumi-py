@@ -6,9 +6,9 @@
 | --- | --- |
 | Python | 3.11+ |
 | ABI | CPython abi3, minimum cp311 |
-| Linux wheels | x86_64 and aarch64, manylinux2014 |
-| macOS wheels | Apple Silicon, macOS 11+ |
-| Windows wheels | x64 |
+| Linux wheels | x86_64 and aarch64, manylinux2014 (glibc 2.17+) and musllinux_1_2 (musl 1.2+, such as Alpine) |
+| macOS wheels | Apple Silicon, macOS 11+; Intel, macOS 10.12+ |
+| Windows wheels | x64 and arm64 |
 
 Other platforms may build from the source distribution, but they are outside the
 published wheel matrix.[^sdist]

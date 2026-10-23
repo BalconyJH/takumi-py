@@ -33,8 +33,9 @@ WebP、APNG 或 GIF 动画。
 uv add takumi-py
 ```
 
-已发布的 `cp311-abi3` wheel 覆盖 Linux x86_64 与 aarch64、Apple Silicon 上的 macOS，以及
-Windows x64。其他平台从源码分发包构建，需要 Rust 1.91 或更高版本。源码检出方式见
+已发布的 `cp311-abi3` wheel 覆盖 glibc 与 musl（Alpine）上的 Linux x86_64 与 aarch64、
+Apple Silicon 与 Intel 上的 macOS，以及 Windows x64 与 arm64。其他平台从源码分发包构建，
+需要 Rust 1.91 或更高版本。源码检出方式见
 [安装](https://balconyjh.github.io/takumi-py/zh/latest/getting-started/installation/)。
 
 ## 快速上手

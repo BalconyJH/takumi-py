@@ -41,6 +41,9 @@ contributors, and the release's section is published as its GitHub Release notes
 - Release alphas, betas, and release candidates, such as `0.4.0rc1` (`0.4.0-rc.1` in
   `Cargo.toml`): they publish as GitHub prereleases, and their documentation never
   takes `latest`.
+- Publish wheels for four more platforms: musllinux_1_2 x86_64 and aarch64, for
+  Alpine and other musl-based Linux, macOS on Intel, and Windows on arm64. These
+  platforms no longer build from the source distribution.
 - Smoke-test the `cp311-abi3` wheel on Python 3.15.
 - Publish project links, classifiers, and keywords on PyPI.
 - Document the versioning and deprecation policy in the support matrix. Deprecation

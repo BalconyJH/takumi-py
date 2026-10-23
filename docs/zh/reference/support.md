@@ -6,9 +6,9 @@
 | --- | --- |
 | Python | 3.11+ |
 | ABI | CPython abi3，最低 cp311 |
-| Linux wheel | x86_64 与 aarch64，manylinux2014 |
-| macOS wheel | Apple Silicon，macOS 11+ |
-| Windows wheel | x64 |
+| Linux wheel | x86_64 与 aarch64，manylinux2014（glibc 2.17+）和 musllinux_1_2（musl 1.2+，例如 Alpine） |
+| macOS wheel | Apple Silicon，macOS 11+；Intel，macOS 10.12+ |
+| Windows wheel | x64 与 arm64 |
 
 其他平台可以从源码分发包构建，但不在已发布的 wheel 矩阵之内。[^sdist]
 
