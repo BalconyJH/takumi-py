@@ -123,7 +123,6 @@ class TemplateRenderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> bytes:
         html = self._environment.get_template(template_name).render(**context)
         return self._renderer.render_html(
@@ -145,5 +144,4 @@ class TemplateRenderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )

@@ -25,7 +25,6 @@ use crate::{
 pub(crate) struct Resources {
   pub(crate) fonts: Arc<RwLock<Fonts>>,
   pub(crate) resource_cache: ResourceCache,
-  pub(crate) persistent_images: Arc<RwLock<ImageMap>>,
 }
 
 impl Resources {
@@ -145,13 +144,8 @@ impl Resources {
     Ok(buffer)
   }
 
-  /// The renderer's persistent images overlaid with the call's own.
   fn decode_images(&self, inputs: Vec<ImageInput>) -> PyResult<ImageMap> {
-    let persistent = self
-      .persistent_images
-      .read()
-      .map_err(|error| RenderError::new_err(format!("renderer image lock poisoned: {error}")))?;
-    images::decode_all(&self.resource_cache, &persistent, inputs)
+    images::decode_all(&self.resource_cache, inputs)
   }
 
   fn fonts(&self) -> PyResult<RwLockReadGuard<'_, Fonts>> {

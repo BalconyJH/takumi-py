@@ -15,16 +15,12 @@ from takumi_py.options import (
     DitheringAlgorithm,
     FontResourceInput,
     HtmlOptions,
-    ImageCacheMode,
     ImageOutputFormat,
-    ImageResource,
     ImageResourceInput,
     KeyframesInput,
     RenderOptions,
     UnsetType,
     native_render_settings,
-    normalize_image_resource,
-    normalize_image_resources,
 )
 from takumi_py.template import render_template_to_html
 from takumi_py.types import (
@@ -73,10 +69,9 @@ class Renderer:
         *,
         load_default_fonts: bool = True,
         fonts: Sequence[FontResourceInput] | None = None,
-        persistent_images: Sequence[ImageResourceInput] | None = None,
         cache_max_bytes: int | None = None,
     ) -> None:
-        """Create a renderer with optional font, image, and cache configuration.
+        """Create a renderer with optional font and cache configuration.
 
         ``cache_max_bytes`` controls the renderer-local resource cache for decoded
         images, SVG rasters, and related render resources. Pass ``0`` to disable
@@ -85,8 +80,6 @@ class Renderer:
         Args:
             load_default_fonts: Load Takumi's bundled default fonts.
             fonts: Font resources to register during construction.
-            persistent_images: Deprecated renderer-wide image resources. Prefer
-                passing ``images`` to each render call.
             cache_max_bytes: Maximum renderer-local resource-cache size in bytes.
 
         Raises:
@@ -95,12 +88,9 @@ class Renderer:
         """
         if cache_max_bytes is not None and cache_max_bytes < 0:
             raise ValueError("cache_max_bytes must be greater than or equal to 0")
-        if persistent_images is not None:
-            warn_deprecated("persistent_images", "per-render images")
         self._native = _core.NativeRenderer(
             load_default_fonts=load_default_fonts,
             fonts=None if fonts is None else list(fonts),
-            persistent_images=normalize_image_resources(persistent_images),
             cache_max_bytes=cache_max_bytes,
         )
 
@@ -218,75 +208,6 @@ class Renderer:
         """
         self._native.clear_fonts()
 
-    def load_font(self, font: FontResourceInput) -> None:
-        """Register one font without returning its family names.
-
-        Args:
-            font: Raw font bytes or a ``FontResource`` with metadata.
-
-        Raises:
-            FontError: If Takumi cannot decode or register the font.
-
-        Deprecated:
-            Use ``register_font()``, which returns the registered names.
-        """
-        warn_deprecated("load_font", "register_font")
-        self.register_font(font)
-
-    def load_fonts(self, fonts: Sequence[FontResourceInput]) -> None:
-        """Register multiple fonts without returning their family names.
-
-        Args:
-            fonts: Raw fonts or ``FontResource`` objects with metadata.
-
-        Raises:
-            FontError: If Takumi cannot decode or register a font.
-
-        Deprecated:
-            Use ``register_fonts()``, which returns the registered names.
-        """
-        warn_deprecated("load_fonts", "register_fonts")
-        self.register_fonts(fonts)
-
-    def put_persistent_image(
-        self,
-        resource: ImageResourceInput | str,
-        data: bytes | None = None,
-        cache: ImageCacheMode = "auto",
-    ) -> None:
-        """Store an image resource on this renderer for later lookup by source.
-
-        Args:
-            resource: An ``ImageResource``, ``(src, data)`` tuple, or source
-                identifier. A source identifier requires ``data``.
-            data: Image bytes when ``resource`` is a source identifier.
-            cache: Native cache policy for the supplied image.
-
-        Raises:
-            TypeError: If ``resource`` is a source identifier and ``data`` is
-                omitted.
-            ResourceError: If Takumi cannot decode or store the image.
-
-        Deprecated:
-            Pass resources through the per-render ``images`` option instead.
-        """
-        warn_deprecated("put_persistent_image", "per-render images")
-        if isinstance(resource, str):
-            if data is None:
-                raise TypeError("data is required when resource is a src string")
-            resource = ImageResource(resource, data, cache)
-
-        self._native.put_persistent_image(normalize_image_resource(resource))
-
-    def clear_image_store(self) -> None:
-        """Remove all renderer-wide persistent images.
-
-        Deprecated:
-            Pass resources through the per-render ``images`` option instead.
-        """
-        warn_deprecated("clear_image_store", "per-render images")
-        self._native.clear_image_store()
-
     def render_compiled(
         self,
         node: CompiledNode,
@@ -307,7 +228,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> bytes:
         """Render a compiled node to an encoded image or raw RGBA bytes.
 
@@ -333,7 +253,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             Encoded image bytes, or raw RGBA pixels when ``format="raw"``.
@@ -360,7 +279,6 @@ class Renderer:
             keyframes=keyframes,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
         return self._native.render_compiled(
             node,
@@ -386,7 +304,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> MeasuredNode:
         """Measure a compiled node without encoding an image.
 
@@ -409,7 +326,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             An immutable measurement tree with geometry and shaped text runs.
@@ -432,7 +348,6 @@ class Renderer:
             keyframes=keyframes,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
         measured = self._native.measure_compiled(
             node,
@@ -461,7 +376,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         validate: bool = False,
     ) -> bytes:
         """Compile and render a Python node mapping.
@@ -486,7 +400,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
             validate: Validate and normalize ``node`` in Python before compilation.
 
         Returns:
@@ -518,7 +431,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def measure_node(
@@ -538,7 +450,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         validate: bool = False,
     ) -> MeasuredNode:
         """Compile and measure a Python node mapping without encoding an image.
@@ -560,7 +471,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
             validate: Validate and normalize ``node`` in Python before compilation.
 
         Returns:
@@ -588,7 +498,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def compile_html(
@@ -642,7 +551,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> bytes:
         """Parse HTML and render it to an encoded image or raw RGBA bytes.
 
@@ -669,7 +577,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             Encoded image bytes, or raw RGBA pixels when ``format="raw"``.
@@ -705,7 +612,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def measure_html(
@@ -726,7 +632,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> MeasuredNode:
         """Parse and measure HTML without encoding an image.
 
@@ -750,7 +655,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             An immutable measurement tree with geometry and shaped text runs.
@@ -783,7 +687,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def render_template(
@@ -809,7 +712,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> bytes:
         """Render a Jinja template through the HTML pipeline.
 
@@ -838,7 +740,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             Encoded image bytes, or raw RGBA pixels when ``format="raw"``.
@@ -871,7 +772,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def render_svg_compiled(
@@ -888,7 +788,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> str:
         """Render a compiled node as an SVG document.
 
@@ -908,7 +807,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             A complete SVG document as Unicode text.
@@ -927,7 +825,6 @@ class Renderer:
             keyframes=keyframes,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
         return self._native.render_svg_compiled(
             node,
@@ -949,7 +846,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         validate: bool = False,
     ) -> str:
         """Compile a Python node mapping and render it as SVG.
@@ -968,7 +864,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
             validate: Validate and normalize ``node`` in Python before compilation.
 
         Returns:
@@ -993,7 +888,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def render_svg_html(
@@ -1011,7 +905,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> str:
         """Parse HTML and render it as an SVG document.
 
@@ -1032,7 +925,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             A complete SVG document as Unicode text.
@@ -1061,7 +953,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def render_svg_template(
@@ -1081,7 +972,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
     ) -> str:
         """Render a Jinja template as an SVG document through the HTML pipeline.
 
@@ -1100,7 +990,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
 
         Returns:
             A complete SVG document as Unicode text.
@@ -1126,7 +1015,6 @@ class Renderer:
             images=images,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
 
     def render_sequence_at_time(
@@ -1149,7 +1037,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         validate: bool = False,
     ) -> bytes:
         """Render the active scene in a timed sequence at one instant.
@@ -1176,7 +1063,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
             validate: Validate and normalize uncompiled scene nodes in Python.
 
         Returns:
@@ -1204,7 +1090,6 @@ class Renderer:
             keyframes=keyframes,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
         return self._native.render_sequence_at_time_compiled(
             self._compile_animation_scenes(scenes, validate=validate),
@@ -1231,7 +1116,6 @@ class Renderer:
         images: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         font_families: Sequence[str] | UnsetType | None = UNSET,
         lang: str | UnsetType | None = UNSET,
-        fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
         fps: int = 30,
         format: AnimationOutputFormat | UnsetType = UNSET,
         quality: int | UnsetType | None = UNSET,
@@ -1263,7 +1147,6 @@ class Renderer:
             images: Per-render image resources addressable by their ``src`` values.
             font_families: Preferred fallback font-family order.
             lang: Document language used for text shaping and font selection.
-            fetched_resources: Deprecated alias for externally fetched images.
             fps: Number of frames rendered per second: at most 90 for WebP and
                 APNG and at most 50 for GIF, whose decoders clamp shorter frame
                 delays.
@@ -1301,7 +1184,6 @@ class Renderer:
             keyframes=keyframes,
             font_families=font_families,
             lang=lang,
-            fetched_resources=fetched_resources,
         )
         resolved_encode_options = resolve_animation_encode_options(
             encode_options,
@@ -1448,16 +1330,10 @@ def resolve_render_options(
     keyframes: KeyframesInput | UnsetType | None = UNSET,
     font_families: Sequence[str] | UnsetType | None = UNSET,
     lang: str | UnsetType | None = UNSET,
-    fetched_resources: Sequence[ImageResourceInput] | UnsetType | None = UNSET,
 ) -> RenderOptions:
     """Apply the explicit keyword overrides, those not ``UNSET``, to ``options``."""
-    resolved = RenderOptions() if options is None else options
-    if resolved.fetched_resources is not None:
-        warn_deprecated("RenderOptions.fetched_resources", "RenderOptions.images")
-    if fetched_resources is not UNSET:
-        warn_deprecated("fetched_resources", "images")
     resolved = apply_overrides(
-        resolved,
+        RenderOptions() if options is None else options,
         width=width,
         height=height,
         format=format,
@@ -1472,7 +1348,6 @@ def resolve_render_options(
         keyframes=keyframes,
         font_families=font_families,
         lang=lang,
-        fetched_resources=fetched_resources,
     )
     if resolved.dithering == "floyd-steinberg":
         warn_deprecated('dithering="floyd-steinberg"', 'dithering="ordered-bayer"')

@@ -5,13 +5,15 @@ Takumi v2 用显式的资源输入取代了隐式的渲染器级资源上下文�
 
 ## 资源 API { #resource-apis }
 
-| 旧接口 | 推荐接口 |
+| 已移除的接口 | 替代方式 |
 | --- | --- |
-| `fetched_resources` | 为每次渲染传入 `images=[ImageResource(...)]` |
-| `load_font` / `load_fonts` | `register_font` / `register_fonts` |
-| 持久化图片 API | 优先使用单次渲染的 `images` |
+| 渲染调用和 `RenderOptions` 上的 `fetched_resources=` | 为每次渲染传入 `images=[ImageResource(...)]` |
+| `load_font` / `load_fonts` | `register_font` / `register_fonts`，它们会返回已注册的字体族名 |
+| `Renderer(persistent_images=...)`、`put_persistent_image`、`clear_image_store` | 把图片传给每次用到它们的渲染 |
 
-旧接口暂时作为弃用的兼容层保留。新代码应直接使用显式模型。
+这些接口自 0.2.0 起弃用，并已在 0.4.0 中移除。仍在使用它们的代码会因关键字参数抛出
+`TypeError`，因方法抛出 `AttributeError`；升级前请先在 0.3 下消除所有
+`DeprecationWarning`。
 
 ## HTML 与样式表 { #html-and-stylesheets }
 
@@ -33,8 +35,8 @@ HTML 解析现在由 Takumi 的 Rust 解析器完成。HTML 的渲染、测量�
 
 ## 图片与 URL { #images-and-urls }
 
-`ImageResource.cache` 直接对应 Takumi 的图片缓存提示，适用于单次渲染、构造函数和弃用的
-持久化图片。图片节点还接受已解码的 `RawRgbaImage` 像素。`CompiledNode.resource_urls()`
+`ImageResource.cache` 直接对应 Takumi 的图片缓存提示，适用于每张单次渲染图片。图片节点
+还接受已解码的 `RawRgbaImage` 像素。`CompiledNode.resource_urls()`
 报告 HTTP(S) 图片和样式引用，但不会下载它们，也不会报告已经提供的 `memory://` 字节。
 详见 [字体与图片](../guides/resources.md)。
 

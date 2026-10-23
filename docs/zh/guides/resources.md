@@ -195,12 +195,11 @@ renderer = Renderer(cache_max_bytes=128 * 1024 * 1024)
 | 字体 | 渲染器生命周期 | `register_font` 或 `register_fonts`；用 `unregister_font` 或 `clear_fonts` 释放 |
 | 图片 | 单次渲染 | `images=[ImageResource(...)]` |
 
-??? info "兼容 API"
+??? info "已移除的兼容 API"
 
-    `load_font`、`load_fonts`、`fetched_resources`、`persistent_images`、
-    `put_persistent_image` 和 `clear_image_store` 仅作为 0.2 系列遗留的弃用兼容层保留，
-    使用时会发出 `DeprecationWarning`。新代码应按次传入 `images`，并使用
-    `register_font` 或 `register_fonts`。
+    0.4.0 移除了 0.2.0 起弃用的兼容层：`load_font`、`load_fonts`、`fetched_resources`、
+    `persistent_images`、`put_persistent_image` 和 `clear_image_store`。
+    [Takumi v2 迁移](../migration/takumi-v2.md#resource-apis)列出了它们的替代方式。
 
 可运行示例见
 [`examples/render_resources.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_resources.py)。

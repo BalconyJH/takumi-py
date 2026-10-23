@@ -120,14 +120,9 @@ def test_measure_html_uses_explicit_stylesheets() -> None:
     assert measured.height == 30
 
 
-def test_font_and_image_resources_can_be_loaded() -> None:
+def test_registered_fonts_and_per_render_images_render_together() -> None:
     renderer = Renderer(load_default_fonts=False)
-    with pytest.warns(DeprecationWarning, match="load_font is deprecated"):
-        renderer.load_font(FontResource(data=GEIST_FONT.read_bytes()))
-    with pytest.warns(DeprecationWarning, match="put_persistent_image is deprecated"):
-        renderer.put_persistent_image(
-            ImageResource("memory://pixel", SVG_1X1, cache="none")
-        )
+    renderer.register_font(FontResource(data=GEIST_FONT.read_bytes()))
 
     png = renderer.render_node(
         {
@@ -140,6 +135,7 @@ def test_font_and_image_resources_can_be_loaded() -> None:
         },
         width=32,
         height=24,
+        images=[ImageResource("memory://pixel", SVG_1X1, cache="none")],
     )
 
     assert png.startswith(b"\x89PNG")
@@ -219,18 +215,6 @@ def test_takumi_2_5_css_properties_compile() -> None:
     )
 
     assert stylesheet is not None
-
-
-def test_per_render_fetched_resources_warns_and_still_resolves_images() -> None:
-    with pytest.warns(DeprecationWarning, match="fetched_resources is deprecated"):
-        png = Renderer().render_node(
-            {"type": "image", "src": "memory://fetched", "width": 1, "height": 1},
-            width=4,
-            height=4,
-            fetched_resources=[ImageResource("memory://fetched", SVG_1X1)],
-        )
-
-    assert png.startswith(b"\x89PNG")
 
 
 def test_register_font_returns_registered_families() -> None:
@@ -902,8 +886,8 @@ def test_deprecation_warnings_point_at_the_caller() -> None:
     node: NodeInput = {"type": "container", "style": {"width": "2px", "height": "2px"}}
 
     with pytest.warns(DeprecationWarning) as caught:
-        renderer.render_node(node, width=2, height=2, fetched_resources=[])
+        renderer.render_node(node, width=2, height=2, dithering="floyd-steinberg")
         renderer.render_html("<b>x</b>", width=2, height=2, dithering="floyd-steinberg")
-        renderer.load_font(GEIST_FONT.read_bytes())
+        FontResource(data=GEIST_FONT.read_bytes(), subset_of="Geist")
 
     assert [Path(warning.filename) for warning in caught] == [Path(__file__)] * 3

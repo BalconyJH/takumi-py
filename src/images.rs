@@ -46,19 +46,12 @@ impl ImageInput {
   }
 }
 
-/// Decodes `inputs` on top of `base`; a later input replaces an earlier one with the
-/// same `src`.
-pub(crate) fn decode_all(
-  cache: &ResourceCache,
-  base: &ImageMap,
-  inputs: Vec<ImageInput>,
-) -> PyResult<ImageMap> {
-  let mut images = base.clone();
-  for input in inputs {
-    let (src, image) = input.decode(cache)?;
-    images.insert(src, image);
-  }
-  Ok(images)
+/// Decodes `inputs`; a later input replaces an earlier one with the same `src`.
+pub(crate) fn decode_all(cache: &ResourceCache, inputs: Vec<ImageInput>) -> PyResult<ImageMap> {
+  inputs
+    .into_iter()
+    .map(|input| input.decode(cache))
+    .collect()
 }
 
 fn parse_cache_mode(value: &str) -> PyResult<ImageCacheMode> {

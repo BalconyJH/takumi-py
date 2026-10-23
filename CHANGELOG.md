@@ -87,6 +87,12 @@ contributors, and the release's section is published as its GitHub Release notes
 
 ### Removed
 
+- **Breaking:** remove the compatibility shims deprecated in 0.2.0: the
+  `fetched_resources` argument of every render call and `RenderOptions`,
+  `Renderer(persistent_images=...)`, and `Renderer.load_font`, `load_fonts`,
+  `put_persistent_image`, and `clear_image_store`. Pass `images` to each render and
+  register fonts with `register_font` or `register_fonts`; the Takumi v2 migration
+  guide maps each one.
 - Drop Python 3.10 support. takumi-py now requires Python 3.11 or later and
   publishes `cp311-abi3` wheels.
 - Drop the `typing-extensions` runtime dependency; `TypedDict` and `NotRequired`

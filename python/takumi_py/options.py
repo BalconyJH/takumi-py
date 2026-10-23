@@ -130,7 +130,6 @@ class RenderOptions:
     keyframes: KeyframesInput | None = None
     font_families: Sequence[str] | None = None
     lang: str | None = None
-    fetched_resources: Sequence[ImageResourceInput] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,11 +179,7 @@ def native_render_settings(
         draw_debug_border=options.draw_debug_border if raster else False,
         time_ms=options.time_ms if time_ms is None else time_ms,
         dithering=options.dithering if raster else "none",
-        # Later resources replace earlier ones with the same src.
-        images=[
-            *normalize_image_resources(options.fetched_resources),
-            *normalize_image_resources(options.images),
-        ],
+        images=normalize_image_resources(options.images),
         font_families=(
             None if options.font_families is None else list(options.font_families)
         ),

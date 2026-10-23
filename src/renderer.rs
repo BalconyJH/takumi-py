@@ -1,10 +1,7 @@
 //! `NativeRenderer`, the extension's entry point. Its methods read and validate their
 //! inputs while holding the GIL, then run the pipeline without it.
 
-use std::{
-  collections::HashMap,
-  sync::{Arc, RwLock, RwLockWriteGuard},
-};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use pyo3::{Bound, Py, PyAny, PyRef, PyResult, Python, prelude::*, types::PyBytes};
 use takumi::prelude::{Fonts, Node};
@@ -14,7 +11,6 @@ use crate::{
   encode::{self, AnimationEncoder, ImageEncoding},
   errors::RenderError,
   fonts::{self, FontInput},
-  images::{ImageInput, ImageMap},
   measure::measured_node_to_py,
   nodes::CompiledNode,
   pipeline::Resources,
@@ -34,11 +30,10 @@ pub struct NativeRenderer {
 #[pymethods]
 impl NativeRenderer {
   #[new]
-  #[pyo3(signature = (*, load_default_fonts=true, fonts=None, persistent_images=None, cache_max_bytes=None))]
+  #[pyo3(signature = (*, load_default_fonts=true, fonts=None, cache_max_bytes=None))]
   pub fn new(
     load_default_fonts: bool,
     fonts: Option<Vec<Bound<'_, PyAny>>>,
-    persistent_images: Option<Vec<Bound<'_, PyAny>>>,
     cache_max_bytes: Option<u64>,
   ) -> PyResult<Self> {
     let fonts = fonts
@@ -46,29 +41,16 @@ impl NativeRenderer {
       .iter()
       .map(FontInput::from_py)
       .collect::<PyResult<Vec<_>>>()?;
-    let persistent_images = persistent_images
-      .unwrap_or_default()
-      .iter()
-      .map(ImageInput::from_py)
-      .collect::<PyResult<Vec<_>>>()?;
 
     let mut font_store = fonts::initial_fonts(load_default_fonts)?;
     for font in fonts {
       drop(font.register(&mut font_store)?);
     }
 
-    let resource_cache = cache_max_bytes.map_or_else(ResourceCache::default, ResourceCache::new);
-    let mut images = HashMap::new();
-    for image in persistent_images {
-      let (src, image) = image.decode(&resource_cache)?;
-      images.insert(src, image);
-    }
-
     Ok(Self {
       resources: Resources {
         fonts: Arc::new(RwLock::new(font_store)),
-        resource_cache,
-        persistent_images: Arc::new(RwLock::new(images)),
+        resource_cache: cache_max_bytes.map_or_else(ResourceCache::default, ResourceCache::new),
       },
       load_default_fonts,
     })
@@ -128,17 +110,6 @@ impl NativeRenderer {
   pub fn clear_fonts(&self) -> PyResult<()> {
     let font_store = fonts::initial_fonts(self.load_default_fonts)?;
     *self.write_fonts()? = font_store;
-    Ok(())
-  }
-
-  pub fn put_persistent_image(&self, resource: Bound<'_, PyAny>) -> PyResult<()> {
-    let (src, image) = ImageInput::from_py(&resource)?.decode(&self.resources.resource_cache)?;
-    self.write_persistent_images()?.insert(src, image);
-    Ok(())
-  }
-
-  pub fn clear_image_store(&self) -> PyResult<()> {
-    self.write_persistent_images()?.clear();
     Ok(())
   }
 
@@ -261,14 +232,6 @@ impl NativeRenderer {
       .fonts
       .write()
       .map_err(|error| RenderError::new_err(format!("renderer font lock poisoned: {error}")))
-  }
-
-  fn write_persistent_images(&self) -> PyResult<RwLockWriteGuard<'_, ImageMap>> {
-    self
-      .resources
-      .persistent_images
-      .write()
-      .map_err(|error| RenderError::new_err(format!("renderer image lock poisoned: {error}")))
   }
 }
 

@@ -5,14 +5,15 @@ inputs and maps the Python binding more directly to core.
 
 ## Resource APIs
 
-| Previous interface | Preferred interface |
+| Removed interface | Replacement |
 | --- | --- |
-| `fetched_resources` | Pass `images=[ImageResource(...)]` to each render |
-| `load_font` / `load_fonts` | `register_font` / `register_fonts` |
-| Persistent image APIs | Prefer per-render `images` |
+| `fetched_resources=` on render calls and `RenderOptions` | Pass `images=[ImageResource(...)]` to each render |
+| `load_font` / `load_fonts` | `register_font` / `register_fonts`, which return the registered family names |
+| `Renderer(persistent_images=...)`, `put_persistent_image`, `clear_image_store` | Pass the images to each render that uses them |
 
-The old interfaces remain temporarily as deprecated compatibility shims. New code
-should use the explicit model directly.
+These interfaces were deprecated in 0.2.0 and removed in 0.4.0. Code that still uses
+them fails with `TypeError` for the keyword arguments and `AttributeError` for the
+methods, so fix any `DeprecationWarning` under 0.3 before you upgrade.
 
 ## HTML and stylesheets
 
@@ -37,9 +38,8 @@ presets, the Tailwind attribute, or the depth limit. See [HTML and CSS](../guide
 
 ## Images and URLs
 
-`ImageResource.cache` maps directly to the Takumi image cache hint for per-render,
-constructor, and deprecated persistent images. Image nodes also accept decoded
-`RawRgbaImage` pixels. `CompiledNode.resource_urls()` reports HTTP(S) image and style
+`ImageResource.cache` maps directly to the Takumi image cache hint for each per-render
+image. Image nodes also accept decoded `RawRgbaImage` pixels. `CompiledNode.resource_urls()` reports HTTP(S) image and style
 references, but it does not download them or report already supplied `memory://` bytes.
 See [Fonts and images](../guides/resources.md).
 

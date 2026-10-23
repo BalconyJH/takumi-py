@@ -4,7 +4,6 @@ from typing import Literal, TypeAlias, TypedDict, final, type_check_only
 from takumi_py.options import (
     AnimationEncodeOptions,
     FontResource,
-    ImageResource,
     NativeRenderSettings,
     RenderOptions,
 )
@@ -72,7 +71,6 @@ class NativeRenderer:
         *,
         load_default_fonts: bool = True,
         fonts: Sequence[_FontInput] | None = None,
-        persistent_images: Sequence[ImageResource] | None = None,
         cache_max_bytes: int | None = None,
     ) -> NativeRenderer: ...
     def compile_node(self, node: object) -> CompiledNode: ...
@@ -91,8 +89,6 @@ class NativeRenderer:
     def register_fonts(self, fonts: Sequence[_FontInput]) -> list[str]: ...
     def unregister_font(self, family: str) -> bool: ...
     def clear_fonts(self) -> None: ...
-    def put_persistent_image(self, resource: ImageResource) -> None: ...
-    def clear_image_store(self) -> None: ...
     def render_compiled(
         self,
         node: CompiledNode,

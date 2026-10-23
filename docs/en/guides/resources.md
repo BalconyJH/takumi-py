@@ -205,12 +205,12 @@ process-wide caches.
 | Font | Renderer lifetime | `register_font` or `register_fonts`; release with `unregister_font` or `clear_fonts` |
 | Image | One render | `images=[ImageResource(...)]` |
 
-??? info "Compatibility APIs"
+??? info "Removed compatibility APIs"
 
-    `load_font`, `load_fonts`, `fetched_resources`, `persistent_images`,
-    `put_persistent_image`, and `clear_image_store` remain only as deprecated
-    compatibility shims from the 0.2 line and emit `DeprecationWarning`. New code
-    should pass `images` per render and use `register_font` or `register_fonts`.
+    0.4.0 removed the shims deprecated in 0.2.0: `load_font`, `load_fonts`,
+    `fetched_resources`, `persistent_images`, `put_persistent_image`, and
+    `clear_image_store`. The [Takumi v2 migration](../migration/takumi-v2.md#resource-apis)
+    lists their replacements.
 
 See the runnable
 [`examples/render_resources.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_resources.py)
