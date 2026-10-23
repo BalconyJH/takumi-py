@@ -1054,6 +1054,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#versioning-and-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        版本与弃用
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inputs-and-outputs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1689,6 +1700,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#versioning-and-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        版本与弃用
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inputs-and-outputs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1839,19 +1861,52 @@
 </tr>
 <tr>
 <td>Linux wheel</td>
-<td>x86_64 与 aarch64，manylinux2014</td>
+<td>x86_64 与 aarch64，manylinux2014（glibc 2.17+）和 musllinux_1_2（musl 1.2+，例如 Alpine）</td>
 </tr>
 <tr>
 <td>macOS wheel</td>
-<td>Apple Silicon，macOS 11+</td>
+<td>Apple Silicon，macOS 11+；Intel，macOS 10.12+</td>
 </tr>
 <tr>
 <td>Windows wheel</td>
-<td>x64</td>
+<td>x64 与 arm64</td>
 </tr>
 </tbody>
 </table>
 <p>其他平台可以从源码分发包构建，但不在已发布的 wheel 矩阵之内。<sup id="fnref:sdist"><a class="footnote-ref" href="#fn:sdist">1</a></sup></p>
+<h2 id="versioning-and-deprecations">版本与弃用<a class="headerlink" href="#versioning-and-deprecations" title="Permanent link">&para;</a></h2>
+<p>在 takumi-py 处于 0.x 期间，版本号的含义如下：</p>
+<ul>
+<li>补丁版本（例如 0.4.1）只修复缺陷，保持公共 API 不变。</li>
+<li>次版本（例如 0.5.0）可能修改或移除公共 API。changelog 会列出每项变更，较大的变更另有
+  <a href="../../migration/">迁移指南</a>。</li>
+<li>弃用的 API 至少在下一个次版本中继续可用，并发出 <code>DeprecationWarning</code>。它最早在弃用它的
+  版本之后的第二个次版本中移除，警告会写明该版本。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>已弃用</th>
+<th>起始版本</th>
+<th>移除版本</th>
+<th>替代方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FontResource.subset_of</code></td>
+<td>0.4.0</td>
+<td>0.6.0</td>
+<td><code>name</code> 搭配 <code>unicode_range</code></td>
+</tr>
+<tr>
+<td><code>dithering="floyd-steinberg"</code></td>
+<td>0.4.0</td>
+<td>0.6.0</td>
+<td><code>dithering="ordered-bayer"</code></td>
+</tr>
+</tbody>
+</table>
 <h2 id="inputs-and-outputs">输入与输出<a class="headerlink" href="#inputs-and-outputs" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1887,7 +1942,7 @@
 <ul>
 <li>扩展中编译进了一个拉丁文字的 Geist 最后回退字体。</li>
 <li>其他所有字体和图片字节均由调用方提供。字体按渲染器注册，可以拆分为 <code>unicode_range</code>
-  子集，也可以再次释放。</li>
+  子集，也可以再次释放，或者交给有预算的缓存持有，由其释放最久未使用的字体。</li>
 <li><code>resource_urls()</code> 在不访问网络的情况下发现 URL。</li>
 <li>图片接受单次渲染的缓存提示；绑定不提供 HTTP 客户端。</li>
 <li>每个渲染器都有资源缓存预算；字形缓存使用单独的进程级预算，须在首次使用前配置。</li>

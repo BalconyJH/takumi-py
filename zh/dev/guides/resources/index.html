@@ -941,6 +941,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#caching-fonts-on-demand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        按需缓存字体
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1792,6 +1803,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#caching-fonts-on-demand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        按需缓存字体
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2068,6 +2090,27 @@
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">unregister_font</span><span class="p">(</span><span class="s2">"Inter"</span><span class="p">)</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">renderer</span><span class="o">.</span><span class="n">clear_fonts</span><span class="p">()</span>
 </span></code></pre></div>
+<h3 id="caching-fonts-on-demand">按需缓存字体<a class="headerlink" href="#caching-fonts-on-demand" title="Permanent link">&para;</a></h3>
+<p>按请求加载字体的服务（例如加载用户选择的字体族）可以让渲染器在预算内持有这些字体，而不必
+把每个字体都永久注册。<code>cache_font(font, key)</code> 以某个键（例如字体的来源 URL）注册字体；
+在渲染器仍持有该字体时，<code>cached_fonts(key)</code> 返回它的字体族，否则返回 <code>None</code>。下例中的
+<code>download</code> 代表你自己的 HTTP 客户端：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="n">font_cache_max_bytes</span><span class="o">=</span><span class="mi">64</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">font_families</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">return</span> <span class="n">renderer</span><span class="o">.</span><span class="n">cached_fonts</span><span class="p">(</span><span class="n">url</span><span class="p">)</span> <span class="ow">or</span> <span class="n">renderer</span><span class="o">.</span><span class="n">cache_font</span><span class="p">(</span><span class="n">download</span><span class="p">(</span><span class="n">url</span><span class="p">),</span> <span class="n">url</span><span class="p">)</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">png</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">render_html</span><span class="p">(</span><span class="n">html</span><span class="p">,</span> <span class="n">font_families</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">font_families</span><span class="p">(</span><span class="n">url</span><span class="p">)))</span>
+</span></code></pre></div>
+<p>解码后的字体数据超过 <code>font_cache_max_bytes</code> 时，渲染器会释放最久未使用的缓存字体族。渲染
+会把其 <code>font_families</code> 中的字体族标记为已使用，命中 <code>cached_fonts()</code> 也会；
+<code>cached_fonts(key, pin=True)</code> 会永久保留该字体。通过 <code>register_font</code>、<code>register_fonts</code> 或
+构造函数注册的字体永远不会被释放，最后缓存的字体即使单独超出预算也会保留。
+<code>unregister_font</code> 和 <code>clear_fonts</code> 同样会清除缓存记录。</p>
 <h2 id="language">语言<a class="headerlink" href="#language" title="Permanent link">&para;</a></h2>
 <p>渲染级 <code>lang</code> 选项影响文本整形和断行。它必须是合法的 BCP-47 语言标签；所有渲染、测量、
 SVG 和动画入口都会以 <code>ValueError</code> 拒绝非法标签。</p>
@@ -2076,23 +2119,23 @@ HTML 元素或节点上设置 <code>lang</code>：</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">HTML</label><label for="__tabbed_1_2">节点树</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_html</span><span class="p">(</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s1">'&lt;section lang="zh-Hant"&gt;&lt;div class="headline"&gt;你好&lt;/div&gt;&lt;/section&gt;'</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="s1">'.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }'</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="p">],</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_html</span><span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s1">'&lt;section lang="zh-Hant"&gt;&lt;div class="headline"&gt;你好&lt;/div&gt;&lt;/section&gt;'</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s1">'.headline:lang(zh-Hant) { font-family: "Noto Sans TC"; }'</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="p">],</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span>
 </span></code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_node</span><span class="p">(</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="p">{</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"container"</span><span class="p">,</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s2">"lang"</span><span class="p">:</span> <span class="s2">"ja"</span><span class="p">,</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s2">"children"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"text"</span><span class="p">,</span> <span class="s2">"text"</span><span class="p">:</span> <span class="s2">"こんにちは"</span><span class="p">}],</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">},</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span><span class="s1">':lang(ja) { font-family: "Noto Sans JP"; }'</span><span class="p">],</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">renderer</span><span class="o">.</span><span class="n">render_node</span><span class="p">(</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="p">{</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"container"</span><span class="p">,</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        <span class="s2">"lang"</span><span class="p">:</span> <span class="s2">"ja"</span><span class="p">,</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="s2">"children"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"text"</span><span class="p">,</span> <span class="s2">"text"</span><span class="p">:</span> <span class="s2">"こんにちは"</span><span class="p">}],</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="p">},</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">stylesheets</span><span class="o">=</span><span class="p">[</span><span class="s1">':lang(ja) { font-family: "Noto Sans JP"; }'</span><span class="p">],</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">)</span>
 </span></code></pre></div>
 </div>
 </div>
@@ -2101,13 +2144,14 @@ HTML 元素或节点上设置 <code>lang</code>：</p>
 <p><code>Renderer(cache_max_bytes=...)</code> 设置该渲染器的解码图片、缩放后的图片变体、SVG 栅格以及
 相关渲染资源共享的字节预算。以 <code>data:</code> URI 内嵌的图片也经过同一缓存解码，因此内嵌了
 logo 的模板在每个渲染器中只解码一次，而不是每次渲染都解码。默认值为 64 MiB；传入 <code>0</code>
-则不保留任何缓存。</p>
+则不保留任何缓存。通过 <code>cache_font</code> 持有的字体另有预算 <code>font_cache_max_bytes</code>，详见
+<a href="#caching-fonts-on-demand">按需缓存字体</a>。</p>
 <p>字形遮罩和轮廓使用单独的进程级缓存，默认 8 MiB。对于以 CJK 文字为主的工作负载，请在
 进程首次渲染之前配置它：</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span><span class="p">,</span> <span class="n">set_glyph_cache_max_bytes</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">set_glyph_cache_max_bytes</span><span class="p">(</span><span class="mi">32</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="n">cache_max_bytes</span><span class="o">=</span><span class="mi">128</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span><span class="p">,</span> <span class="n">set_glyph_cache_max_bytes</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">set_glyph_cache_max_bytes</span><span class="p">(</span><span class="mi">32</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">renderer</span> <span class="o">=</span> <span class="n">Renderer</span><span class="p">(</span><span class="n">cache_max_bytes</span><span class="o">=</span><span class="mi">128</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
 </span></code></pre></div>
 <p>字形渲染开始之后再修改字形预算，不会改变已有进程级缓存的大小。</p>
 <h2 id="lifecycle">生命周期<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h2>
@@ -2124,6 +2168,11 @@ logo 的模板在每个渲染器中只解码一次，而不是每次渲染都解
 <td>字体</td>
 <td>渲染器生命周期</td>
 <td><code>register_font</code> 或 <code>register_fonts</code>；用 <code>unregister_font</code> 或 <code>clear_fonts</code> 释放</td>
+</tr>
+<tr>
+<td>缓存字体</td>
+<td>直到因空间不足被释放</td>
+<td><code>cache_font</code>，用 <code>cached_fonts</code> 检查，受 <code>font_cache_max_bytes</code> 约束</td>
 </tr>
 <tr>
 <td>图片</td>

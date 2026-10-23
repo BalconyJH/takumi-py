@@ -1949,7 +1949,7 @@ pull request：squash 或 rebase 合并会改写条目所链接的提交哈希�
 请把各预发布版本整理过的说明复制到 <code>[Unreleased]</code> 中。</p>
 <h2 id="automatic-release-pipeline">自动发布链路<a class="headerlink" href="#automatic-release-pipeline" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
-    M["版本提交进入 main"] --&gt; C["Check · Build and test: tests + 四平台 wheel + sdist + abi3"]
+    M["版本提交进入 main"] --&gt; C["Check · Build and test: tests + 八平台 wheel + sdist + abi3"]
     M --&gt; D["Check · Docs: strict build"]
     M --&gt; K["Check · Lint: repository + Actions lint"]
     C --&gt; T["Release · Tag: 聚合同一 source SHA"]
@@ -1957,15 +1957,17 @@ pull request：squash 或 rebase 合并会改写条目所链接的提交哈希�
     K --&gt; T
     T --&gt; V["校验版本、locks、changelog 与 main 祖先"]
     V --&gt; G["创建 annotated tag 并派发 Release · Publish"]
-    G --&gt; B["重新检查并构建四个 wheel 与一个 sdist"]
+    G --&gt; B["重新检查并构建八个 wheel 与一个 sdist"]
     B --&gt; A["校验元数据、许可证、平台与隔离安装"]
     A --&gt; P["生成 provenance 并发布 PyPI"]
     P --&gt; H["核对 PyPI 文件名与 SHA-256"]
     H --&gt; R["发布或恢复 GitHub Release"]
     R --&gt; X["从 release tag 准备版本化文档"]
     X --&gt; Y["通过 GitHub Pages artifact 与 OIDC 部署"]</code></pre>
-<p>发布构建包含 Linux x86_64、Linux aarch64、macOS arm64、Windows x64 四个
-<code>cp311-abi3</code> wheel 和一个 sdist。验证层会：</p>
+<p>发布构建包含八个 <code>cp311-abi3</code> wheel 和一个 sdist：manylinux2014 与 musllinux_1_2 上的
+Linux x86_64 与 aarch64、macOS arm64 与 x86_64，以及 Windows x64 与 arm64。每个 wheel 都在
+其所属平台的 runner 上构建并执行 smoke 测试，musllinux wheel 则在 Alpine 容器中执行。
+验证层会：</p>
 <ol>
 <li>检查完整制品集合、包元数据、许可证、ABI/平台标签及内置字体边界。</li>
 <li>在仓库外的临时虚拟环境安装并执行渲染 smoke，避免意外导入 checkout。</li>
@@ -2001,19 +2003,23 @@ GitHub Pages，因此 <code>main</code> 上的文档变更几分钟内即可上�
 <p>该目标会构建当前平台 wheel 与 sdist、运行 Twine 元数据检查，并在隔离环境中验证
 wheel 以及 sdist 重建路径。<code>DIST_SMOKE_PYTHON</code> 可指定 smoke 使用的 Python 版本。</p>
 <h2 id="external-repository-settings">外部仓库设置<a class="headerlink" href="#external-repository-settings" title="Permanent link">&para;</a></h2>
-<p>仓库文件无法自行启用以下控制，管理员需在 GitHub 与 PyPI 配置：</p>
+<p>仓库文件无法承载以下控制。它们在 GitHub 与 PyPI 上配置，管理员需保持如下状态：</p>
 <ul>
-<li>保护 <code>main</code>，至少要求 <code>Check · Build and test / Required checks</code>、<code>Check · Docs / Build documentation</code> 和
-  <code>Check · Lint / Run repository hooks</code>，并要求 release automation 的 code-owner review。</li>
-<li>允许 GitHub Actions 的 <code>GITHUB_TOKEN</code> 按工作流声明获得写权限；若保护 release tag，
-  为 <code>Release · Tag</code> 配置受控 bypass。</li>
-<li>在 <code>release</code> environment 配置 required reviewers。</li>
-<li>将 PyPI Trusted Publisher 绑定到 owner <code>BalconyJH</code>、repository <code>takumi-py</code>、
+<li><code>Protect main</code> ruleset 禁止强制推送和删除 <code>main</code>。直接推送仍然允许，因此三个 Check
+  工作流把关的是发布标签，而不是推送本身。</li>
+<li>PyPI Trusted Publishing 所信任的 <code>release</code> environment 只允许 <code>main</code>（用于恢复运行）和
+  <code>v*</code> 标签部署。PyPI Trusted Publisher 绑定到 owner <code>BalconyJH</code>、repository <code>takumi-py</code>、
   workflow <code>publish.yml</code> 和 environment <code>release</code>。</li>
-<li>将 GitHub Pages Source 配置为 <code>GitHub Actions</code>，并让 <code>github-pages</code> environment
-  只允许 <code>main</code>（用于 dev 预览）和受信任的 <code>v*</code> release tag 部署。</li>
-<li>启用 immutable GitHub Releases；工作流对已发布 Release 只做摘要核验，不会改写。</li>
-<li>保留 Dependabot 的 GitHub Actions 周更，并让 SHA pin 更新通过相同门禁。</li>
+<li>GitHub Pages Source 为 <code>GitHub Actions</code>，<code>github-pages</code> environment 只允许 <code>main</code>
+  （用于 dev 预览）和 <code>v*</code> 标签部署。</li>
+<li>GitHub Release 不可变。工作流在 Release 仍为草稿时上传制品，对已发布的 Release 只做
+  摘要核验。</li>
+<li>Actions 的 <code>GITHUB_TOKEN</code> 可按工作流声明获得写权限；若将来保护发布标签，需要为
+  <code>Release · Tag</code> 配置受控 bypass。</li>
+<li>已启用 secret scanning 与 push protection、Dependabot 警报与安全更新，以及私密漏洞报告，
+  <code>SECURITY.md</code> 会引导报告者使用后者。</li>
+<li>Dependabot 每周为 GitHub Actions、uv 和 Cargo 提交分组更新，并通过相同门禁；被精确
+  固定的 ty 与 Zensical 各自单独提交 pull request。</li>
 </ul>
 <h2 id="failure-recovery">故障恢复<a class="headerlink" href="#failure-recovery" title="Permanent link">&para;</a></h2>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">门禁失败，尚未创建标签</label><label for="__tabbed_1_2">标签存在，但 Publish 未成功</label><label for="__tabbed_1_3">PyPI 已经接收部分或全部文件</label><label for="__tabbed_1_4">GitHub Release 或文档部署失败</label></div>

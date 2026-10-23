@@ -1265,6 +1265,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#takumi_py.renderer.Renderer.cache_font" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        cache_font
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#takumi_py.renderer.Renderer.cached_fonts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        cached_fonts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#takumi_py.renderer.Renderer.unregister_font" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2078,6 +2100,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#takumi_py.renderer.Renderer.cache_font" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        cache_font
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#takumi_py.renderer.Renderer.cached_fonts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        cached_fonts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#takumi_py.renderer.Renderer.unregister_font" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2453,8 +2497,8 @@
 
 <h1 id="renderer">Renderer<a class="headerlink" href="#renderer" title="Permanent link">&para;</a></h1>
 <p><code>Renderer</code> 是编译、测量、静态渲染、SVG 和动画的主要入口。</p>
-<p><code>Renderer(cache_max_bytes=...)</code> 控制每个渲染器的资源缓存。字形缓存是进程级的，需要在
-首次使用之前单独配置。</p>
+<p><code>Renderer(cache_max_bytes=...)</code> 控制每个渲染器的资源缓存，<code>font_cache_max_bytes</code> 则限制它
+通过 <code>cache_font</code> 持有的字体。字形缓存是进程级的，需要在首次使用之前单独配置。</p>
 
 
 <div class="doc doc-object doc-function">
@@ -2585,7 +2629,8 @@ later calls do not resize it.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">load_default_fonts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">fonts</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">FontResourceInput</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">cache_max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">font_cache_max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2594,6 +2639,9 @@ later calls do not resize it.</p>
 <p><code>cache_max_bytes</code> controls the renderer-local resource cache for decoded
 images, SVG rasters, and related render resources. Pass <code>0</code> to disable
 retention or <code>None</code> to use Takumi's default budget.</p>
+<p><code>font_cache_max_bytes</code> bounds the decoded fonts that <code>cache_font()</code> keeps.
+Past it, the least recently used of them are released; fonts registered with
+<code>register_font()</code> or <code>fonts</code> are never released for space.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2655,6 +2703,23 @@ retention or <code>None</code> to use Takumi's default budget.</p>
                   <code>None</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>font_cache_max_bytes</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum decoded size of cached fonts in bytes, or
+<code>None</code> for no limit.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -2674,7 +2739,8 @@ retention or <code>None</code> to use Takumi's default budget.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>cache_max_bytes</code> is negative.</p>
+                <p>If <code>cache_max_bytes</code> or <code>font_cache_max_bytes</code> is
+negative.</p>
               </div>
             </td>
           </tr>
@@ -3292,6 +3358,229 @@ cannot parse.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="takumi_py.renderer.Renderer.cache_font" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">cache_font</span>
+
+
+<a href="#takumi_py.renderer.Renderer.cache_font" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">cache_font</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">font</span><span class="p">:</span> <span class="n">FontResourceInput</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Register a font under <code>key</code> that the renderer may release for space.</p>
+<p>Use it for fonts that renders load on demand. Past <code>font_cache_max_bytes</code>,
+the least recently used cached families are released, other than the ones
+this call registered; a render marks the families in its <code>font_families</code>
+used. Check <code>cached_fonts(key)</code> before loading a font again.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>font</code>
+            </td>
+            <td>
+                  <code><span title="takumi_py.options.FontResourceInput">FontResourceInput</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Raw font bytes or a <code>FontResource</code> with metadata.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Identifies the font, such as the URL it was downloaded from.
+Caching another font under the same key replaces the record.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The font-family names discovered or assigned during registration.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="takumi_py.exceptions.FontError">FontError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If Takumi cannot decode or register the font.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="takumi_py.renderer.Renderer.cached_fonts" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">cached_fonts</span>
+
+
+<a href="#takumi_py.renderer.Renderer.cached_fonts" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">cached_fonts</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">pin</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the families a <code>cache_font()</code> call under <code>key</code> registered.</p>
+<p>A hit marks the families used, so they are the last to be released.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The key passed to <code>cache_font()</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pin</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Keep the families from ever being released for space.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The family names, or <code>None</code> if nothing was cached under <code>key</code> or any</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>of its families has since been released or unregistered.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="takumi_py.renderer.Renderer.unregister_font" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">unregister_font</span>
 
@@ -3304,7 +3593,8 @@ cannot parse.</p>
 
         <p>Remove every face registered under a font-family name.</p>
 <p>All <code>unicode_range</code> subsets registered under <code>name</code> are removed
-together, so later renders treat the family as unknown and fall back.</p>
+together, so later renders treat the family as unknown and fall back, and
+<code>cached_fonts()</code> no longer reports the keys that registered it.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
