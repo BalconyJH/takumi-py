@@ -137,6 +137,32 @@ renderer.unregister_font("Inter")
 renderer.clear_fonts()
 ```
 
+### 按需缓存字体 { #caching-fonts-on-demand }
+
+按请求加载字体的服务（例如加载用户选择的字体族）可以让渲染器在预算内持有这些字体，而不必
+把每个字体都永久注册。`cache_font(font, key)` 以某个键（例如字体的来源 URL）注册字体；
+在渲染器仍持有该字体时，`cached_fonts(key)` 返回它的字体族，否则返回 `None`。下例中的
+`download` 代表你自己的 HTTP 客户端：
+
+```python
+from takumi_py import Renderer
+
+renderer = Renderer(font_cache_max_bytes=64 * 1024 * 1024)
+
+
+def font_families(url: str) -> tuple[str, ...]:
+    return renderer.cached_fonts(url) or renderer.cache_font(download(url), url)
+
+
+png = renderer.render_html(html, font_families=list(font_families(url)))
+```
+
+解码后的字体数据超过 `font_cache_max_bytes` 时，渲染器会释放最久未使用的缓存字体族。渲染
+会把其 `font_families` 中的字体族标记为已使用，命中 `cached_fonts()` 也会；
+`cached_fonts(key, pin=True)` 会永久保留该字体。通过 `register_font`、`register_fonts` 或
+构造函数注册的字体永远不会被释放，最后缓存的字体即使单独超出预算也会保留。
+`unregister_font` 和 `clear_fonts` 同样会清除缓存记录。
+
 ## 语言 { #language }
 
 渲染级 `lang` 选项影响文本整形和断行。它必须是合法的 BCP-47 语言标签；所有渲染、测量、
@@ -174,7 +200,8 @@ HTML 元素或节点上设置 `lang`：
 `Renderer(cache_max_bytes=...)` 设置该渲染器的解码图片、缩放后的图片变体、SVG 栅格以及
 相关渲染资源共享的字节预算。以 `data:` URI 内嵌的图片也经过同一缓存解码，因此内嵌了
 logo 的模板在每个渲染器中只解码一次，而不是每次渲染都解码。默认值为 64 MiB；传入 `0`
-则不保留任何缓存。
+则不保留任何缓存。通过 `cache_font` 持有的字体另有预算 `font_cache_max_bytes`，详见
+[按需缓存字体](#caching-fonts-on-demand)。
 
 字形遮罩和轮廓使用单独的进程级缓存，默认 8 MiB。对于以 CJK 文字为主的工作负载，请在
 进程首次渲染之前配置它：
@@ -193,6 +220,7 @@ renderer = Renderer(cache_max_bytes=128 * 1024 * 1024)
 | 资源 | 推荐生命周期 | API |
 | --- | --- | --- |
 | 字体 | 渲染器生命周期 | `register_font` 或 `register_fonts`；用 `unregister_font` 或 `clear_fonts` 释放 |
+| 缓存字体 | 直到因空间不足被释放 | `cache_font`，用 `cached_fonts` 检查，受 `font_cache_max_bytes` 约束 |
 | 图片 | 单次渲染 | `images=[ImageResource(...)]` |
 
 ??? info "已移除的兼容 API"

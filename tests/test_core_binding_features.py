@@ -322,6 +322,93 @@ def test_clear_fonts_restores_the_initial_font_state() -> None:
     )
 
 
+def cached_font(name: str) -> FontResource:
+    return FontResource(GEIST_LAST_RESORT_FONT.read_bytes(), name=name)
+
+
+def render_text_raw(renderer: Renderer, family: str) -> bytes:
+    return renderer.render_node(
+        {
+            "type": "text",
+            "text": "Hello",
+            "style": {"fontSize": "32px", "color": "black"},
+        },
+        width=160,
+        height=64,
+        format="raw",
+        font_families=[family],
+    )
+
+
+def two_font_budget() -> int:
+    """The smallest font cache budget that keeps two cached copies of one font."""
+    low, high = 1, 1 << 30
+    while low < high:
+        middle = (low + high) // 2
+        renderer = Renderer(load_default_fonts=False, font_cache_max_bytes=middle)
+        renderer.cache_font(cached_font("First"), "first")
+        renderer.cache_font(cached_font("Second"), "second")
+        if renderer.cached_fonts("first") is None:
+            low = middle + 1
+        else:
+            high = middle
+    return low
+
+
+def test_cache_font_registers_a_font_under_its_key() -> None:
+    renderer = Renderer(load_default_fonts=False)
+
+    assert renderer.cached_fonts("geist") is None
+    assert renderer.cache_font(cached_font("Cached"), "geist") == ("Cached",)
+    assert renderer.cached_fonts("geist") == ("Cached",)
+    assert inked_pixels(render_text_raw(renderer, "Cached")) > 100
+
+    assert renderer.unregister_font("Cached") is True
+    assert renderer.cached_fonts("geist") is None
+
+    renderer.cache_font(cached_font("Cached"), "geist")
+    renderer.clear_fonts()
+    assert renderer.cached_fonts("geist") is None
+    assert inked_pixels(render_text_raw(renderer, "Cached")) == 0
+
+
+def test_font_cache_budget_releases_the_least_recently_used_family() -> None:
+    renderer = Renderer(
+        load_default_fonts=False, font_cache_max_bytes=two_font_budget()
+    )
+    renderer.cache_font(cached_font("First"), "first")
+    renderer.cache_font(cached_font("Second"), "second")
+    # A render that names First makes Second the least recently used.
+    render_text_raw(renderer, "First")
+    renderer.cache_font(cached_font("Third"), "third")
+
+    assert renderer.cached_fonts("second") is None
+    assert renderer.cached_fonts("first") == ("First",)
+    assert renderer.cached_fonts("third") == ("Third",)
+    assert inked_pixels(render_text_raw(renderer, "Second")) == 0
+    assert inked_pixels(render_text_raw(renderer, "First")) > 100
+
+
+def test_font_cache_never_releases_registered_or_pinned_fonts() -> None:
+    renderer = Renderer(load_default_fonts=False, font_cache_max_bytes=1)
+    renderer.register_font(cached_font("Registered"))
+    renderer.cache_font(cached_font("Pinned"), "pinned")
+    assert renderer.cached_fonts("pinned", pin=True) == ("Pinned",)
+    renderer.cache_font(cached_font("Loose"), "loose")
+    # The font cached last stays even when it alone exceeds the budget.
+    renderer.cache_font(cached_font("Latest"), "latest")
+
+    assert renderer.cached_fonts("loose") is None
+    assert renderer.cached_fonts("pinned") == ("Pinned",)
+    assert renderer.cached_fonts("latest") == ("Latest",)
+    assert inked_pixels(render_text_raw(renderer, "Registered")) > 100
+
+
+def test_font_cache_budget_rejects_negative_sizes() -> None:
+    with pytest.raises(ValueError, match="font_cache_max_bytes"):
+        Renderer(font_cache_max_bytes=-1)
+
+
 def test_floyd_steinberg_dithering_is_a_deprecated_ordered_bayer_alias() -> None:
     node: NodeInput = {
         "type": "container",

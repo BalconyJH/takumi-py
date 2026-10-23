@@ -70,4 +70,9 @@ impl RenderSettings {
   pub(crate) fn font_family(&self) -> Option<FontFamily> {
     self.font_families.clone().map(FontFamily::from_names)
   }
+
+  /// The families the render names, which the font cache marks used.
+  pub(crate) fn font_family_names(&self) -> &[String] {
+    self.font_families.as_deref().unwrap_or_default()
+  }
 }

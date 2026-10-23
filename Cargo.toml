@@ -17,6 +17,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde-pyobject = "0.8.0"
 takumi = { version = "2.17.1", path = "takumilib/takumi", features = ["from-html", "svg-backend"] }
 takumi-core = { version = "0.32.0", path = "takumilib/takumi-core" }
+takumi-bindings-common = { path = "takumilib/takumi-bindings-common" }
 
 [lints.clippy]
 redundant_closure_for_method_calls = "deny"

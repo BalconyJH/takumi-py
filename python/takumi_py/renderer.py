@@ -70,6 +70,7 @@ class Renderer:
         load_default_fonts: bool = True,
         fonts: Sequence[FontResourceInput] | None = None,
         cache_max_bytes: int | None = None,
+        font_cache_max_bytes: int | None = None,
     ) -> None:
         """Create a renderer with optional font and cache configuration.
 
@@ -77,21 +78,31 @@ class Renderer:
         images, SVG rasters, and related render resources. Pass ``0`` to disable
         retention or ``None`` to use Takumi's default budget.
 
+        ``font_cache_max_bytes`` bounds the decoded fonts that ``cache_font()`` keeps.
+        Past it, the least recently used of them are released; fonts registered with
+        ``register_font()`` or ``fonts`` are never released for space.
+
         Args:
             load_default_fonts: Load Takumi's bundled default fonts.
             fonts: Font resources to register during construction.
             cache_max_bytes: Maximum renderer-local resource-cache size in bytes.
+            font_cache_max_bytes: Maximum decoded size of cached fonts in bytes, or
+                ``None`` for no limit.
 
         Raises:
-            ValueError: If ``cache_max_bytes`` is negative.
+            ValueError: If ``cache_max_bytes`` or ``font_cache_max_bytes`` is
+                negative.
             TakumiError: If native renderer initialization fails.
         """
         if cache_max_bytes is not None and cache_max_bytes < 0:
             raise ValueError("cache_max_bytes must be greater than or equal to 0")
+        if font_cache_max_bytes is not None and font_cache_max_bytes < 0:
+            raise ValueError("font_cache_max_bytes must be greater than or equal to 0")
         self._native = _core.NativeRenderer(
             load_default_fonts=load_default_fonts,
             fonts=None if fonts is None else list(fonts),
             cache_max_bytes=cache_max_bytes,
+            font_cache_max_bytes=font_cache_max_bytes,
         )
 
     def compile_node(
@@ -186,11 +197,49 @@ class Renderer:
         """
         return tuple(self._native.register_fonts(list(fonts)))
 
+    def cache_font(self, font: FontResourceInput, key: str) -> tuple[str, ...]:
+        """Register a font under ``key`` that the renderer may release for space.
+
+        Use it for fonts that renders load on demand. Past ``font_cache_max_bytes``,
+        the least recently used cached families are released, other than the ones
+        this call registered; a render marks the families in its ``font_families``
+        used. Check ``cached_fonts(key)`` before loading a font again.
+
+        Args:
+            font: Raw font bytes or a ``FontResource`` with metadata.
+            key: Identifies the font, such as the URL it was downloaded from.
+                Caching another font under the same key replaces the record.
+
+        Returns:
+            The font-family names discovered or assigned during registration.
+
+        Raises:
+            FontError: If Takumi cannot decode or register the font.
+        """
+        return tuple(self._native.cache_font(font, key))
+
+    def cached_fonts(self, key: str, *, pin: bool = False) -> tuple[str, ...] | None:
+        """Return the families a ``cache_font()`` call under ``key`` registered.
+
+        A hit marks the families used, so they are the last to be released.
+
+        Args:
+            key: The key passed to ``cache_font()``.
+            pin: Keep the families from ever being released for space.
+
+        Returns:
+            The family names, or ``None`` if nothing was cached under ``key`` or any
+            of its families has since been released or unregistered.
+        """
+        families = self._native.cached_fonts(key, pin)
+        return None if families is None else tuple(families)
+
     def unregister_font(self, name: str) -> bool:
         """Remove every face registered under a font-family name.
 
         All ``unicode_range`` subsets registered under ``name`` are removed
-        together, so later renders treat the family as unknown and fall back.
+        together, so later renders treat the family as unknown and fall back, and
+        ``cached_fonts()`` no longer reports the keys that registered it.
 
         Args:
             name: Font-family name returned by ``register_font()``.

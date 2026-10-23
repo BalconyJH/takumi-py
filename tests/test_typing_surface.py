@@ -5,6 +5,8 @@ from takumi_py import _core
 from takumi_py.renderer import Renderer
 
 RENDERER_PUBLIC_METHODS = {
+    "cache_font",
+    "cached_fonts",
     "clear_fonts",
     "compile_html",
     "compile_keyframes",

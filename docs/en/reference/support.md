@@ -44,7 +44,8 @@ While takumi-py is at 0.x, its version numbers mean:
 
 - One Latin Geist last-resort font is compiled into the extension.
 - Callers provide all other font and image bytes. Fonts register per renderer, can be
-  split into `unicode_range` subsets, and can be released again.
+  split into `unicode_range` subsets, and can be released again, or held in a
+  budgeted cache that releases the least recently used ones.
 - `resource_urls()` discovers URLs without accessing the network.
 - Images accept a per-render cache hint; the binding does not provide an HTTP client.
 - Each renderer exposes a resource-cache budget; glyph caches use a separate

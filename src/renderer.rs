@@ -1,10 +1,11 @@
 //! `NativeRenderer`, the extension's entry point. Its methods read and validate their
 //! inputs while holding the GIL, then run the pipeline without it.
 
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use pyo3::{Bound, Py, PyAny, PyRef, PyResult, Python, prelude::*, types::PyBytes};
 use takumi::prelude::{Fonts, Node};
+use takumi_bindings_common::font_cache::FontCache;
 use takumi_core::resources::image::ResourceCache;
 
 use crate::{
@@ -30,11 +31,12 @@ pub struct NativeRenderer {
 #[pymethods]
 impl NativeRenderer {
   #[new]
-  #[pyo3(signature = (*, load_default_fonts=true, fonts=None, cache_max_bytes=None))]
+  #[pyo3(signature = (*, load_default_fonts=true, fonts=None, cache_max_bytes=None, font_cache_max_bytes=None))]
   pub fn new(
     load_default_fonts: bool,
     fonts: Option<Vec<Bound<'_, PyAny>>>,
     cache_max_bytes: Option<u64>,
+    font_cache_max_bytes: Option<u64>,
   ) -> PyResult<Self> {
     let fonts = fonts
       .unwrap_or_default()
@@ -43,13 +45,15 @@ impl NativeRenderer {
       .collect::<PyResult<Vec<_>>>()?;
 
     let mut font_store = fonts::initial_fonts(load_default_fonts)?;
+    let mut font_cache = FontCache::new(font_cache_max_bytes);
     for font in fonts {
-      drop(font.register(&mut font_store)?);
+      drop(font.register(&mut font_store, &mut font_cache, None, true)?);
     }
 
     Ok(Self {
       resources: Resources {
         fonts: Arc::new(RwLock::new(font_store)),
+        font_cache: Arc::new(Mutex::new(font_cache)),
         resource_cache: cache_max_bytes.map_or_else(ResourceCache::default, ResourceCache::new),
       },
       load_default_fonts,
@@ -87,7 +91,7 @@ impl NativeRenderer {
   pub fn register_font(&self, font: Bound<'_, PyAny>) -> PyResult<Vec<String>> {
     let font = FontInput::from_py(&font)?;
     let mut fonts = self.write_fonts()?;
-    font.register(&mut fonts)
+    font.register(&mut fonts, &mut *self.lock_font_cache()?, None, true)
   }
 
   pub fn register_fonts(&self, fonts: Vec<Bound<'_, PyAny>>) -> PyResult<Vec<String>> {
@@ -96,20 +100,40 @@ impl NativeRenderer {
       .map(FontInput::from_py)
       .collect::<PyResult<Vec<_>>>()?;
     let mut font_store = self.write_fonts()?;
+    let mut font_cache = self.lock_font_cache()?;
     let mut registered = Vec::new();
     for font in fonts {
-      registered.extend(font.register(&mut font_store)?);
+      registered.extend(font.register(&mut font_store, &mut font_cache, None, true)?);
     }
     Ok(registered)
   }
 
+  pub fn cache_font(&self, font: Bound<'_, PyAny>, key: &str) -> PyResult<Vec<String>> {
+    let font = FontInput::from_py(&font)?;
+    let mut fonts = self.write_fonts()?;
+    font.register(&mut fonts, &mut *self.lock_font_cache()?, Some(key), false)
+  }
+
+  #[pyo3(signature = (key, pin=false))]
+  pub fn cached_fonts(&self, key: &str, pin: bool) -> PyResult<Option<Vec<String>>> {
+    Ok(
+      self
+        .lock_font_cache()?
+        .lookup(key, pin)
+        .map(fonts::family_names),
+    )
+  }
+
   pub fn unregister_font(&self, family: &str) -> PyResult<bool> {
-    Ok(self.write_fonts()?.unregister_family(family))
+    let removed = self.write_fonts()?.unregister_family(family);
+    self.lock_font_cache()?.forget(family);
+    Ok(removed)
   }
 
   pub fn clear_fonts(&self) -> PyResult<()> {
     let font_store = fonts::initial_fonts(self.load_default_fonts)?;
     *self.write_fonts()? = font_store;
+    self.lock_font_cache()?.clear();
     Ok(())
   }
 
@@ -226,6 +250,15 @@ impl NativeRenderer {
 }
 
 impl NativeRenderer {
+  /// Locked after the fonts wherever both are needed.
+  fn lock_font_cache(&self) -> PyResult<MutexGuard<'_, FontCache>> {
+    self
+      .resources
+      .font_cache
+      .lock()
+      .map_err(|error| RenderError::new_err(format!("renderer font cache lock poisoned: {error}")))
+  }
+
   fn write_fonts(&self) -> PyResult<RwLockWriteGuard<'_, Fonts>> {
     self
       .resources

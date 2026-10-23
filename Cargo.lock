@@ -1227,6 +1227,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "takumi-bindings-common"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_bytes",
+ "takumi-core",
+]
+
+[[package]]
 name = "takumi-core"
 version = "0.32.0"
 dependencies = [
@@ -1328,6 +1337,7 @@ dependencies = [
  "serde",
  "serde-pyobject",
  "takumi",
+ "takumi-bindings-common",
  "takumi-core",
 ]
 

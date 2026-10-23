@@ -144,6 +144,34 @@ renderer.unregister_font("Inter")
 renderer.clear_fonts()
 ```
 
+### Caching fonts on demand
+
+A service that loads fonts per request, such as the families its users pick, can let
+the renderer hold them within a budget instead of registering each one for good.
+`cache_font(font, key)` registers a font under a key, such as the URL it came from, and
+`cached_fonts(key)` returns its families while the renderer still holds them, or
+`None`. Here `download` stands for your own HTTP client:
+
+```python
+from takumi_py import Renderer
+
+renderer = Renderer(font_cache_max_bytes=64 * 1024 * 1024)
+
+
+def font_families(url: str) -> tuple[str, ...]:
+    return renderer.cached_fonts(url) or renderer.cache_font(download(url), url)
+
+
+png = renderer.render_html(html, font_families=list(font_families(url)))
+```
+
+Past `font_cache_max_bytes` of decoded font data, the renderer releases the least
+recently used cached families. A render marks the families in its `font_families`
+used, and so does a `cached_fonts()` hit; `cached_fonts(key, pin=True)` keeps a font
+for good. Fonts from `register_font`, `register_fonts`, or the constructor are never
+released, and the font cached last stays even when it alone exceeds the budget.
+`unregister_font` and `clear_fonts` forget cached fonts as well.
+
 ## Language
 
 The render-level `lang` option affects text shaping and line breaking. It must be a
@@ -183,7 +211,8 @@ selectors match. Set `lang` on the HTML element or node that establishes the lan
 images, scaled image variants, SVG rasters, and related render resources. Images
 embedded as `data:` URIs decode through the same cache, so a template that inlines its
 logo decodes it once per renderer rather than on every render. The default is 64 MiB;
-pass `0` to disable retention.
+pass `0` to disable retention. Fonts held with `cache_font` have their own budget,
+`font_cache_max_bytes`, as [caching fonts on demand](#caching-fonts-on-demand) explains.
 
 Glyph masks and outlines use a separate process-wide cache with an 8 MiB default.
 For CJK-heavy workloads, configure it before the first render in the process:
@@ -203,6 +232,7 @@ process-wide caches.
 | Resource | Preferred lifetime | API |
 | --- | --- | --- |
 | Font | Renderer lifetime | `register_font` or `register_fonts`; release with `unregister_font` or `clear_fonts` |
+| Cached font | Until released for space | `cache_font`, checked with `cached_fonts`, bounded by `font_cache_max_bytes` |
 | Image | One render | `images=[ImageResource(...)]` |
 
 ??? info "Removed compatibility APIs"

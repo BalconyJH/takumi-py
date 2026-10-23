@@ -15,6 +15,12 @@ contributors, and the release's section is published as its GitHub Release notes
   `name` and serves only the codepoints its `@font-face` declares.
 - Add `Renderer.unregister_font` and `Renderer.clear_fonts` to release registered
   fonts.
+- Add a budgeted font cache, Takumi's `cacheFont`/`cachedFonts`:
+  `Renderer.cache_font(font, key)` registers a font the renderer may release,
+  `Renderer.cached_fonts(key)` reports whether it still holds one, and
+  `Renderer(font_cache_max_bytes=...)` releases the least recently used cached
+  families past the budget. Renders mark the families in `font_families` used, and
+  fonts from `register_font` are never released.
 - Decode `data:` URI images through the renderer's resource cache, so repeated
   renders that inline the same image decode it once.
 - Add a Takumi 2.17 migration guide, and document font subsets, font release,

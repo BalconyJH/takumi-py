@@ -2,13 +2,14 @@
 //! GIL: it decodes the call's images, takes the font store, and hands Takumi one set of
 //! options built the same way for raster, measurement, SVG, and animation output.
 
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 use takumi::{
   measure,
   prelude::{Fonts, MeasuredNode, Node, RenderOptions, SequentialScene, StyleSheet, SvgOptions},
   render, render_svg, write_animation,
 };
+use takumi_bindings_common::font_cache::FontCache;
 use takumi_core::resources::image::ResourceCache;
 
 use pyo3::PyResult;
@@ -24,6 +25,8 @@ use crate::{
 #[derive(Clone)]
 pub(crate) struct Resources {
   pub(crate) fonts: Arc<RwLock<Fonts>>,
+  /// What each registration added, and the budget that releases unpinned fonts.
+  pub(crate) font_cache: Arc<Mutex<FontCache>>,
   pub(crate) resource_cache: ResourceCache,
 }
 
@@ -36,7 +39,7 @@ impl Resources {
     encoding: ImageEncoding,
   ) -> PyResult<Vec<u8>> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
-    let fonts = self.fonts()?;
+    let fonts = self.fonts(&settings)?;
     let options = self.raster_options(
       &fonts,
       images,
@@ -56,7 +59,7 @@ impl Resources {
     mut settings: RenderSettings,
   ) -> PyResult<MeasuredNode> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
-    let fonts = self.fonts()?;
+    let fonts = self.fonts(&settings)?;
     let options = self.raster_options(
       &fonts,
       images,
@@ -75,7 +78,7 @@ impl Resources {
     mut settings: RenderSettings,
   ) -> PyResult<String> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
-    let fonts = self.fonts()?;
+    let fonts = self.fonts(&settings)?;
     render_svg(
       SvgOptions::builder()
         .viewport(settings.svg_viewport())
@@ -120,7 +123,7 @@ impl Resources {
     encoder: AnimationEncoder,
   ) -> PyResult<Vec<u8>> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
-    let fonts = self.fonts()?;
+    let fonts = self.fonts(&settings)?;
     let stylesheet = Arc::new(stylesheet);
     let scenes: Vec<SequentialScene<'_>> = scenes
       .into_iter()
@@ -148,7 +151,13 @@ impl Resources {
     images::decode_all(&self.resource_cache, inputs)
   }
 
-  fn fonts(&self) -> PyResult<RwLockReadGuard<'_, Fonts>> {
+  /// The fonts for a render, after marking the families it names used.
+  fn fonts(&self, settings: &RenderSettings) -> PyResult<RwLockReadGuard<'_, Fonts>> {
+    self
+      .font_cache
+      .lock()
+      .map_err(|error| RenderError::new_err(format!("renderer font cache lock poisoned: {error}")))?
+      .touch(settings.font_family_names());
     self
       .fonts
       .read()

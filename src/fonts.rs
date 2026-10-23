@@ -1,4 +1,5 @@
-//! Font registration: `FontResource` values read from Python and registered with Takumi.
+//! Font registration: `FontResource` values read from Python and registered with Takumi,
+//! recorded in the renderer's font cache.
 
 use std::sync::Arc;
 
@@ -7,6 +8,8 @@ use takumi::prelude::{
   FontOverride, FontResource, FontStyle, Fonts, FromCssStr, GenericFamily, UnicodeRange,
   UnicodeRangeSet,
 };
+use takumi_bindings_common::{default_fonts, font_cache::FontCache, input::register_resource};
+use takumi_core::resources::font::RegisteredFamily;
 
 use crate::{
   errors::FontError,
@@ -14,8 +17,6 @@ use crate::{
 };
 
 const MAX_CODEPOINT: u32 = 0x10_FFFF;
-const GEIST: &[u8] =
-  include_bytes!("../takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2");
 
 /// A font as the Python layer passes it: raw bytes, or a `FontResource` whose fields
 /// override what the file declares.
@@ -59,8 +60,17 @@ impl FontInput {
     })
   }
 
-  /// Registers the font, returning the family names Takumi registered.
-  pub(crate) fn register(self, fonts: &mut Fonts) -> PyResult<Vec<String>> {
+  /// Registers the font and records it in `cache` under `key`. A font that is not
+  /// `pinned` can be released for space, and admitting it releases the least recently
+  /// used unpinned families past the cache budget. Returns the family names Takumi
+  /// registered.
+  pub(crate) fn register(
+    self,
+    fonts: &mut Fonts,
+    cache: &mut FontCache,
+    key: Option<&str>,
+    pinned: bool,
+  ) -> PyResult<Vec<String>> {
     let style = self
       .style
       .as_deref()
@@ -85,32 +95,29 @@ impl FontInput {
       resource = resource.generic_family(parse_generic_family(&generic_family)?);
     }
 
-    register(fonts, resource)
+    let (registered, bytes) = register_resource(fonts, resource).map_err(font_error)?;
+    cache
+      .admit(fonts, key, &registered, bytes, pinned)
+      .map_err(font_error)?;
+    Ok(family_names(registered))
   }
 }
 
 /// The fonts a new renderer starts with: the bundled Geist last-resort font, or none.
 pub(crate) fn initial_fonts(load_default_fonts: bool) -> PyResult<Fonts> {
-  let mut fonts = Fonts::default();
-
   if load_default_fonts {
-    let geist = FontResource::new(GEIST)
-      .override_info(FontOverride {
-        family_name: Some(Arc::from("Geist")),
-        ..Default::default()
-      })
-      .last_resort();
-    drop(register(&mut fonts, geist)?);
+    default_fonts().map_err(font_error)
+  } else {
+    Ok(Fonts::default())
   }
-
-  Ok(fonts)
 }
 
-fn register(fonts: &mut Fonts, font: FontResource<'_>) -> PyResult<Vec<String>> {
-  let families = fonts
-    .register(font)
-    .map_err(|error| FontError::new_err(format!("failed to register font: {error}")))?;
-  Ok(families.into_iter().map(|family| family.name).collect())
+pub(crate) fn family_names(families: Vec<RegisteredFamily>) -> Vec<String> {
+  families.into_iter().map(|family| family.name).collect()
+}
+
+fn font_error(error: impl std::fmt::Display) -> PyErr {
+  FontError::new_err(format!("failed to register font: {error}"))
 }
 
 /// Parses `(start, end)` pairs, given as tuples or lists.
