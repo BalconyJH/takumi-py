@@ -98,10 +98,11 @@ cd takumi-py
 uv sync --all-groups --all-extras
 uv run maturin develop
 make check
+make docs-build
 ```
 
 The [development guide](https://balconyjh.github.io/takumi-py/latest/maintainers/development/)
-covers checks, tests, and Takumi upgrades, and the
+covers checks, tests, documentation builds, and Takumi upgrades, and the
 [release guide](https://balconyjh.github.io/takumi-py/latest/maintainers/releasing/)
 covers the automated release pipeline.
 

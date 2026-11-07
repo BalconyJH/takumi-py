@@ -96,10 +96,11 @@ cd takumi-py
 uv sync --all-groups --all-extras
 uv run maturin develop
 make check
+make docs-build
 ```
 
 [开发指南](https://balconyjh.github.io/takumi-py/zh/latest/maintainers/development/)
-介绍检查、测试和 Takumi 升级，[发布指南](https://balconyjh.github.io/takumi-py/zh/latest/maintainers/releasing/)
+介绍检查、测试、文档构建和 Takumi 升级，[发布指南](https://balconyjh.github.io/takumi-py/zh/latest/maintainers/releasing/)
 介绍自动化发布流水线。
 
 ## 许可证
