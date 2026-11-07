@@ -116,6 +116,16 @@ class _ImageNodeInput(NodeBase):
 
 @dataclass(frozen=True, slots=True)
 class MeasuredTextRun:
+    """One shaped text run from a layout measurement.
+
+    Attributes:
+        text: Text covered by the run.
+        x: Left edge in layout coordinates.
+        y: Top edge in layout coordinates.
+        width: Run width in layout units.
+        height: Run height in layout units.
+    """
+
     text: str
     x: float
     y: float
@@ -125,6 +135,16 @@ class MeasuredTextRun:
 
 @dataclass(frozen=True, slots=True)
 class MeasuredNode:
+    """An immutable node in a measured layout tree.
+
+    Attributes:
+        width: Box width in layout units.
+        height: Box height in layout units.
+        transform: Six values for the node's 2D affine transform.
+        children: Measured child nodes.
+        runs: Text runs laid out directly on this node.
+    """
+
     width: float
     height: float
     transform: tuple[float, float, float, float, float, float]
@@ -134,12 +154,28 @@ class MeasuredNode:
 
 @dataclass(frozen=True, slots=True)
 class AnimationScene:
+    """One timed scene in a rendered animation sequence.
+
+    Attributes:
+        node: A Python node mapping or an already compiled node.
+        duration_ms: Positive scene duration in milliseconds.
+    """
+
     node: NodeInput | CompiledNode
     duration_ms: int
 
 
 @dataclass(frozen=True, slots=True)
 class RawAnimationFrame:
+    """A pre-rendered RGBA frame for ``Renderer.encode_frames``.
+
+    Attributes:
+        data: Exactly ``width * height * 4`` row-major RGBA bytes.
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        duration_ms: Positive frame duration in milliseconds.
+    """
+
     data: bytes
     width: int
     height: int
