@@ -9,6 +9,8 @@ contributors, and the release's section is published as its GitHub Release notes
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-07
+
 ### Added
 
 - Add `FontResource.unicode_range` so each subset of a family registers under one
@@ -74,7 +76,7 @@ contributors, and the release's section is published as its GitHub Release notes
   GitHub's generated notes.
 - `Release · Tag` and `Release · Publish` share one release-contract check, which now
   also requires the commit list `make changelog` generates.
-- Refresh the toolchain to Zensical 0.0.71, ty 0.0.91, Ruff 0.17, mypy 2.4, and
+- Refresh the toolchain to Zensical 0.0.72, ty 0.0.91, Ruff 0.17, mypy 2.4, and
   maturin 1.15, with current Prek hooks. ty and Zensical, still at 0.0.x, are pinned
   exactly so that each upgrade is deliberate, and the commit message hook now
   accepts `chore` and `typing` commits.
@@ -110,6 +112,7 @@ contributors, and the release's section is published as its GitHub Release notes
 
 ### Removed
 
+- Remove the testing-stage warnings from the READMEs and documentation home pages.
 - **Breaking:** remove the compatibility shims deprecated in 0.2.0: the
   `fetched_resources` argument of every render call and `RenderOptions`,
   `Renderer(persistent_images=...)`, and `Renderer.load_font`, `load_fonts`,
@@ -132,6 +135,120 @@ contributors, and the release's section is published as its GitHub Release notes
   frame delays that decoders clamp to 100 ms.
 - Document that `set_glyph_cache_max_bytes` has no effect once the glyph cache is
   in use, instead of claiming it raises `RuntimeError`.
+
+### Commits
+
+#### Breaking changes
+
+- **build:** require Python 3.11 or later ([56927f1](https://github.com/BalconyJH/takumi-py/commit/56927f14c235383917e263bf93d6ceeee766ce6f))
+- **build(release):** generate changelog entries with git-changelog ([0f0233f](https://github.com/BalconyJH/takumi-py/commit/0f0233facfe73e1e55f773801224883ff4305112))
+- **refactor:** remove the compatibility shims deprecated in 0.2.0 ([0fcd62c](https://github.com/BalconyJH/takumi-py/commit/0fcd62c0f0e9e53ea2da69028f9a5cba2c4a9515))
+
+#### Features
+
+- **core:** update Takumi to 2.17.1 ([e04b503](https://github.com/BalconyJH/takumi-py/commit/e04b5037af8b4f88cd7e4485bc4b7fb91f07db09))
+- **api:** adapt bindings to Takumi 2.17.1 ([ca03d58](https://github.com/BalconyJH/takumi-py/commit/ca03d58c7a0059a6eaeacd2407caddc9cf4f88ca))
+- **core:** expose registered fonts ([3caeb02](https://github.com/BalconyJH/takumi-py/commit/3caeb02af9d2fffe4d3393b41966f45e8160714e))
+- **api:** release registered fonts ([b3c3300](https://github.com/BalconyJH/takumi-py/commit/b3c3300c0ea2fa5a76004cefd7a99e4368fc8e6b))
+- add a budgeted font cache ([884061d](https://github.com/BalconyJH/takumi-py/commit/884061d6eff9eaef8982572aa426644850be4855))
+
+#### Bug fixes
+
+- **docs:** open dev at a language root that has no release yet ([a3d644b](https://github.com/BalconyJH/takumi-py/commit/a3d644b717d51f29887a0158ed0ffa58fd80a924))
+
+#### Performance
+
+- **animation:** stream frames into the encoder ([a78dad7](https://github.com/BalconyJH/takumi-py/commit/a78dad7076ce3077ad5ec537f09d3b4dcac356a9))
+
+#### Refactoring
+
+- **core:** split the native extension into modules ([fc7f8cd](https://github.com/BalconyJH/takumi-py/commit/fc7f8cdc7552f3f8de38dd58bb7dd685171e0111))
+- **api:** pass native options as objects ([835535f](https://github.com/BalconyJH/takumi-py/commit/835535f1acd27d5633c74d072311d26e6d80d8c2))
+
+#### Documentation
+
+- document the Takumi 2.17 upgrade ([5ec5110](https://github.com/BalconyJH/takumi-py/commit/5ec51105e0f4d08e60f662ff1fce0ffef2fcc40a))
+- document registered fonts ([edafd79](https://github.com/BalconyJH/takumi-py/commit/edafd795871b14426209c77e3796014622318109))
+- record the PyO3 update ([4cbb4c7](https://github.com/BalconyJH/takumi-py/commit/4cbb4c737c165c1142644184bfec2059b754d4a8))
+- **animation:** describe streamed encoding ([1e22b22](https://github.com/BalconyJH/takumi-py/commit/1e22b229062269531580d663461a89d45f86771a))
+- record the animation streaming optimization ([73250e6](https://github.com/BalconyJH/takumi-py/commit/73250e69d4ecf163a01570eeccade56c73512cb7))
+- **migration:** document the Takumi 2.17 upgrade ([01a7415](https://github.com/BalconyJH/takumi-py/commit/01a74153f8cdc170ce1170dfdb5da47d24f467c7))
+- refresh Takumi 2.17 guidance ([772d79e](https://github.com/BalconyJH/takumi-py/commit/772d79e5f34dc433ed0bc537394354c5fa530926))
+- add the Takumi 2.17 migration page ([b4f5742](https://github.com/BalconyJH/takumi-py/commit/b4f5742fc4e148f123f41062a383df15b66f7e07))
+- record the Takumi 2.17 migration ([d118cd4](https://github.com/BalconyJH/takumi-py/commit/d118cd4ab8bec73d0bfc27ca195e416bb9c0de3d))
+- restructure the English documentation site ([28cd761](https://github.com/BalconyJH/takumi-py/commit/28cd761356a0f8e11437e1656826f6be63cc390a))
+- add the Simplified Chinese documentation site ([838c206](https://github.com/BalconyJH/takumi-py/commit/838c206937bf0df1cb5a1d06f04e09977dec0b2d))
+- add bilingual project readmes ([2ab7ff3](https://github.com/BalconyJH/takumi-py/commit/2ab7ff3247fd9369f0cb9574c168d7aa2a091d5c))
+- record the bilingual documentation site ([81f0ddd](https://github.com/BalconyJH/takumi-py/commit/81f0ddd220ede17f862cd3e24e4df365d8d4a788))
+- document bilingual deployment ([e8e2c89](https://github.com/BalconyJH/takumi-py/commit/e8e2c890a0868ff74081d7f818402d98b495e4f7))
+- **en:** document icon conventions ([688c616](https://github.com/BalconyJH/takumi-py/commit/688c616c3ed2cfe33c2e5e7e7fc9340620377e08))
+- **zh:** document icon conventions ([57ee622](https://github.com/BalconyJH/takumi-py/commit/57ee622719fd3e02cf574b15101814399fd5b61e))
+- record the native extension refactor ([1057596](https://github.com/BalconyJH/takumi-py/commit/1057596d88ff85d1fbf4d7a0cb33e11b63f5b3da))
+- update the Python version requirement ([79495de](https://github.com/BalconyJH/takumi-py/commit/79495de4a8b74462016c50a44142d39f3e3ee1cd))
+- record the Python 3.11 requirement ([0d3416e](https://github.com/BalconyJH/takumi-py/commit/0d3416e2eb64a42cd31c1e12bf7a5b02958072a4))
+- document changelog generation ([7943a3a](https://github.com/BalconyJH/takumi-py/commit/7943a3a16545573713564ec2fc9ec22cb77e7d8c))
+- use the stage-based workflow names ([bc5cbb7](https://github.com/BalconyJH/takumi-py/commit/bc5cbb76d6e2aae43d063e23159ef1c9841419a0))
+- switch languages with a one-click header toggle ([df48946](https://github.com/BalconyJH/takumi-py/commit/df48946f6598c59cd56794b97eef621506f8a9e5))
+- document the language toggle ([4b13043](https://github.com/BalconyJH/takumi-py/commit/4b130431a70b25e9b5104c296428aec577e6829b))
+- document the dev documentation preview ([b23a13c](https://github.com/BalconyJH/takumi-py/commit/b23a13c57e112c94840f3e1c258ac740c0847fbd))
+- mark dev and older versions with a version banner ([4db0e66](https://github.com/BalconyJH/takumi-py/commit/4db0e6602531ff043aa7d87e91f90db9d3fa85f4))
+- **readme:** link to the Python API reference ([34cc635](https://github.com/BalconyJH/takumi-py/commit/34cc63504150fff46c2c7ee26cf654ec59e00a77))
+- **readme:** include documentation builds in development checks ([9314968](https://github.com/BalconyJH/takumi-py/commit/931496855195f7653be3cd321736c7f737a3ab2c))
+- **html:** clarify parser options and compiled stylesheet bundles ([a704dc0](https://github.com/BalconyJH/takumi-py/commit/a704dc076cb23190c36f41fd479d89e9edaecfbf))
+- **animation:** document structured keyframe types ([fed338b](https://github.com/BalconyJH/takumi-py/commit/fed338b4c8a5ba2266732544f90a20636738c23d))
+- **options:** describe render and animation encoder settings ([88c5188](https://github.com/BalconyJH/takumi-py/commit/88c5188f81d6b7637a6ebdf312b3a87404b56e6b))
+- **types:** describe node inputs and image resources ([2e58f10](https://github.com/BalconyJH/takumi-py/commit/2e58f10dcc6dfda25ed9f7494d1c5cc7d523ffea))
+- **types:** describe measurement results and animation frames ([542bd48](https://github.com/BalconyJH/takumi-py/commit/542bd48c4e84a14dba3d88591fe2245807daa0a5))
+- **changelog:** record API reference improvements ([7d323bb](https://github.com/BalconyJH/takumi-py/commit/7d323bb9120acd9c817d565d7e2b67e6d336b5c4))
+- **readme:** remove testing-stage warnings ([20eff05](https://github.com/BalconyJH/takumi-py/commit/20eff0584c75acd204f4437c38b31535a2035578))
+- **site:** retire testing-stage notices and guidance ([58b0701](https://github.com/BalconyJH/takumi-py/commit/58b0701a672083c2fe541e10588c1eb1cde34a1f))
+- **migration:** clarify the 0.4.0 upgrade and removed APIs ([ce675a4](https://github.com/BalconyJH/takumi-py/commit/ce675a4def609309855a1d3dd1ebd48905328512))
+- **readme:** refresh installation and usage guidance ([0a93f08](https://github.com/BalconyJH/takumi-py/commit/0a93f088a8c660284309705c755d8adb67a7cd0b))
+
+#### Tests
+
+- **animation:** cover streamed frame encoding ([a97c09e](https://github.com/BalconyJH/takumi-py/commit/a97c09e33e29c149dc6157b7bce96549133f8f7d))
+- **api:** cover the split native extension ([95e35ed](https://github.com/BalconyJH/takumi-py/commit/95e35edfd6ca08bddd99ef173d8f37108ed9bc62))
+- **docs:** validate README links to the dev preview ([3a24fef](https://github.com/BalconyJH/takumi-py/commit/3a24fef654ea59df15f37784248c48063a52613e))
+
+#### Build
+
+- **deps:** update PyO3 to 0.30 ([72f5af4](https://github.com/BalconyJH/takumi-py/commit/72f5af4696f01f319f9178386df9c7b0eca6f36a))
+- **docs:** add bilingual documentation tooling ([d5178c8](https://github.com/BalconyJH/takumi-py/commit/d5178c8345165b6325999add12875134289bb8ca))
+- align release tooling with Python 3.11 ([623b3da](https://github.com/BalconyJH/takumi-py/commit/623b3daa87610ca6ea5719f8357d411c7810ab2b))
+- **docs:** require Python 3.11 for translation checks ([f05284b](https://github.com/BalconyJH/takumi-py/commit/f05284b69147661e68dc1f2c590e0be89394a574))
+- refresh the toolchain and pin the 0.0.x tools exactly ([e485fd2](https://github.com/BalconyJH/takumi-py/commit/e485fd2bd3ca8db49318b1a50da1ee6b92676776))
+- publish PyPI metadata, a security policy, and a deprecation policy ([6355180](https://github.com/BalconyJH/takumi-py/commit/6355180b704b619646feef3e7aef9aa55aceff73))
+- **deps-dev:** bump zensical from 0.0.71 to 0.0.72 (#13) ([57d1490](https://github.com/BalconyJH/takumi-py/commit/57d1490e3d6bb589e90740d46c49f15ef9eb0323))
+
+#### Continuous integration
+
+- **docs:** deploy the Simplified Chinese docs under zh ([17daf67](https://github.com/BalconyJH/takumi-py/commit/17daf67857cd55c45eab8014e77b2a3595c20960))
+- **release:** publish changelog sections as release notes ([4d98db0](https://github.com/BalconyJH/takumi-py/commit/4d98db034a2e8e21898ddfd7156366a4538aea94))
+- name workflows and jobs by stage ([ce18ebc](https://github.com/BalconyJH/takumi-py/commit/ce18ebc8223a9eb17c498f80906d9d6d96603bd2))
+- **release:** share docs deployment and serialize Pages deploys ([94cb5f2](https://github.com/BalconyJH/takumi-py/commit/94cb5f2958cbc9070ba087e52b2ae0ff66506132))
+- **docs:** deploy main as the dev documentation preview ([f0bb159](https://github.com/BalconyJH/takumi-py/commit/f0bb1598e1e3b174ee23e2b75dd77c7d67b8126b))
+- **release:** support prereleases and gate on the generated changelog ([0db6d29](https://github.com/BalconyJH/takumi-py/commit/0db6d29955ea72bc1eb88e99ad74cd06119b0417))
+- build wheels for musllinux, Intel macOS, and Windows on arm64 ([996ffe1](https://github.com/BalconyJH/takumi-py/commit/996ffe1c20cced68881210e904c393c791ae1f4d))
+
+#### Chores
+
+- **deps:** bump astral-sh/setup-uv to 10.3.0 ([f60a49d](https://github.com/BalconyJH/takumi-py/commit/f60a49dcddea24e5dd89c6dca7e5e98f4fe02f9c))
+- **deps:** bump setup-rust-toolchain to 2.0.0 ([b38f1a4](https://github.com/BalconyJH/takumi-py/commit/b38f1a4ecdc7fe41c692ce42d1965a41794f73a6))
+- **deps:** bump upload-artifact to 7.0.2 ([4362503](https://github.com/BalconyJH/takumi-py/commit/43625031ac3b957a29423fbc7e2108a8c4406b71))
+- **deps:** bump download-artifact to 8.0.2 ([f0797bc](https://github.com/BalconyJH/takumi-py/commit/f0797bccefce228bbc815d0dc8ae3790752b6a0c))
+- **deps:** bump prek-action to 3.0.1 ([861290e](https://github.com/BalconyJH/takumi-py/commit/861290e64688747fb77a79995ab134fce87fe389))
+- **deps:** bump attest-build-provenance to 4.2.2 ([4cba980](https://github.com/BalconyJH/takumi-py/commit/4cba980d69071dfa179939b021f612d9ef370d84))
+- **deps:** bump deploy-pages to 5.0.1 ([b4f905e](https://github.com/BalconyJH/takumi-py/commit/b4f905e903e45ec0d015329ba40e1f9a26001002))
+- **deps:** bump the github-actions group with 4 updates (#12) ([46e7f2b](https://github.com/BalconyJH/takumi-py/commit/46e7f2b628bbb9f99f6805a8eb371173c133915e))
+
+#### Other
+
+- **typing:** require Python 3.11 syntax ([5e15e1f](https://github.com/BalconyJH/takumi-py/commit/5e15e1ff97c8a51ffedaa46535e294651ea2ba94))
+
+**Full diff**: [v0.3.0...v0.4.0](https://github.com/BalconyJH/takumi-py/compare/v0.3.0...v0.4.0)
+
+**Contributors**: @BalconyJH, @dependabot
 
 ## [0.3.0] - 2026-08-02
 
@@ -265,7 +382,8 @@ contributors, and the release's section is published as its GitHub Release notes
 - Removed the experimental `pack_node()` API and `codec="msgpack"` compile path.
 - Removed unused benchmark scripts.
 
-[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/BalconyJH/takumi-py/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.4.0
 [0.3.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.3.0
 [0.2.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.2.0
 [0.1.0]: https://github.com/BalconyJH/takumi-py/releases/tag/v0.1.0
