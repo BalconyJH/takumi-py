@@ -1992,6 +1992,8 @@
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">height</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
 </span></code></pre></div>
+<p>解析器不会提取 <code>&lt;style&gt;</code> 元素，因此当前 API 中的 <code>ParsedHtml.stylesheets</code> 与
+<code>CompiledHtml.stylesheets</code> 都为空。请单独编译文档级 CSS，再把它追加到已编译样式表中。</p>
 <h2 id="discover-external-resources">发现外部资源<a class="headerlink" href="#discover-external-resources" title="Permanent link">&para;</a></h2>
 <p>渲染器从不抓取任何内容。<code>CompiledNode.resource_urls()</code> 列出图片节点和样式中的
 HTTP(S) 图片引用，应用可以先行抓取它们：</p>
