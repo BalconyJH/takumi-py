@@ -17,6 +17,19 @@ if TYPE_CHECKING:
 
 
 class NodeBase(TypedDict, total=False):
+    """Fields shared by every node type.
+
+    Attributes:
+        tagName: Element name used by type, class, and attribute selectors.
+        className: Class attribute used by class selectors.
+        id: Identifier used by ID selectors.
+        attributes: Additional HTML attributes exposed to selectors.
+        style: Inline CSS declarations with camel-cased property names.
+        tw: Tailwind classes attached to the node.
+        dir: Text direction for this subtree.
+        lang: BCP-47 language tag for this subtree.
+    """
+
     tagName: str
     className: str
     id: str
@@ -28,12 +41,26 @@ class NodeBase(TypedDict, total=False):
 
 
 class TextNode(NodeBase):
+    """A text leaf node.
+
+    Attributes:
+        text: Text content to lay out and paint.
+    """
+
     type: Literal["text"]
     text: str
 
 
 class RawRgbaImage(TypedDict):
-    """Raw row-major RGBA pixels used directly as an image node source."""
+    """Raw row-major RGBA pixels used directly as an image node source.
+
+    Attributes:
+        width: Image width in pixels.
+        height: Image height in pixels.
+        data: Exactly ``width * height * 4`` bytes in RGBA channel order.
+        premultiplied: Whether RGB channels already include alpha
+            multiplication. Defaults to ``False``.
+    """
 
     width: int
     height: int
@@ -42,6 +69,14 @@ class RawRgbaImage(TypedDict):
 
 
 class ImageNode(NodeBase):
+    """An image leaf node.
+
+    Attributes:
+        src: Image identifier, encoded image bytes, or raw RGBA pixels.
+        width: Rendered width in CSS pixels.
+        height: Rendered height in CSS pixels.
+    """
+
     type: Literal["image"]
     src: str | bytes | RawRgbaImage
     width: NotRequired[float]
@@ -49,6 +84,12 @@ class ImageNode(NodeBase):
 
 
 class ContainerNode(NodeBase):
+    """A container that lays out child nodes.
+
+    Attributes:
+        children: Child nodes in document order.
+    """
+
     type: Literal["container"]
     children: NotRequired[list[Node]]
 
@@ -106,6 +147,19 @@ class RawAnimationFrame:
 
 
 def validate_node(node: object) -> Node:
+    """Validate and normalize a node mapping in Python.
+
+    Args:
+        node: A mapping with a ``type`` of ``"text"``, ``"image"``, or
+            ``"container"``.
+
+    Returns:
+        A typed node mapping normalized through msgspec.
+
+    Raises:
+        NodeValidationError: If the mapping does not match a supported node
+            shape.
+    """
     try:
         kind = msgspec.convert(node, type=_NodeKind)["type"]
         if kind == "text":

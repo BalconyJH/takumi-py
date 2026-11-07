@@ -71,6 +71,15 @@ UNSET: Final = UnsetType()
 
 @dataclass(frozen=True, slots=True)
 class ImageResource:
+    """Image bytes addressable by an image node's ``src``.
+
+    Attributes:
+        src: Identifier matched against the image node's ``src``.
+        data: Encoded image bytes, such as PNG, JPEG, WebP, or SVG data.
+        cache: Whether the renderer may retain the decoded image in its
+            renderer-local resource cache.
+    """
+
     src: str
     data: bytes
     cache: ImageCacheMode = "auto"
