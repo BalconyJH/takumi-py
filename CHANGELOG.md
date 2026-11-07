@@ -59,6 +59,9 @@ contributors, and the release's section is published as its GitHub Release notes
 
 ### Changed
 
+- Clarify that compiled HTML bundles currently return no stylesheets, and describe
+  render options, resources, keyframes, and result types in the generated API
+  reference.
 - Update Takumi from 2.5.4 to 2.17.1, including `takumi-core` 0.32.0,
   `takumi-raster` 0.5.9, `takumi-svg` 0.3.31, and `takumi-html` 0.6.0. Layout,
   text, filters, backgrounds, decorations, and paint order now follow Chrome more
