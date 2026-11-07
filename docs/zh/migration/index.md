@@ -26,5 +26,5 @@ icon: lucide/route
 
 !!! tip "同时阅读迁移指南和发布历史"
 
-    在测试阶段，还请查阅当前版本与目标版本之间的
+    升级前，还请查阅当前版本与目标版本之间的
     [变更日志](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md) 条目。

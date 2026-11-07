@@ -11,13 +11,6 @@ and animation without a browser runtime.
 [Get started :material-arrow-right:](getting-started/index.md){ .md-button .md-button--primary }
 [API reference](reference/index.md){ .md-button }
 
-!!! warning "Testing-stage project"
-
-    Public APIs, exception types, and release platforms may still change as Takumi
-    core evolves. Read the
-    [changelog](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md)
-    before upgrading.
-
 ## Choose your path
 
 <div class="grid cards" markdown>

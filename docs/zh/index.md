@@ -10,11 +10,6 @@ icon: lucide/image
 [开始使用 :material-arrow-right:](getting-started/index.md){ .md-button .md-button--primary }
 [API 参考](reference/index.md){ .md-button }
 
-!!! warning "测试阶段项目"
-
-    随着 Takumi 核心演进，公共 API、异常类型和发布平台仍可能变化。升级前请阅读
-    [变更日志](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md)。
-
 ## 选择路径 { #choose-your-path }
 
 <div class="grid cards" markdown>

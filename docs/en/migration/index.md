@@ -27,6 +27,6 @@ core versions. They do not duplicate the commit-by-commit record in the changelo
 
 !!! tip "Read both migration guidance and release history"
 
-    During the testing stage, also review the
+    Before upgrading, also review the
     [changelog](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md)
     entries between your current and target versions.
