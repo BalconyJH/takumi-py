@@ -1,7 +1,8 @@
 # 升级到 Takumi 2.17
 
-下一个 takumi-py 版本会把原生渲染器从 Takumi 2.5.4 升级到 2.17.1。Python API 保持兼容，
-但少数输入的含义发生了变化，Takumi 的输出也更接近 Chrome。
+takumi-py 0.4.0 把原生渲染器从 Takumi 2.5.4 升级到 2.17.1。部分输入的含义发生变化，
+Takumi 的输出也更接近 Chrome。本版本还移除了自 0.2.0 起弃用的兼容 API，其替代方式见
+[资源 API](takumi-v2.md#resource-apis)。
 
 ## 预期像素变化 { #expect-pixel-changes }
 

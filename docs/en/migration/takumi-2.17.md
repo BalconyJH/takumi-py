@@ -1,8 +1,9 @@
 # Upgrade to Takumi 2.17
 
-The next takumi-py release moves the native renderer from Takumi 2.5.4 to 2.17.1. The
-Python API stays compatible, but a few inputs change meaning and Takumi's output moves
-closer to Chrome's.
+takumi-py 0.4.0 moves the native renderer from Takumi 2.5.4 to 2.17.1. A few inputs
+change meaning and Takumi's output moves closer to Chrome's. This release also removes
+the compatibility APIs deprecated in 0.2.0; see
+[Resource APIs](takumi-v2.md#resource-apis) for their replacements.
 
 ## Expect pixel changes
 
