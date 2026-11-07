@@ -5359,7 +5359,22 @@ element depth. Defaults to <code>HtmlOptions</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The compiled root node and any stylesheets extracted during parsing.</p>
+                <p>The compiled root node and a stylesheet bundle. The current parser</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;takumi_py.renderer.CompiledHtml&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-dataclass&quot;&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt;" href="./#takumi_py.renderer.CompiledHtml">CompiledHtml</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>returns an empty bundle because <code>&lt;style&gt;</code> elements are ignored.</p>
               </div>
             </td>
           </tr>
@@ -9255,7 +9270,57 @@ or the encoder configuration is invalid.</p>
 
 
 
-        <p>A compiled HTML node together with its embedded stylesheets.</p>
+        <p>A compiled HTML node together with its compiled stylesheets.</p>
+<p>The current parser ignores <code>&lt;style&gt;</code> elements, so <code>stylesheets</code> is
+empty. Compile document-level CSS explicitly before passing it to a
+compiled rendering method.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;node&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.renderer.CompiledHtml.node&lt;/code&gt;)" href="./#takumi_py.renderer.CompiledHtml.node">node</a></code></td>
+            <td>
+                  <code><span title="takumi_py.types.CompiledNode">CompiledNode</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The compiled root node.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;stylesheets&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-class-attribute&quot;&gt;&lt;code&gt;class-attribute&lt;/code&gt;&lt;/small&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.renderer.CompiledHtml.stylesheets&lt;/code&gt;)" href="./#takumi_py.renderer.CompiledHtml.stylesheets">stylesheets</a></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="takumi_py.types.CompiledStyleSheet">CompiledStyleSheet</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Compiled stylesheets returned by the parser.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 

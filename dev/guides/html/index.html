@@ -1997,6 +1997,9 @@ and stylesheets to the compiled APIs as described in
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">height</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
 </span></code></pre></div>
+<p>The parser does not extract <code>&lt;style&gt;</code> elements. <code>ParsedHtml.stylesheets</code> and
+<code>CompiledHtml.stylesheets</code> are therefore empty in the current API; compile
+document-level CSS separately and append it to the compiled stylesheets.</p>
 <h2 id="discover-external-resources">Discover external resources<a class="headerlink" href="#discover-external-resources" title="Permanent link">&para;</a></h2>
 <p>The renderer never fetches anything. <code>CompiledNode.resource_urls()</code> lists the HTTP(S)
 image references in image nodes and styles, so the application can fetch them first:</p>

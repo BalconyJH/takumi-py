@@ -2794,6 +2794,38 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
 
 
 
+        <p>A text leaf node.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;text&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.TextNode.text&lt;/code&gt;)" href="./#takumi_py.types.TextNode.text">text</a></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Text content to lay out and paint.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -2883,6 +2915,70 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
               Bases: <code><span title="takumi_py.types.NodeBase">NodeBase</span></code></p>
 
 
+
+        <p>An image leaf node.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;src&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.ImageNode.src&lt;/code&gt;)" href="./#takumi_py.types.ImageNode.src">src</a></code></td>
+            <td>
+                  <code><span title="str">str</span> | <span title="bytes">bytes</span> | <a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;takumi_py.types.RawRgbaImage&lt;/span&gt;" href="./#takumi_py.types.RawRgbaImage">RawRgbaImage</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Image identifier, encoded image bytes, or raw RGBA pixels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;width&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.ImageNode.width&lt;/code&gt;)" href="./#takumi_py.types.ImageNode.width">width</a></code></td>
+            <td>
+                  <code><span title="typing.NotRequired">NotRequired</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Rendered width in CSS pixels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;height&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.ImageNode.height&lt;/code&gt;)" href="./#takumi_py.types.ImageNode.height">height</a></code></td>
+            <td>
+                  <code><span title="typing.NotRequired">NotRequired</span>[<span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Rendered height in CSS pixels.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3021,6 +3117,85 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
         <p>Raw row-major RGBA pixels used directly as an image node source.</p>
 
 
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;width&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawRgbaImage.width&lt;/code&gt;)" href="./#takumi_py.types.RawRgbaImage.width">width</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Image width in pixels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;height&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawRgbaImage.height&lt;/code&gt;)" href="./#takumi_py.types.RawRgbaImage.height">height</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Image height in pixels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;data&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawRgbaImage.data&lt;/code&gt;)" href="./#takumi_py.types.RawRgbaImage.data">data</a></code></td>
+            <td>
+                  <code><span title="bytes">bytes</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exactly <code>width * height * 4</code> bytes in RGBA channel order.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;premultiplied&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawRgbaImage.premultiplied&lt;/code&gt;)" href="./#takumi_py.types.RawRgbaImage.premultiplied">premultiplied</a></code></td>
+            <td>
+                  <code><span title="typing.NotRequired">NotRequired</span>[<span title="bool">bool</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether RGB channels already include alpha
+multiplication. Defaults to <code>False</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
 
 
 
@@ -3154,6 +3329,38 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
 
 
 
+        <p>A container that lays out child nodes.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;children&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.ContainerNode.children&lt;/code&gt;)" href="./#takumi_py.types.ContainerNode.children">children</a></code></td>
+            <td>
+                  <code><span title="typing.NotRequired">NotRequired</span>[<span title="list">list</span>[<span title="takumi_py.types.Node">Node</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Child nodes in document order.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -3245,6 +3452,112 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
     <div class="doc doc-contents first">
 
 
+
+        <p>An immutable node in a measured layout tree.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;width&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredNode.width&lt;/code&gt;)" href="./#takumi_py.types.MeasuredNode.width">width</a></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Box width in layout units.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;height&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredNode.height&lt;/code&gt;)" href="./#takumi_py.types.MeasuredNode.height">height</a></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Box height in layout units.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;transform&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredNode.transform&lt;/code&gt;)" href="./#takumi_py.types.MeasuredNode.transform">transform</a></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>, <span title="float">float</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Six values for the node's 2D affine transform.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;children&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredNode.children&lt;/code&gt;)" href="./#takumi_py.types.MeasuredNode.children">children</a></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;takumi_py.types.MeasuredNode&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-dataclass&quot;&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt;" href="./#takumi_py.types.MeasuredNode">MeasuredNode</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Measured child nodes.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;runs&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredNode.runs&lt;/code&gt;)" href="./#takumi_py.types.MeasuredNode.runs">runs</a></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;takumi_py.types.MeasuredTextRun&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-dataclass&quot;&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt;" href="./#takumi_py.types.MeasuredTextRun">MeasuredTextRun</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Text runs laid out directly on this node.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3430,6 +3743,102 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
 
 
 
+        <p>One shaped text run from a layout measurement.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;text&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredTextRun.text&lt;/code&gt;)" href="./#takumi_py.types.MeasuredTextRun.text">text</a></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Text covered by the run.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;x&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredTextRun.x&lt;/code&gt;)" href="./#takumi_py.types.MeasuredTextRun.x">x</a></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Left edge in layout coordinates.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;y&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredTextRun.y&lt;/code&gt;)" href="./#takumi_py.types.MeasuredTextRun.y">y</a></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Top edge in layout coordinates.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;width&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredTextRun.width&lt;/code&gt;)" href="./#takumi_py.types.MeasuredTextRun.width">width</a></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Run width in layout units.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;height&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.MeasuredTextRun.height&lt;/code&gt;)" href="./#takumi_py.types.MeasuredTextRun.height">height</a></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Run height in layout units.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -3612,6 +4021,54 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
 
 
 
+        <p>One timed scene in a rendered animation sequence.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;node&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.AnimationScene.node&lt;/code&gt;)" href="./#takumi_py.types.AnimationScene.node">node</a></code></td>
+            <td>
+                  <code><span title="takumi_py.types.NodeInput">NodeInput</span> | <span title="takumi_py.types.CompiledNode">CompiledNode</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Python node mapping or an already compiled node.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;duration_ms&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.AnimationScene.duration_ms&lt;/code&gt;)" href="./#takumi_py.types.AnimationScene.duration_ms">duration_ms</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive scene duration in milliseconds.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -3723,6 +4180,86 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
     <div class="doc doc-contents first">
 
 
+
+        <p>A pre-rendered RGBA frame for <code>Renderer.encode_frames</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;data&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawAnimationFrame.data&lt;/code&gt;)" href="./#takumi_py.types.RawAnimationFrame.data">data</a></code></td>
+            <td>
+                  <code><span title="bytes">bytes</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Exactly <code>width * height * 4</code> row-major RGBA bytes.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;width&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawAnimationFrame.width&lt;/code&gt;)" href="./#takumi_py.types.RawAnimationFrame.width">width</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Frame width in pixels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;height&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawAnimationFrame.height&lt;/code&gt;)" href="./#takumi_py.types.RawAnimationFrame.height">height</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Frame height in pixels.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;duration_ms&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.types.RawAnimationFrame.duration_ms&lt;/code&gt;)" href="./#takumi_py.types.RawAnimationFrame.duration_ms">duration_ms</a></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Positive frame duration in milliseconds.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3873,6 +4410,87 @@ Its byte length follows the same <code>width * height * 4</code> contract.</p>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
+
+        <p>Validate and normalize a node mapping in Python.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>node</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A mapping with a <code>type</code> of <code>"text"</code>, <code>"image"</code>, or
+<code>"container"</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="takumi_py.types.Node">Node</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A typed node mapping normalized through msgspec.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="takumi_py.exceptions.NodeValidationError">NodeValidationError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the mapping does not match a supported node
+shape.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>

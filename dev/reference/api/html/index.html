@@ -1916,8 +1916,9 @@
 
 <h1 id="html-parsing">HTML parsing<a class="headerlink" href="#html-parsing" title="Permanent link">&para;</a></h1>
 <p><code>parse_html</code> is the standalone Rust-backed HTML parser. It returns a <code>ParsedHtml</code>
-bundle containing the compiled node and any compiled stylesheets associated with the
-parse result. Pass those fields separately to a compiled renderer API:</p>
+bundle containing the compiled node and a compiled-stylesheet tuple. The current
+parser ignores <code>&lt;style&gt;</code> elements, so that tuple is empty; compile document-level CSS
+explicitly. Pass both fields separately to a compiled renderer API:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">takumi_py</span><span class="w"> </span><span class="kn">import</span> <span class="n">Renderer</span><span class="p">,</span> <span class="n">parse_html</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_html</span><span class="p">(</span><span class="s2">"&lt;article&gt;Hello&lt;/article&gt;"</span><span class="p">)</span>
@@ -1930,7 +1931,8 @@ parse result. Pass those fields separately to a compiled renderer API:</p>
 </span></code></pre></div>
 <p>Use <code>HtmlOptions</code> to select parser presets, map Tailwind classes from another
 attribute, or cap nesting depth. Document-level CSS remains an explicit render input;
-compile it with <code>Renderer.compile_stylesheet</code> before passing it to a compiled API.
+compile it with <code>Renderer.compile_stylesheet</code> or
+<code>Renderer.compile_stylesheet_lossy</code> before passing it to a compiled API.
 HTML compilation is performed directly by the native parser; HTML entry points do not
 have a separate Python-side <code>validate</code> switch. See <a href="../../../guides/html/">HTML and CSS</a>
 for the full parsing behavior.</p>
@@ -1951,6 +1953,113 @@ for the full parsing behavior.</p>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
+
+        <p>Parse HTML without creating a public renderer.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>markup</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>HTML fragment or document source.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>options</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;takumi_py.options.HtmlOptions&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-dataclass&quot;&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt;" href="../options/#takumi_py.options.HtmlOptions">HtmlOptions</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Parser presets, Tailwind attribute name, and maximum element
+depth. Defaults to <code>HtmlOptions()</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;takumi_py.html.ParsedHtml&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-dataclass&quot;&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt;" href="./#takumi_py.html.ParsedHtml">ParsedHtml</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A compiled node and its (currently empty) stylesheet bundle.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="takumi_py.exceptions.HtmlParseError">HtmlParseError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the HTML cannot be parsed or exceeds configured
+limits.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -1976,6 +2085,59 @@ for the full parsing behavior.</p>
     <div class="doc doc-contents first">
 
 
+
+        <p>A compiled HTML node and any stylesheets produced with it.</p>
+<p>The current parser keeps <code>&lt;style&gt;</code> elements out of the node tree and
+returns an empty <code>stylesheets</code> tuple. Compile document-level CSS
+explicitly with <code>Renderer.compile_stylesheet</code> or
+<code>Renderer.compile_stylesheet_lossy</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;node&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.html.ParsedHtml.node&lt;/code&gt;)" href="./#takumi_py.html.ParsedHtml.node">node</a></code></td>
+            <td>
+                  <code><span title="takumi_py.types.CompiledNode">CompiledNode</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The compiled root node.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;stylesheets&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-class-attribute&quot;&gt;&lt;code&gt;class-attribute&lt;/code&gt;&lt;/small&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;takumi_py.html.ParsedHtml.stylesheets&lt;/code&gt;)" href="./#takumi_py.html.ParsedHtml.stylesheets">stylesheets</a></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="takumi_py.types.CompiledStyleSheet">CompiledStyleSheet</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Compiled stylesheets returned by the parser.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
