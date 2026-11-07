@@ -22,7 +22,8 @@ release:
 - [Guides](https://balconyjh.github.io/takumi-py/latest/guides/):
   rendering model, HTML and CSS, output formats, fonts and images, Jinja templates,
   and animation
-- [Support matrix](https://balconyjh.github.io/takumi-py/latest/reference/support/)
+- [API reference](https://balconyjh.github.io/takumi-py/latest/reference/),
+  [support matrix](https://balconyjh.github.io/takumi-py/latest/reference/support/),
   and [exceptions](https://balconyjh.github.io/takumi-py/latest/reference/exceptions/)
 - Migration guides for [Takumi v2](https://balconyjh.github.io/takumi-py/latest/migration/takumi-v2/)
   and [Takumi 2.17](https://balconyjh.github.io/takumi-py/latest/migration/takumi-2.17/)

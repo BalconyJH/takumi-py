@@ -19,7 +19,8 @@ WebP、APNG 或 GIF 动画。
 - [快速上手](https://balconyjh.github.io/takumi-py/zh/latest/getting-started/quickstart/)
 - [指南](https://balconyjh.github.io/takumi-py/zh/latest/guides/)：渲染
   模型、HTML 与 CSS、输出格式、字体与图片、Jinja 模板和动画
-- [支持矩阵](https://balconyjh.github.io/takumi-py/zh/latest/reference/support/)
+- [API 参考](https://balconyjh.github.io/takumi-py/zh/latest/reference/)、
+  [支持矩阵](https://balconyjh.github.io/takumi-py/zh/latest/reference/support/)
   与[异常](https://balconyjh.github.io/takumi-py/zh/latest/reference/exceptions/)
 - [Takumi v2](https://balconyjh.github.io/takumi-py/zh/latest/migration/takumi-v2/)
   与 [Takumi 2.17](https://balconyjh.github.io/takumi-py/zh/latest/migration/takumi-2.17/)
