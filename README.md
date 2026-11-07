@@ -2,26 +2,27 @@
 
 **English** | [简体中文](https://github.com/BalconyJH/takumi-py/blob/main/README.zh-CN.md)
 
-Python 3.11+ bindings for the [Takumi](https://github.com/kane50613/takumi) Rust
-renderer. Render node trees, HTML, and Jinja templates to PNG, JPEG, WebP, ICO, raw
-RGBA, SVG, and WebP, APNG, or GIF animations, without a browser runtime.
+Render social cards, reports, and other images from Python using the
+[Takumi](https://github.com/kane50613/takumi) Rust renderer. Turn node trees, HTML,
+or Jinja templates into raster images, SVG, and animations without a browser runtime.
 
-## Documentation
+Requires Python 3.11+. Published versions are listed on
+[PyPI](https://pypi.org/project/takumi-py/) and in
+[GitHub Releases](https://github.com/BalconyJH/takumi-py/releases).
 
-The documentation site is [balconyjh.github.io/takumi-py](https://balconyjh.github.io/takumi-py/),
-in English and [Simplified Chinese](https://balconyjh.github.io/takumi-py/zh/), built
-from [`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs). For the latest
-release:
+## Features
 
-- [Quickstart](https://balconyjh.github.io/takumi-py/latest/getting-started/quickstart/)
-- [Guides](https://balconyjh.github.io/takumi-py/latest/guides/):
-  rendering model, HTML and CSS, output formats, fonts and images, Jinja templates,
-  and animation
-- [API reference](https://balconyjh.github.io/takumi-py/latest/reference/),
-  [support matrix](https://balconyjh.github.io/takumi-py/latest/reference/support/),
-  and [exceptions](https://balconyjh.github.io/takumi-py/latest/reference/exceptions/)
-- Migration guides for [Takumi v2](https://balconyjh.github.io/takumi-py/latest/migration/takumi-v2/)
-  and [Takumi 2.17](https://balconyjh.github.io/takumi-py/latest/migration/takumi-2.17/)
+- **Three input models:** typed node trees, HTML parsed in Rust, and Jinja templates
+  with custom filters or a caller-owned environment.
+- **Static output:** PNG, JPEG, WebP, ICO, raw RGBA, and SVG; layout measurement
+  returns a typed tree.
+- **Animation:** sample CSS or structured keyframes, render scene sequences, or
+  encode raw frames as WebP, APNG, and GIF.
+- **Fonts and images:** explicit image bytes, raw RGBA sources, font subsets,
+  fallback stacks, and language-aware text shaping.
+- **Reuse and caching:** compiled nodes and stylesheets, budgeted image and font
+  caches, and a configurable process-wide glyph cache.
+- **Python typing:** PEP 561 support and native-extension stubs.
 
 ## Installation
 
@@ -29,13 +30,26 @@ release:
 uv add takumi-py
 ```
 
-Published `cp311-abi3` wheels cover Linux x86_64 and aarch64, on both glibc and musl
-(Alpine), macOS on Apple Silicon and Intel, and Windows x64 and arm64. Other platforms
-build from the source distribution, which needs Rust 1.91 or later. See
-[Installation](https://balconyjh.github.io/takumi-py/latest/getting-started/installation/)
-for source checkouts.
+Or install into an existing Python environment with pip:
+
+```bash
+python -m pip install takumi-py
+```
+
+These commands install the latest published release. To use the current source,
+follow [Development](#development).
+
+Installing a compatible wheel does not require Rust. Source builds require Rust 1.91
+or later and a native build toolchain. See the
+[support matrix](https://balconyjh.github.io/takumi-py/dev/reference/support/)
+for platform compatibility and the
+[installation guide](https://balconyjh.github.io/takumi-py/dev/getting-started/installation/)
+for source builds.
 
 ## Quickstart
+
+Save this as `render.py` and run it with `uv run python render.py` (or
+`python render.py` in the environment where you installed the package):
 
 ```python
 from pathlib import Path
@@ -65,41 +79,68 @@ png = Renderer().render_html(
 Path("out.png").write_bytes(png)
 ```
 
-Runnable scripts for every input and output live in
-[`examples/`](https://github.com/BalconyJH/takumi-py/tree/main/examples).
+The example writes a 1200 by 630 PNG to `out.png`.
 
-## Features
+- Pass document-level CSS through `stylesheets`. Inline `style` attributes work,
+  but `<style>` elements in the HTML are ignored.
+- The bundled Geist fallback covers Latin text. Register suitable fonts for Chinese,
+  Japanese, Korean, emoji, or other scripts.
+- The renderer never fetches resources over the network. Supply image bytes through
+  `images` and register fonts on the renderer.
 
-- Node trees, HTML parsed by Takumi's Rust parser, and Jinja templates with custom
-  filters or a caller-owned environment.
-- Raster output with encoder options, device pixel ratio, dithering, and raw RGBA;
-  SVG output; and layout measurement as a typed tree.
-- Caller-supplied fonts with `unicode-range` subsets, per-render images, raw RGBA
-  image sources, font fallback stacks, and language-aware shaping.
-- CSS and structured keyframe sampling, plus WebP, APNG, and GIF animation encoding.
-- Renderer-local resource caches and a process-wide glyph cache budget.
-- PEP 561 typing, with `_core.pyi` covering the native extension.
+See [Fonts and images](https://balconyjh.github.io/takumi-py/dev/guides/resources/)
+for resource setup, and [`examples/`](https://github.com/BalconyJH/takumi-py/tree/main/examples)
+for runnable node, HTML, template, resource, measurement, and animation scripts.
 
-The binding keeps resource ownership explicit: it never fetches over the network and
-ships no Playwright fallback, abort-signal protocol, data URL helpers, or Node.js
-sidecar. The [support matrix](https://balconyjh.github.io/takumi-py/latest/reference/support/)
-lists every exclusion.
+## Documentation
+
+The links below open the `dev` documentation built from `main`, in English and
+[Simplified Chinese](https://balconyjh.github.io/takumi-py/zh/dev/). It can describe
+changes that are not yet on PyPI. For a published package, select its version on the
+[documentation site](https://balconyjh.github.io/takumi-py/).
+
+| Task | Documentation |
+| --- | --- |
+| Render your first image | [Quickstart](https://balconyjh.github.io/takumi-py/dev/getting-started/quickstart/) |
+| Choose inputs and outputs | [Rendering model](https://balconyjh.github.io/takumi-py/dev/guides/rendering/), [HTML and CSS](https://balconyjh.github.io/takumi-py/dev/guides/html/), [Output formats](https://balconyjh.github.io/takumi-py/dev/guides/output/) |
+| Render dynamic content | [Jinja templates](https://balconyjh.github.io/takumi-py/dev/guides/templates/), [Animation](https://balconyjh.github.io/takumi-py/dev/guides/animation/) |
+| Look up signatures and behavior | [API reference](https://balconyjh.github.io/takumi-py/dev/reference/), [Exceptions](https://balconyjh.github.io/takumi-py/dev/reference/exceptions/) |
+| Check compatibility and API policy | [Support matrix](https://balconyjh.github.io/takumi-py/dev/reference/support/) |
+
+Documentation sources live in [`docs/`](https://github.com/BalconyJH/takumi-py/tree/main/docs).
+English is the source of truth; Chinese mirrors its pages and code samples.
+
+## Upgrading to 0.4.0
+
+- Python 3.11+ is required; Python 3.10 support is removed.
+- Replace the resource APIs deprecated in 0.2.0 with per-render `images` and
+  `register_font` / `register_fonts`.
+- Review font subsets, dithering, animation frame-rate limits, and rendering changes
+  when moving from Takumi 2.5 to 2.17.
+
+Follow the [Takumi v2 migration](https://balconyjh.github.io/takumi-py/dev/migration/takumi-v2/)
+and [Takumi 2.17 migration](https://balconyjh.github.io/takumi-py/dev/migration/takumi-2.17/),
+and read the [changelog](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md).
 
 ## Development
+
+Install `uv` and Rust, then clone with the Takumi submodule:
 
 ```bash
 git clone --recurse-submodules https://github.com/BalconyJH/takumi-py.git
 cd takumi-py
-uv sync --all-groups --all-extras
-uv run maturin develop
+make sync
 make check
 make docs-build
 ```
 
-The [development guide](https://balconyjh.github.io/takumi-py/latest/maintainers/development/)
-covers checks, tests, documentation builds, and Takumi upgrades, and the
-[release guide](https://balconyjh.github.io/takumi-py/latest/maintainers/releasing/)
-covers the automated release pipeline.
+`make check` runs linting, type checks, Python tests, and Rust checks, rebuilding the
+native extension for runtime checks.
+Use `make docs-serve` or `make docs-serve-zh` to preview documentation locally.
+The [development guide](https://balconyjh.github.io/takumi-py/dev/maintainers/development/)
+covers checks and Takumi upgrades; the
+[release guide](https://balconyjh.github.io/takumi-py/dev/maintainers/releasing/)
+describes the automated release pipeline.
 
 ## License
 
