@@ -1,8 +1,9 @@
 # HTML parsing
 
 `parse_html` is the standalone Rust-backed HTML parser. It returns a `ParsedHtml`
-bundle containing the compiled node and any compiled stylesheets associated with the
-parse result. Pass those fields separately to a compiled renderer API:
+bundle containing the compiled node and a compiled-stylesheet tuple. The current
+parser ignores `<style>` elements, so that tuple is empty; compile document-level CSS
+explicitly. Pass both fields separately to a compiled renderer API:
 
 ```python
 from takumi_py import Renderer, parse_html
@@ -18,7 +19,8 @@ png = Renderer().render_compiled(
 
 Use `HtmlOptions` to select parser presets, map Tailwind classes from another
 attribute, or cap nesting depth. Document-level CSS remains an explicit render input;
-compile it with `Renderer.compile_stylesheet` before passing it to a compiled API.
+compile it with `Renderer.compile_stylesheet` or
+`Renderer.compile_stylesheet_lossy` before passing it to a compiled API.
 HTML compilation is performed directly by the native parser; HTML entry points do not
 have a separate Python-side `validate` switch. See [HTML and CSS](../../guides/html.md)
 for the full parsing behavior.

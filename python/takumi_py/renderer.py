@@ -37,7 +37,16 @@ from takumi_py.types import (
 
 @dataclass(frozen=True, slots=True)
 class CompiledHtml:
-    """A compiled HTML node together with its embedded stylesheets."""
+    """A compiled HTML node together with its compiled stylesheets.
+
+    The current parser ignores ``<style>`` elements, so ``stylesheets`` is
+    empty. Compile document-level CSS explicitly before passing it to a
+    compiled rendering method.
+
+    Attributes:
+        node: The compiled root node.
+        stylesheets: Compiled stylesheets returned by the parser.
+    """
 
     node: CompiledNode
     stylesheets: tuple[CompiledStyleSheet, ...] = ()
@@ -563,7 +572,8 @@ class Renderer:
                 element depth. Defaults to ``HtmlOptions``.
 
         Returns:
-            The compiled root node and any stylesheets extracted during parsing.
+            The compiled root node and a stylesheet bundle. The current parser
+            returns an empty bundle because ``<style>`` elements are ignored.
 
         Raises:
             HtmlParseError: If the HTML cannot be parsed or exceeds configured

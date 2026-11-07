@@ -112,6 +112,9 @@ png = Renderer().render_compiled(
 )
 ```
 
+解析器不会提取 `<style>` 元素，因此当前 API 中的 `ParsedHtml.stylesheets` 与
+`CompiledHtml.stylesheets` 都为空。请单独编译文档级 CSS，再把它追加到已编译样式表中。
+
 ## 发现外部资源 { #discover-external-resources }
 
 渲染器从不抓取任何内容。`CompiledNode.resource_urls()` 列出图片节点和样式中的

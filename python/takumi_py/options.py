@@ -109,6 +109,17 @@ FontResourceInput: TypeAlias = FontResource | bytes
 
 @dataclass(frozen=True, slots=True)
 class HtmlOptions:
+    """Inputs that control how the Rust HTML parser builds a node tree.
+
+    Attributes:
+        presets: Default element styles to apply. ``"chromium"`` matches
+            browser defaults; ``"none"`` applies no preset.
+        tailwind_property: HTML attribute that contains Tailwind classes.
+            ``None`` reads the ``tw`` attribute.
+        max_depth: Maximum element nesting depth, or ``None`` for Takumi's
+            default limit.
+    """
+
     presets: HtmlStylePresets = "chromium"
     tailwind_property: str | None = None
     max_depth: int | None = None

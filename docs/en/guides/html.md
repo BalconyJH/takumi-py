@@ -114,6 +114,10 @@ png = Renderer().render_compiled(
 )
 ```
 
+The parser does not extract `<style>` elements. `ParsedHtml.stylesheets` and
+`CompiledHtml.stylesheets` are therefore empty in the current API; compile
+document-level CSS separately and append it to the compiled stylesheets.
+
 ## Discover external resources
 
 The renderer never fetches anything. `CompiledNode.resource_urls()` lists the HTTP(S)
