@@ -6,10 +6,6 @@
 运行时，即可把节点树、HTML 和 Jinja 模板渲染为 PNG、JPEG、WebP、ICO、原始 RGBA、SVG，以及
 WebP、APNG 或 GIF 动画。
 
-> [!IMPORTANT]
-> `takumi-py` 处于测试阶段。在 Takumi 核心绑定接口补全之前，API、wheel 构建目标、发布
-> 自动化和异常类型仍可能变化，请暂时不要把它当作稳定的生产依赖。
-
 ## 文档
 
 文档站点为 [balconyjh.github.io/takumi-py/zh](https://balconyjh.github.io/takumi-py/zh/)，

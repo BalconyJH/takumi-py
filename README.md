@@ -6,11 +6,6 @@ Python 3.11+ bindings for the [Takumi](https://github.com/kane50613/takumi) Rust
 renderer. Render node trees, HTML, and Jinja templates to PNG, JPEG, WebP, ICO, raw
 RGBA, SVG, and WebP, APNG, or GIF animations, without a browser runtime.
 
-> [!IMPORTANT]
-> `takumi-py` is in a testing stage. APIs, wheel build targets, release automation, and
-> exception types may still change while the Takumi core binding surface is completed;
-> do not treat it as a stable production dependency yet.
-
 ## Documentation
 
 The documentation site is [balconyjh.github.io/takumi-py](https://balconyjh.github.io/takumi-py/),
