@@ -141,6 +141,29 @@ class HtmlOptions:
 
 @dataclass(frozen=True, slots=True)
 class RenderOptions:
+    """Reusable render settings shared by raster, SVG, and measurement APIs.
+
+    Explicit keyword arguments on a render method override matching fields.
+
+    Attributes:
+        width: Viewport width in CSS pixels, or ``None`` to infer it from
+            layout. The default is 1200.
+        height: Viewport height in CSS pixels, or ``None`` to infer it from
+            layout. The default is 630.
+        format: Static output format. ``"raw"`` returns row-major RGBA bytes.
+        quality: Lossy encoder quality from 0 through 100 where supported.
+        lossless: Whether to use lossless WebP encoding.
+        font_size: Root font size in CSS pixels.
+        device_pixel_ratio: Scale factor for raster output and layout.
+        draw_debug_border: Draw Takumi's layout debug borders.
+        time_ms: Animation sampling time in milliseconds.
+        dithering: Color-dithering algorithm for supported formats.
+        images: Per-render image resources addressable by their ``src`` values.
+        keyframes: Structured animation rules appended to the stylesheets.
+        font_families: Preferred fallback font-family order.
+        lang: BCP-47 language tag used for text shaping and font selection.
+    """
+
     width: int | None = 1200
     height: int | None = 630
     format: ImageOutputFormat = "png"
@@ -159,6 +182,22 @@ class RenderOptions:
 
 @dataclass(frozen=True, slots=True)
 class AnimationEncodeOptions:
+    """Reusable encoder settings for animated output.
+
+    Explicit keyword arguments on ``render_animation`` or ``encode_frames``
+    override matching fields.
+
+    Attributes:
+        format: Animation container format.
+        quality: Lossy encoder quality from 0 through 100 where supported.
+        lossless: Whether to use lossless WebP encoding.
+        loop_count: Number of animation repetitions, or ``None`` for the
+            format-specific default.
+        webp_blend: Blend each WebP frame with the previous canvas.
+        webp_dispose: Dispose each WebP frame before drawing the next one.
+        webp_speed: WebP encoder speed/effort setting from 0 through 6.
+    """
+
     format: AnimationOutputFormat = "webp"
     quality: int | None = None
     lossless: bool | None = None
