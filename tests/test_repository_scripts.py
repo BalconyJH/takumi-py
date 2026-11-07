@@ -276,14 +276,15 @@ def test_docs_i18n_reports_drifted_anchors_and_code(
     ]
 
 
+@pytest.mark.parametrize("channel", ["latest", "dev"])
 def test_docs_i18n_resolves_readme_links_to_pages(
-    docs_i18n: Any, tmp_path: Path
+    docs_i18n: Any, tmp_path: Path, channel: str
 ) -> None:
     site = "https://example.invalid/project/zh/"
     text = (
-        f"[home]({site}latest/) [guides]({site}latest/guides/) "
-        f"[quickstart]({site}latest/getting-started/quickstart/#install) "
-        f"[gone]({site}latest/reference/gone/) [dev]({site}dev/guides/)"
+        f"[home]({site}{channel}/) [guides]({site}{channel}/guides/) "
+        f"[quickstart]({site}{channel}/getting-started/quickstart/#install) "
+        f"[gone]({site}{channel}/reference/gone/) [older]({site}0.3.0/guides/)"
     )
     (tmp_path / "guides").mkdir()
     (tmp_path / "getting-started").mkdir()

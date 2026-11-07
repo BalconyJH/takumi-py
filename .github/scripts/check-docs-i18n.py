@@ -2,8 +2,8 @@
 """Check that the Simplified Chinese documentation mirrors the English source.
 
 The READMEs are checked too: their code blocks must match, and their links into the
-latest release of the documentation site must name the same pages, each of which
-must exist.
+latest release or dev preview of the documentation site must name the same pages,
+each of which must exist.
 """
 
 from __future__ import annotations
@@ -152,9 +152,9 @@ def check_pages(english_dir: Path, chinese_dir: Path) -> list[str]:
 
 
 def readme_pages(text: str, site_url: str) -> list[str]:
-    """The site paths a README links to in the latest release, such as ``guides/``."""
-    prefix = re.escape(f"{site_url.rstrip('/')}/latest/")
-    return re.findall(rf"{prefix}([\w./-]*)", text)
+    """The page paths a README links to under ``latest/`` or ``dev/``."""
+    prefix = re.escape(f"{site_url.rstrip('/')}/")
+    return re.findall(rf"{prefix}(?:latest|dev)/([\w./-]*)", text)
 
 
 def page_exists(docs_dir: Path, path: str) -> bool:
@@ -180,7 +180,7 @@ def check_readmes(english: dict[str, Any], chinese: dict[str, Any]) -> list[str]
             readme.read_text(encoding="utf-8"), config["project"]["site_url"]
         )
         errors.extend(
-            f"{readme.name}: latest/{page} is not a page in {docs_dir.relative_to(ROOT)}"
+            f"{readme.name}: {page} is not a page in {docs_dir.relative_to(ROOT)}"
             for page in pages
             if not page_exists(docs_dir, page)
         )
