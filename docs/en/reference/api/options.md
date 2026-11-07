@@ -22,3 +22,12 @@ Violations of these numeric or language-tag contracts raise `ValueError`.
 ::: takumi_py.options.ImageResource
 
 ::: takumi_py.options.FontResource
+
+## Structured keyframes
+
+Structured keyframes can be passed to render methods or stored in
+`RenderOptions.keyframes`. The mapping form uses animation names as keys.
+
+::: takumi_py.options.Keyframe
+
+::: takumi_py.options.KeyframesRule

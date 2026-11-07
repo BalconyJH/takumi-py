@@ -21,3 +21,12 @@
 ::: takumi_py.options.ImageResource
 
 ::: takumi_py.options.FontResource
+
+## 结构化关键帧 { #structured-keyframes }
+
+可以把结构化关键帧传给渲染方法，或存入 `RenderOptions.keyframes`。映射形式使用动画名称
+作为键。
+
+::: takumi_py.options.Keyframe
+
+::: takumi_py.options.KeyframesRule

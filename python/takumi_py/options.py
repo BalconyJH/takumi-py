@@ -32,11 +32,25 @@ StyleInput: TypeAlias = Mapping[str, StyleValue]
 
 
 class Keyframe(TypedDict):
+    """One structured keyframe and the declarations it applies.
+
+    Attributes:
+        offsets: Normalized timeline positions from 0 through 1.
+        declarations: CSS declarations applied at those positions.
+    """
+
     offsets: Sequence[float]
     declarations: StyleInput
 
 
 class KeyframesRule(TypedDict):
+    """A structured keyframe rule with a CSS animation name.
+
+    Attributes:
+        name: Animation name referenced by the CSS ``animation`` property.
+        keyframes: Ordered keyframes that make up the rule.
+    """
+
     name: str
     keyframes: Sequence[Keyframe]
 
