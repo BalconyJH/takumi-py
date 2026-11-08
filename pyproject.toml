@@ -239,7 +239,7 @@ dev = [
 docs = [
     "mike",
     "mkdocstrings-python>=2.0.10",
-    "zensical==0.0.72",
+    "zensical==0.0.74",
 ]
 test = [
     "pytest>=9.0.3",
