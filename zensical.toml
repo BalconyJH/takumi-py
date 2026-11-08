@@ -19,6 +19,8 @@ nav = [
   { "Guides" = [
     "guides/index.md",
     { "Rendering model" = "guides/rendering.md" },
+    { "Documents and reusable outputs" = "guides/documents.md" },
+    { "Math rendering" = "guides/math.md" },
     { "HTML and CSS" = "guides/html.md" },
     { "Output formats" = "guides/output.md" },
     { "Fonts and images" = "guides/resources.md" },

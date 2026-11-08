@@ -21,6 +21,8 @@ nav = [
   { "指南" = [
     "guides/index.md",
     { "渲染模型" = "guides/rendering.md" },
+    { "文档与可复用输出" = "guides/documents.md" },
+    { "数学公式渲染" = "guides/math.md" },
     { "HTML 与 CSS" = "guides/html.md" },
     { "输出格式" = "guides/output.md" },
     { "字体与图片" = "guides/resources.md" },

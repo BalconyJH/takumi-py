@@ -1,7 +1,7 @@
 # Renderer
 
 `Renderer` is the primary entry point for compilation, measurement, static rendering,
-SVG, and animation.
+SVG, animation, and reusable documents.
 
 `Renderer(cache_max_bytes=...)` controls each renderer's resource cache, and
 `font_cache_max_bytes` bounds the fonts it holds through `cache_font`. The glyph cache
@@ -13,6 +13,9 @@ is process-wide and configured separately before first use.
     options:
       members:
         - __init__
+        - render
+        - measure
+        - render_svg
         - compile_node
         - compile_stylesheet
         - compile_stylesheet_lossy
@@ -46,3 +49,22 @@ is process-wide and configured separately before first use.
       members:
         - node
         - stylesheets
+
+## Document APIs { #document-apis }
+
+The document APIs are a next-major preview. They are additive, while the existing
+renderer entry points retain their current compatibility and pixel-sizing behavior.
+
+::: takumi_py.document.Document
+
+::: takumi_py.document.Fragment
+
+::: takumi_py.document.ResourceSet
+
+::: takumi_py.document.CompiledDocument
+
+::: takumi_py.document.compile_document
+
+::: takumi_py.options.LayoutOptions
+
+::: takumi_py.options.RasterOptions
