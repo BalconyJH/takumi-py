@@ -1,6 +1,6 @@
 UV ?= uv
-PYTEST ?= $(UV) run --group test pytest -n auto --dist worksteal
-TY ?= $(UV) run --group test ty
+PYTEST ?= $(UV) run --group test --extra math pytest -n auto --dist worksteal
+TY ?= $(UV) run --group test --extra math ty
 STUBTEST ?= $(UV) run python3 -m mypy.stubtest
 ZENSICAL ?= $(UV) run --group docs zensical
 TWINE ?= $(UV) run --no-project --with twine==6.2.0 twine
@@ -8,6 +8,7 @@ VERIFY_DISTRIBUTIONS ?= python3 .github/scripts/verify-distributions.py
 
 DIST_DIR ?= $(CURDIR)/dist
 DIST_SMOKE_PYTHON ?= 3.11
+DIST_SMOKE_EXTRAS ?= --math
 
 .DEFAULT_GOAL := help
 
@@ -91,7 +92,7 @@ verify-artifacts: ensure-uv ## Verify archives and isolated wheel/sdist installs
 	@$(VERIFY_DISTRIBUTIONS) "$(DIST_DIR)" \
 		--expected-version "$$($(UV) version --short)" \
 		--python "$(DIST_SMOKE_PYTHON)" \
-		--uv "$(UV)"
+		--uv "$(UV)" $(DIST_SMOKE_EXTRAS)
 
 build-artifacts: sync-build clean-dist ## Build and verify a local wheel and sdist.
 	@echo "==> Building wheel and sdist into $(DIST_DIR)"
