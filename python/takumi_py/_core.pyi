@@ -23,6 +23,11 @@ __all__ = [
     "StyleSheetError",
     "TakumiError",
     "UnsupportedFormatError",
+    "compile_html",
+    "compile_keyframes",
+    "compile_node",
+    "compile_stylesheet",
+    "merge_stylesheets",
     "set_glyph_cache_max_bytes",
 ]
 
@@ -46,6 +51,23 @@ class CompiledStyleSheet: ...
 
 _FontInput: TypeAlias = bytes | FontResource
 
+def compile_node(node: object) -> CompiledNode: ...
+def compile_html(
+    html: str,
+    *,
+    presets: Literal["chromium", "none"] = "chromium",
+    tailwind_property: str | None = None,
+    max_depth: int | None = None,
+) -> CompiledNode: ...
+def compile_stylesheet(
+    css: str,
+    *,
+    strict: bool = True,
+) -> CompiledStyleSheet: ...
+def compile_keyframes(keyframes: object) -> CompiledStyleSheet: ...
+def merge_stylesheets(
+    stylesheets: Sequence[CompiledStyleSheet],
+) -> CompiledStyleSheet: ...
 def set_glyph_cache_max_bytes(max_bytes: int) -> None: ...
 
 @type_check_only

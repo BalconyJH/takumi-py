@@ -26,6 +26,11 @@ fn _core(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
   module.add_class::<renderer::NativeRenderer>()?;
   module.add_class::<nodes::CompiledNode>()?;
   module.add_class::<stylesheets::CompiledStyleSheet>()?;
+  module.add_function(wrap_pyfunction!(nodes::compile_node, module)?)?;
+  module.add_function(wrap_pyfunction!(nodes::compile_html, module)?)?;
+  module.add_function(wrap_pyfunction!(stylesheets::compile_stylesheet, module)?)?;
+  module.add_function(wrap_pyfunction!(stylesheets::compile_keyframes, module)?)?;
+  module.add_function(wrap_pyfunction!(stylesheets::merge_stylesheets, module)?)?;
   module.add_function(wrap_pyfunction!(set_glyph_cache_max_bytes, module)?)?;
 
   module.add("TakumiError", py.get_type::<errors::TakumiError>())?;

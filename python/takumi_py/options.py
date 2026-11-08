@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import math
 from typing import Final, Literal, TypeAlias, TypedDict
 from warnings import warn
 
@@ -187,6 +188,77 @@ class RenderOptions:
     keyframes: KeyframesInput | None = None
     font_families: Sequence[str] | None = None
     lang: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LayoutOptions:
+    """Document layout in CSS pixels, independent of raster output scale.
+
+    ``None`` infers the corresponding canvas dimension from the content. An
+    explicit dimension is a positive integer number of CSS pixels. Measurement
+    and SVG use these same dimensions. Font registration remains renderer-local;
+    ``font_families`` selects the fallback order for this document operation.
+    """
+
+    width: int | None = 1200
+    height: int | None = None
+    font_size: float = 16.0
+    time_ms: int = 0
+    font_families: Sequence[str] | None = None
+    lang: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("width", "height"):
+            value = getattr(self, name)
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or not 0 < value <= 2**32 - 1
+            ):
+                raise ValueError(f"{name} must be a positive 32-bit integer or None")
+        _positive_native_float("font_size", self.font_size)
+        if (
+            isinstance(self.time_ms, bool)
+            or not isinstance(self.time_ms, int)
+            or not 0 <= self.time_ms <= 2**63 - 1
+        ):
+            raise ValueError("time_ms must be a non-negative signed 64-bit integer")
+        if self.font_families is not None:
+            if isinstance(self.font_families, str) or any(
+                not isinstance(name, str) for name in self.font_families
+            ):
+                raise TypeError("font_families must be a sequence of strings")
+            object.__setattr__(self, "font_families", tuple(self.font_families))
+
+
+@dataclass(frozen=True, slots=True)
+class RasterOptions:
+    """Raster output settings for ``Renderer.render(document)``.
+
+    ``scale`` converts the document's CSS pixels to output pixels. Explicit
+    canvas dimensions are multiplied by it and rounded up. It never changes the
+    units returned by ``Renderer.measure``. SVG has no raster options.
+    """
+
+    format: ImageOutputFormat = "png"
+    scale: float = 1.0
+    quality: int | None = None
+    lossless: bool | None = None
+    dithering: DitheringAlgorithm = "none"
+    draw_debug_border: bool = False
+
+    def __post_init__(self) -> None:
+        _positive_native_float("scale", self.scale)
+
+
+def _positive_native_float(name: str, value: float) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 1.401298464324817e-45 <= value <= 3.4028234663852886e38
+        or not math.isfinite(value)
+    ):
+        raise ValueError(f"{name} must be a finite positive native float")
 
 
 @dataclass(frozen=True, slots=True)

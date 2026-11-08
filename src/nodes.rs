@@ -13,6 +13,25 @@ use takumi::{
 
 use crate::errors::{HtmlParseError, NodeDecodeError};
 
+/// Compiles a Python node mapping without constructing a renderer.
+#[pyfunction]
+pub(crate) fn compile_node(node: Bound<'_, PyAny>) -> PyResult<CompiledNode> {
+  CompiledNode::from_mapping(node)
+}
+
+/// Compiles HTML into a node without constructing a renderer.
+#[pyfunction]
+#[pyo3(signature = (html, *, presets="chromium", tailwind_property=None, max_depth=None))]
+pub(crate) fn compile_html(
+  py: Python<'_>,
+  html: &str,
+  presets: &str,
+  tailwind_property: Option<String>,
+  max_depth: Option<usize>,
+) -> PyResult<CompiledNode> {
+  CompiledNode::from_html(py, html, presets, tailwind_property, max_depth)
+}
+
 #[pyclass(module = "takumi_py._core")]
 pub struct CompiledNode {
   pub(crate) node: Node,

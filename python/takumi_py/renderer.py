@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+import math
 from pathlib import Path
 import sys
 from typing import Any, TypeGuard, TypeVar, cast
 from warnings import warn
 
 from takumi_py import _core
+from takumi_py.document import CompiledDocument, Document, compile_document
 from takumi_py.options import (
     UNSET,
     AnimationEncodeOptions,
@@ -18,6 +20,8 @@ from takumi_py.options import (
     ImageOutputFormat,
     ImageResourceInput,
     KeyframesInput,
+    LayoutOptions,
+    RasterOptions,
     RenderOptions,
     UnsetType,
     native_render_settings,
@@ -112,6 +116,88 @@ class Renderer:
             fonts=None if fonts is None else list(fonts),
             cache_max_bytes=cache_max_bytes,
             font_cache_max_bytes=font_cache_max_bytes,
+        )
+
+    def render(
+        self,
+        document: Document | CompiledDocument,
+        *,
+        layout: LayoutOptions | None = None,
+        output: RasterOptions | None = None,
+    ) -> bytes:
+        """Render a resource-owning document to encoded or raw raster bytes.
+
+        Compile once with ``compile_document`` to reuse parsing and stylesheet
+        merging across renderers and outputs. Layout dimensions are CSS pixels;
+        ``output.scale`` multiplies explicit canvas dimensions as well as content.
+        The existing ``render_*`` entry points retain their original pixel units.
+        """
+        compiled = _compiled_document(document)
+        layout = LayoutOptions() if layout is None else layout
+        output = RasterOptions() if output is None else output
+        return self.render_compiled(
+            compiled.node,
+            stylesheets=compiled.stylesheets,
+            images=compiled.resources.images,
+            width=_raster_dimension(layout.width, output.scale),
+            height=_raster_dimension(layout.height, output.scale),
+            font_size=layout.font_size,
+            time_ms=layout.time_ms,
+            font_families=layout.font_families,
+            lang=layout.lang,
+            device_pixel_ratio=output.scale,
+            format=output.format,
+            quality=output.quality,
+            lossless=output.lossless,
+            dithering=output.dithering,
+            draw_debug_border=output.draw_debug_border,
+        )
+
+    def measure(
+        self,
+        document: Document | CompiledDocument,
+        *,
+        layout: LayoutOptions | None = None,
+    ) -> MeasuredNode:
+        """Measure a resource-owning document in CSS pixels.
+
+        Measurement always uses a device pixel ratio of one. It reports layout
+        geometry, before raster output rounds painted boxes to whole pixels.
+        """
+        compiled = _compiled_document(document)
+        layout = LayoutOptions() if layout is None else layout
+        return self.measure_compiled(
+            compiled.node,
+            stylesheets=compiled.stylesheets,
+            images=compiled.resources.images,
+            width=layout.width,
+            height=layout.height,
+            font_size=layout.font_size,
+            time_ms=layout.time_ms,
+            font_families=layout.font_families,
+            lang=layout.lang,
+            device_pixel_ratio=1.0,
+        )
+
+    def render_svg(
+        self,
+        document: Document | CompiledDocument,
+        *,
+        layout: LayoutOptions | None = None,
+    ) -> str:
+        """Render a resource-owning document as SVG in CSS pixels."""
+        compiled = _compiled_document(document)
+        layout = LayoutOptions() if layout is None else layout
+        return self.render_svg_compiled(
+            compiled.node,
+            stylesheets=compiled.stylesheets,
+            images=compiled.resources.images,
+            width=layout.width,
+            height=layout.height,
+            font_size=layout.font_size,
+            time_ms=layout.time_ms,
+            font_families=layout.font_families,
+            lang=layout.lang,
         )
 
     def compile_node(
@@ -1452,6 +1538,23 @@ def apply_overrides(options: _OptionsT, **overrides: object) -> _OptionsT:
 
 def is_compiled_node(node: object) -> TypeGuard[CompiledNode]:
     return isinstance(node, _core.CompiledNode)
+
+
+def _compiled_document(document: Document | CompiledDocument) -> CompiledDocument:
+    if isinstance(document, CompiledDocument):
+        return document
+    if not isinstance(document, Document):
+        raise TypeError("expected Document or CompiledDocument")
+    return compile_document(document)
+
+
+def _raster_dimension(value: int | None, scale: float) -> int | None:
+    if value is None:
+        return None
+    scaled = value * scale
+    if not math.isfinite(scaled) or scaled > 2**32 - 1:
+        raise ValueError("scaled canvas dimension exceeds the native 32-bit limit")
+    return math.ceil(scaled)
 
 
 _PACKAGE_DIR = Path(__file__).resolve().parent

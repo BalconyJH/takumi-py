@@ -2,7 +2,7 @@
 //! GIL: it decodes the call's images, takes the font store, and hands Takumi one set of
 //! options built the same way for raster, measurement, SVG, and animation output.
 
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, RwLock};
 
 use takumi::{
   measure,
@@ -152,7 +152,7 @@ impl Resources {
   }
 
   /// The fonts for a render, after marking the families it names used.
-  fn fonts(&self, settings: &RenderSettings) -> PyResult<RwLockReadGuard<'_, Fonts>> {
+  fn fonts(&self, settings: &RenderSettings) -> PyResult<Fonts> {
     self
       .font_cache
       .lock()
@@ -161,6 +161,7 @@ impl Resources {
     self
       .fonts
       .read()
+      .map(|fonts| fonts.clone())
       .map_err(|error| RenderError::new_err(format!("renderer font lock poisoned: {error}")))
   }
 

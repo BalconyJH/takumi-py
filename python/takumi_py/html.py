@@ -13,8 +13,7 @@ class ParsedHtml:
 
     The current parser keeps ``<style>`` elements out of the node tree and
     returns an empty ``stylesheets`` tuple. Compile document-level CSS
-    explicitly with ``Renderer.compile_stylesheet`` or
-    ``Renderer.compile_stylesheet_lossy``.
+    explicitly with the native stylesheet compiler.
 
     Attributes:
         node: The compiled root node.
@@ -23,9 +22,6 @@ class ParsedHtml:
 
     node: CompiledNode
     stylesheets: tuple[CompiledStyleSheet, ...] = ()
-
-
-_PARSER = _core.NativeRenderer(load_default_fonts=False)
 
 
 def parse_html(markup: str, *, options: HtmlOptions | None = None) -> ParsedHtml:
@@ -45,7 +41,7 @@ def parse_html(markup: str, *, options: HtmlOptions | None = None) -> ParsedHtml
     """
     resolved_options = options or HtmlOptions()
     return ParsedHtml(
-        node=_PARSER.compile_html(
+        node=_core.compile_html(
             markup,
             presets=resolved_options.presets,
             tailwind_property=resolved_options.tailwind_property,

@@ -29,9 +29,9 @@ pub(crate) fn optional_dimension(name: &str, value: Option<u32>) -> PyResult<Opt
 }
 
 pub(crate) fn positive(name: &str, value: f64) -> PyResult<f32> {
-  if !value.is_finite() || value <= 0.0 {
+  if !value.is_finite() || value <= 0.0 || !(value as f32).is_finite() || (value as f32) == 0.0 {
     return Err(PyValueError::new_err(format!(
-      "{name} must be a finite number greater than zero"
+      "{name} must be a finite number greater than zero representable as f32"
     )));
   }
   Ok(value as f32)
