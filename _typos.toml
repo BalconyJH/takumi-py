@@ -1,2 +1,6 @@
+[files]
+extend-exclude = ["python/takumi_py/math/assets/mathjax.bundle.js"]
+
 [default.extend-words]
+braket = "braket"
 loosy = "loosy"

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from email.message import EmailMessage
+import hashlib
 import importlib.util
+import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -338,3 +343,337 @@ def test_wheel_tags_outside_the_release_matrix_are_rejected(
         )
         == "native:linux_riscv64"
     )
+
+
+def test_distribution_licenses_include_math_engine_terms(
+    check_distributions: Any,
+) -> None:
+    assert {
+        "LICENSES/MathJax-Apache-2.0.txt",
+        "LICENSES/mhchemparser-Apache-2.0.txt",
+    } <= check_distributions.EXPECTED_LICENSES
+
+
+def math_manifest(check_distributions: Any, bundle: bytes) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "bundle": {
+            "file": check_distributions.MATH_BUNDLE,
+            "bytes": len(bundle),
+            "sha256": hashlib.sha256(bundle).hexdigest(),
+        },
+        "build": {
+            field: f"{field}-value" for field in check_distributions.MATH_BUILD_FIELDS
+        },
+        "packages": [
+            {
+                "name": name,
+                "version": package_version,
+                "license": check_distributions.MATH_PACKAGE_LICENSES[name],
+            }
+            for name, package_version in check_distributions.MATH_PACKAGE_VERSIONS.items()
+        ],
+        "runtime": {
+            "package": check_distributions.MATH_RUNTIME_PACKAGE,
+            "version": check_distributions.MATH_RUNTIME_VERSION,
+            "tested_platforms": ["macos-arm64"],
+        },
+        "licenses": ["test-license"],
+    }
+
+
+def test_math_assets_validate_manifest_and_installed_hash(
+    check_distributions: Any, tmp_path: Path
+) -> None:
+    bundle = b"globalThis.TakumiMathJax = Object.freeze({});"
+    manifest = math_manifest(check_distributions, bundle)
+    assets = {
+        check_distributions.MATH_BUNDLE: bundle,
+        check_distributions.MATH_MANIFEST: json.dumps(manifest).encode(),
+    }
+
+    check_distributions.check_math_assets(
+        assets,
+        source=tmp_path / "takumi_py.whl",
+        archive_path="takumi_py/math/assets",
+    )
+
+    manifest["bundle"]["sha256"] = "0" * 64
+    assets[check_distributions.MATH_MANIFEST] = json.dumps(manifest).encode()
+    with pytest.raises(SystemExit, match=r"bundle\.sha256"):
+        check_distributions.check_math_assets(
+            assets,
+            source=tmp_path / "takumi_py.whl",
+            archive_path="takumi_py/math/assets",
+        )
+
+
+def test_math_assets_reject_extra_notice_files(
+    check_distributions: Any, tmp_path: Path
+) -> None:
+    bundle = b"globalThis.TakumiMathJax = Object.freeze({});"
+    manifest = math_manifest(check_distributions, bundle)
+
+    with pytest.raises(SystemExit, match="expected math assets"):
+        check_distributions.check_math_assets(
+            {
+                check_distributions.MATH_BUNDLE: bundle,
+                check_distributions.MATH_MANIFEST: json.dumps(manifest).encode(),
+                "MathJax-NOTICE.txt": b"notice",
+            },
+            source=tmp_path / "takumi_py.whl",
+            archive_path="takumi_py/math/assets",
+        )
+
+
+def test_math_assets_reject_unknown_platform_claims(
+    check_distributions: Any, tmp_path: Path
+) -> None:
+    bundle = b"globalThis.TakumiMathJax = Object.freeze({});"
+    manifest = math_manifest(check_distributions, bundle)
+    manifest["runtime"]["tested_platforms"].append("plan9-mips")
+
+    with pytest.raises(SystemExit, match="unsupported platforms"):
+        check_distributions.check_math_assets(
+            {
+                check_distributions.MATH_BUNDLE: bundle,
+                check_distributions.MATH_MANIFEST: json.dumps(manifest).encode(),
+            },
+            source=tmp_path / "takumi_py.whl",
+            archive_path="takumi_py/math/assets",
+        )
+
+
+def test_math_assets_accept_any_supported_platform_subset(
+    check_distributions: Any, tmp_path: Path
+) -> None:
+    bundle = b"globalThis.TakumiMathJax = Object.freeze({});"
+    manifest = math_manifest(check_distributions, bundle)
+    manifest["runtime"]["tested_platforms"] = ["linux-x86_64", "macos-arm64"]
+
+    check_distributions.check_math_assets(
+        {
+            check_distributions.MATH_BUNDLE: bundle,
+            check_distributions.MATH_MANIFEST: json.dumps(manifest).encode(),
+        },
+        source=tmp_path / "takumi_py.whl",
+        archive_path="takumi_py/math/assets",
+    )
+
+
+def test_sdist_math_build_sources_are_exact(
+    check_distributions: Any, tmp_path: Path
+) -> None:
+    root = "takumi_py-0.4.0"
+    expected = {
+        f"{root}/tools/mathjax/{name}"
+        for name in check_distributions.MATH_SDIST_BUILD_FILES
+    }
+
+    check_distributions.check_math_build_sources(
+        expected,
+        source=tmp_path / "takumi_py-0.4.0.tar.gz",
+        expected_root=root,
+    )
+
+    with pytest.raises(SystemExit, match="only reproducible MathJax build sources"):
+        check_distributions.check_math_build_sources(
+            {*expected, f"{root}/tools/mathjax/node_modules/pkg/index.js"},
+            source=tmp_path / "takumi_py-0.4.0.tar.gz",
+            expected_root=root,
+        )
+
+
+def test_math_runtime_dependency_is_an_optional_extra(
+    check_distributions: Any, tmp_path: Path
+) -> None:
+    metadata = EmailMessage()
+    metadata["Name"] = check_distributions.PROJECT_NAME
+    metadata["Version"] = "0.4.0"
+    metadata["Requires-Python"] = ">=3.11"
+    metadata["License-Expression"] = "GPL-3.0-or-later"
+    for license_file in check_distributions.EXPECTED_LICENSES:
+        metadata["License-File"] = license_file
+    metadata["Provides-Extra"] = "math"
+    metadata["Requires-Dist"] = 'mini-racer==0.14.1; extra == "math"'
+
+    check_distributions.check_metadata(
+        metadata,
+        "0.4.0",
+        tmp_path / "takumi_py.whl",
+    )
+
+    metadata.replace_header("Requires-Dist", "mini-racer==0.14.1")
+    with pytest.raises(SystemExit, match="restricted to the math extra"):
+        check_distributions.check_metadata(
+            metadata,
+            "0.4.0",
+            tmp_path / "takumi_py.whl",
+        )
+
+
+@pytest.fixture(scope="module")
+def verify_distributions() -> ModuleType:
+    return load_script("verify-distributions")
+
+
+@pytest.fixture(scope="module")
+def smoke_wheel() -> ModuleType:
+    return load_script("smoke-wheel")
+
+
+def test_math_smoke_only_authorizes_the_isolated_worker_command(
+    smoke_wheel: ModuleType,
+) -> None:
+    worker = [
+        sys.executable,
+        "-I",
+        "-u",
+        "-m",
+        "takumi_py.math._worker",
+    ]
+
+    assert smoke_wheel._is_authorized_math_worker(worker) is True
+    assert (
+        smoke_wheel._is_authorized_math_worker([sys.executable, "-c", "pass"]) is False
+    )
+    assert smoke_wheel._is_authorized_math_worker([*worker, "extra"]) is False
+    assert smoke_wheel._is_authorized_math_worker(["python", *worker[1:]]) is False
+
+
+def test_math_smoke_guard_denies_other_process_launches(
+    smoke_wheel: ModuleType,
+) -> None:
+    with (
+        smoke_wheel.restrict_runtime_launches(),
+        pytest.raises(RuntimeError, match="unauthorized process"),
+    ):
+        subprocess.Popen([sys.executable, "-c", "pass"])
+
+
+def test_verify_distribution_arguments_remain_backward_compatible(
+    verify_distributions: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify-distributions.py",
+            str(tmp_path),
+            "--expected-version",
+            "0.4.0",
+            "--wheel-only",
+            "--sdist-built-wheel",
+            "--python",
+            "3.12",
+            "--uv",
+            "custom-uv",
+        ],
+    )
+
+    args = verify_distributions.parse_args()
+
+    assert args.dist_dir == tmp_path
+    assert args.expected_version == "0.4.0"
+    assert args.wheel_only is True
+    assert args.sdist_only is False
+    assert args.sdist_built_wheel is True
+    assert args.python == "3.12"
+    assert args.uv == "custom-uv"
+    assert args.math is False
+
+
+def test_verify_distribution_arguments_accept_math_extra(
+    verify_distributions: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["verify-distributions.py", "--expected-version", "0.4.0", "--math"],
+    )
+
+    assert verify_distributions.parse_args().math is True
+
+
+def test_math_smoke_removes_node_from_path(
+    verify_distributions: Any, tmp_path: Path
+) -> None:
+    node_dir = tmp_path / "node"
+    clean_dir = tmp_path / "clean"
+    node_dir.mkdir()
+    clean_dir.mkdir()
+    (node_dir / "node").touch()
+    (node_dir / "nodejs").touch()
+
+    assert verify_distributions.path_without_node(
+        f"{node_dir}{os.pathsep}{clean_dir}"
+    ) == str(clean_dir)
+
+
+def test_math_smoke_omits_unreadable_path_entries(
+    verify_distributions: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    blocked_dir = tmp_path / "blocked"
+    clean_dir = tmp_path / "clean"
+    clean_dir.mkdir()
+    original_is_file = Path.is_file
+
+    def checked_is_file(path: Path) -> bool:
+        if path.parent == blocked_dir:
+            raise PermissionError("directory is not readable")
+        return original_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", checked_is_file)
+
+    assert verify_distributions.path_without_node(
+        f"{blocked_dir}{os.pathsep}{clean_dir}"
+    ) == str(clean_dir)
+
+
+def test_math_smoke_installs_extra_and_sets_environment(
+    verify_distributions: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[list[str], dict[str, str], str]] = []
+
+    def record_run(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        label: str,
+    ) -> None:
+        assert cwd.is_dir()
+        calls.append((command, env, label))
+
+    monkeypatch.setattr(verify_distributions, "run", record_run)
+    wheel = tmp_path / "takumi_py-0.4.0-cp311-abi3-test.whl"
+    repository_root = tmp_path / "repository"
+    root = tmp_path / "smoke"
+    repository_root.mkdir()
+    root.mkdir()
+    (repository_root / ".github" / "scripts").mkdir(parents=True)
+    (repository_root / ".github" / "scripts" / "smoke-wheel.py").touch()
+
+    verify_distributions.smoke_wheel(
+        wheel,
+        name="wheel",
+        python_version="3.11",
+        uv="uv",
+        root=root,
+        repository_root=repository_root,
+        env={"PATH": ""},
+        math_smoke=True,
+    )
+
+    assert calls[1][0][-1] == str(wheel.resolve())
+    assert "TAKUMI_PY_MATH_SMOKE" not in calls[2][1]
+    assert calls[3][0][-1] == f"{wheel.resolve()}[math]"
+    assert calls[4][1]["TAKUMI_PY_MATH_SMOKE"] == "1"
+    assert calls[4][1]["PATH"] == ""

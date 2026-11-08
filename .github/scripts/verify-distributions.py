@@ -46,6 +46,25 @@ def venv_python(venv: Path) -> Path:
     return venv / "bin" / "python"
 
 
+def path_without_node(path_value: str | None) -> str:
+    if path_value is None:
+        return ""
+    node_names = ("node", "node.exe", "nodejs", "nodejs.exe")
+    entries: list[str] = []
+    for entry in path_value.split(os.pathsep):
+        if not entry:
+            continue
+        try:
+            has_node = any((Path(entry) / name).is_file() for name in node_names)
+        except OSError:
+            # An unreadable directory cannot be checked for Node; leave it out
+            # of the restricted smoke environment instead of failing verification.
+            continue
+        if not has_node:
+            entries.append(entry)
+    return os.pathsep.join(entries)
+
+
 def check_archives(
     paths: list[Path],
     *,
@@ -78,6 +97,7 @@ def smoke_wheel(
     root: Path,
     repository_root: Path,
     env: dict[str, str],
+    math_smoke: bool,
 ) -> None:
     venv = root / name
     run_dir = root / f"{name}-run"
@@ -89,18 +109,38 @@ def smoke_wheel(
         label=f"Create isolated {name} environment",
     )
     python = venv_python(venv)
+    core_wheel = str(wheel.resolve())
     run(
-        [uv, "pip", "install", "--python", str(python), str(wheel.resolve())],
+        [uv, "pip", "install", "--python", str(python), core_wheel],
         cwd=run_dir,
         env=env,
-        label=f"Install {wheel.name} in isolation",
+        label=f"Install {wheel.name} without optional extras in isolation",
     )
-    smoke_env = env | {"TAKUMI_PY_REPOSITORY_ROOT": str(repository_root)}
+    core_smoke_env = env | {"TAKUMI_PY_REPOSITORY_ROOT": str(repository_root)}
     run(
         [str(python), str(repository_root / ".github/scripts/smoke-wheel.py")],
         cwd=run_dir,
-        env=smoke_env,
-        label=f"Smoke {wheel.name} outside the source checkout",
+        env=core_smoke_env,
+        label=f"Smoke core-only {wheel.name} outside the source checkout",
+    )
+    if not math_smoke:
+        return
+
+    run(
+        [uv, "pip", "install", "--python", str(python), f"{core_wheel}[math]"],
+        cwd=run_dir,
+        env=env,
+        label=f"Install the math extra for {wheel.name} in the same environment",
+    )
+    math_smoke_env = core_smoke_env | {
+        "TAKUMI_PY_MATH_SMOKE": "1",
+        "PATH": path_without_node(core_smoke_env.get("PATH")),
+    }
+    run(
+        [str(python), str(repository_root / ".github/scripts/smoke-wheel.py")],
+        cwd=run_dir,
+        env=math_smoke_env,
+        label=f"Smoke {wheel.name} with bundled MathJax outside the source checkout",
     )
 
 
@@ -113,6 +153,7 @@ def rebuild_and_smoke_sdist(
     root: Path,
     repository_root: Path,
     env: dict[str, str],
+    math_smoke: bool,
 ) -> None:
     wheel_dir = root / "from-sdist"
     run_dir = root / "sdist-build"
@@ -146,6 +187,7 @@ def rebuild_and_smoke_sdist(
         root=root,
         repository_root=repository_root,
         env=env,
+        math_smoke=math_smoke,
     )
 
 
@@ -159,6 +201,7 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument("--wheel-only", action="store_true")
     mode.add_argument("--sdist-only", action="store_true")
     parser.add_argument("--sdist-built-wheel", action="store_true")
+    parser.add_argument("--math", action="store_true")
     return parser.parse_args()
 
 
@@ -178,7 +221,12 @@ def main() -> None:
 
     repository_root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
-    for inherited_name in ("PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"):
+    for inherited_name in (
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "TAKUMI_PY_MATH_SMOKE",
+        "VIRTUAL_ENV",
+    ):
         env.pop(inherited_name, None)
     env.update(
         {
@@ -206,6 +254,7 @@ def main() -> None:
                 root=root,
                 repository_root=repository_root,
                 env=env,
+                math_smoke=args.math,
             )
         if sdist is not None:
             rebuild_and_smoke_sdist(
@@ -216,6 +265,7 @@ def main() -> None:
                 root=root,
                 repository_root=repository_root,
                 env=env,
+                math_smoke=args.math,
             )
     log("Distribution verification passed.")
 

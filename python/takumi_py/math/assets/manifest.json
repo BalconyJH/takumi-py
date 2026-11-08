@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "bundle": {
+    "file": "mathjax.bundle.js",
+    "sha256": "34435f1a42235a039f132a80ae33a04a8869b7540846e190aaa54aed16454e71",
+    "bytes": 11511436,
+    "gzip_bytes": 3706700
+  },
+  "build": {
+    "bun_version": "1.4.4",
+    "command": "bun install --frozen-lockfile && bun run build",
+    "target": "browser",
+    "format": "iife",
+    "entry": "mathjax-entry.mjs",
+    "entry_sha256": "a45c53bde86ad8d780b0ef11c3e881b3d50aac213db4c6233b8ec47d5b4bff24",
+    "lock_sha256": "3e7984f29b1f34b973c64768ad862eb50368b5074aa5dd002a0f46f13409a4f5"
+  },
+  "packages": [
+    {
+      "name": "@mathjax/src",
+      "version": "4.1.3",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "@mathjax/mathjax-newcm-font",
+      "version": "4.1.3",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "@mathjax/mathjax-mhchem-font-extension",
+      "version": "4.1.3",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "mhchemparser",
+      "version": "4.2.1",
+      "license": "Apache-2.0"
+    }
+  ],
+  "runtime": {
+    "package": "mini-racer",
+    "version": "0.14.1",
+    "tested_platforms": [
+      "macos-aarch64"
+    ],
+    "linux_glibc_minimum": "2.27",
+    "isolation": "supervised-python-process"
+  },
+  "font_chunks": [
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/PUA.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/accents-b-i.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/accents.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/arabic.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/arrows.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/braille-d.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/braille.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/calligraphic.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/cherokee.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/cyrillic-ss.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/cyrillic.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/devanagari.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/double-struck.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/fraktur.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/greek-ss.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/greek.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/hebrew.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/latin-b.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/latin-bi.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/latin-i.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/latin.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/marrows.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/math.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/monospace-ex.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/monospace-l.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/monospace.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/mshapes.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/phonetics-ss.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/phonetics.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif-b.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif-bi.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif-ex.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif-i.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif-r.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/script.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/shapes.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/symbols-b-i.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/symbols.js",
+    "@mathjax/mathjax-newcm-font/js/svg/dynamic/variants.js"
+  ],
+  "licenses": [
+    "LICENSES/MathJax-Apache-2.0.txt",
+    "LICENSES/mhchemparser-Apache-2.0.txt"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@takumi-py/mathjax-runtime",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "scripts": {
+    "build": "bun run build.mjs"
+  },
+  "dependencies": {
+    "@mathjax/mathjax-mhchem-font-extension": "4.1.3",
+    "@mathjax/mathjax-newcm-font": "4.1.3",
+    "@mathjax/src": "4.1.3"
+  }
+}

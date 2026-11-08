@@ -7,6 +7,8 @@ license = "GPL-3.0-or-later"
 license-files = [
     "LICENSE",
     "LICENSES/Geist-OFL-1.1.txt",
+    "LICENSES/MathJax-Apache-2.0.txt",
+    "LICENSES/mhchemparser-Apache-2.0.txt",
     "THIRD_PARTY_NOTICES.md",
     "takumilib/LICENSE-MIT",
 ]
@@ -39,6 +41,9 @@ dependencies = [
     "msgspec>=0.21.1",
 ]
 
+[project.optional-dependencies]
+math = ["mini-racer==0.14.1"]
+
 [project.urls]
 Homepage = "https://balconyjh.github.io/takumi-py/"
 Documentation = "https://balconyjh.github.io/takumi-py/"
@@ -53,6 +58,11 @@ python-source = "python"
 include = [
     { path = "takumilib/Cargo.toml", format = "sdist" },
     { path = "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2", format = "sdist" },
+    { path = "python/takumi_py/math/assets/*", format = ["sdist", "wheel"] },
+    { path = "tools/mathjax/package.json", format = "sdist" },
+    { path = "tools/mathjax/bun.lock", format = "sdist" },
+    { path = "tools/mathjax/*.mjs", format = "sdist" },
+    { path = "tools/mathjax/README.md", format = "sdist" },
 ]
 
 [tool.uv]
