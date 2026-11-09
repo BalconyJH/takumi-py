@@ -22,6 +22,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Run source checks before the expensive packaging matrix. Then sdist and wheels
+  # run in parallel; ABI3 consumes the completed wheel matrix's Linux release wheel.
+  # result explicitly joins every layer, including failures, cancellations and skips.
   quality:
     name: Run checks and tests
     runs-on: ubuntu-latest
@@ -282,6 +285,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs:
+      # A matrix dependency waits for every platform/profile, not one matrix cell.
       - wheel-smoke
     strategy:
       fail-fast: false
@@ -324,6 +328,7 @@ jobs:
   result:
     name: Required checks
     if: ${{ always() }}
+    # Keep all four direct needs: the summary below reads each layer's result.
     needs:
       - quality
       - sdist-smoke
@@ -342,12 +347,22 @@ jobs:
           WHEEL_RESULT: ${{ needs.wheel-smoke.result }}
         run: |
           failed=false
-          for result in \
-            "${QUALITY_RESULT}" \
-            "${SDIST_RESULT}" \
-            "${WHEEL_RESULT}" \
-            "${ABI3_RESULT}"; do
+          {
+            echo "### Required CI layers"
+            echo
+            echo "| Layer | Result |"
+            echo "| --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          for layer in \
+            "quality:${QUALITY_RESULT}" \
+            "sdist-smoke:${SDIST_RESULT}" \
+            "wheel-smoke:${WHEEL_RESULT}" \
+            "abi3-smoke:${ABI3_RESULT}"; do
+            name=${layer%%:*}
+            result=${layer#*:}
+            echo "| ${name} | ${result} |" >> "${GITHUB_STEP_SUMMARY}"
             if [[ "${result}" != "success" ]]; then
+              echo "::error::${name} finished with ${result}; success is required."
               failed=true
             fi
           done

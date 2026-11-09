@@ -1,6 +1,8 @@
 name: Release · Tag
 
 on:
+  # Each completion is only a notification. The job below joins the latest runs
+  # of all three checks for the exact main push SHA before creating a tag.
   workflow_run: # zizmor: ignore[dangerous-triggers] Only trusted main push runs are joined and the exact SHA is revalidated before writes.
     workflows:
       - Check · Build and test

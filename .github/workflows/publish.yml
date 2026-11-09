@@ -20,6 +20,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Execution gates: guard -> source checks -> (wheels + sdist) -> validation
+  # -> provenance -> PyPI -> hash verification -> GitHub Release -> docs -> Pages.
+  # Keep release-guard as a direct need wherever its source/version outputs are read.
   release-guard:
     name: Gate release source
     runs-on: ubuntu-latest
@@ -400,8 +403,6 @@ jobs:
   provenance:
     name: Attest distributions
     needs:
-      - wheels
-      - sdist
       - artifact-validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -426,9 +427,6 @@ jobs:
     name: Publish to PyPI
     needs:
       - release-guard
-      - wheels
-      - sdist
-      - artifact-validation
       - provenance
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -455,8 +453,6 @@ jobs:
     name: Verify PyPI distribution hashes
     needs:
       - release-guard
-      - wheels
-      - sdist
       - pypi-publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -549,8 +545,6 @@ jobs:
     name: Publish GitHub Release
     needs:
       - release-guard
-      - wheels
-      - sdist
       - verify-pypi
     runs-on: ubuntu-latest
     timeout-minutes: 15

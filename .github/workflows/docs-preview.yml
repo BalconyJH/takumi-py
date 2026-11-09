@@ -1,6 +1,8 @@
 name: Preview · Docs
 
 on:
+  # Preview is an independent docs-only branch; it does not wait for wheel checks
+  # or a release. Its final Pages deployment shares a lock with release docs.
   workflow_run: # zizmor: ignore[dangerous-triggers] Only successful Check · Docs runs for pushes to main deploy, from their exact commit.
     workflows:
       - Check · Docs
