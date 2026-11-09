@@ -31,7 +31,8 @@ png = renderer.render_html(
 Path("out.png").write_bytes(png)
 ```
 
-1. 样式表作为文档级渲染输入传入，而不是隐藏在渲染器的全局状态中。
+1. 显式作者样式表作为文档级渲染输入传入，而不是隐藏在渲染器的全局状态中。HTML 中符合
+   条件的 `<style>` 元素会被自动提取。
 2. 需要多次调用得到相同结果时，请固定两个视口维度。
 
 ## 选择输入模型 { #choose-an-input-model }
@@ -55,7 +56,7 @@ Path("out.png").write_bytes(png)
     先检查以下边界：
 
     1. 视口尺寸是显式指定的，还是有意交给布局推断？
-    2. 文档级 CSS 是否通过 `stylesheets` 传入？
+    2. 额外作者 CSS 是否通过 `stylesheets` 传入，或放在符合条件的 HTML `<style>` 元素中？
     3. 文本所需的字体是否已经注册？
 
     底层约定见 [渲染模型](../guides/rendering.md) 和 [资源指南](../guides/resources.md)。

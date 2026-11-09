@@ -33,6 +33,50 @@ The template can use `{{ title | uppercase }}` directly. The
 `render_template_to_html` helper accepts the same `filters` mapping when the caller
 needs an HTML string rather than image output.
 
+## Build a static document { #build-a-static-document }
+
+Use `TemplateRenderer.document` when the rendered template needs the document APIs.
+Template loading and rendering finish before the returned `Document` is created; the
+document keeps the HTML and explicit inputs but does not retain the Jinja environment.
+
+```python
+from takumi_py import (
+    ImageResource,
+    LayoutOptions,
+    Renderer,
+    TemplateRenderer,
+    compile_document,
+)
+
+logo = b"""
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
+  <circle cx="64" cy="64" r="56" fill="#38bdf8"/>
+</svg>
+"""
+
+template = TemplateRenderer("templates")
+document = template.document(
+    "static_card.html.jinja",
+    {"title": "Static card", "subtitle": "Reusable output"},
+    resources=[ImageResource("https://assets.example/cover.svg", logo, cache="none")],
+    stylesheets=[".card { width: 640px; height: 320px; }"],
+)
+
+compiled = compile_document(document)
+assert compiled.missing_resources() == ()
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=640, height=320),
+)
+png = image.encode("png")
+```
+
+`compiled.resource_urls()` reports image references collected from the node and
+stylesheet. `compiled.missing_resources()` removes resources already owned by the
+document; neither method downloads anything. See the
+[resource guide](resources.md#discover-image-references) for the discovery scope.
+
 ## Inject a complete Jinja environment
 
 The filesystem-backed environment is a convenience default, not a restricted Jinja
@@ -121,8 +165,8 @@ flowchart LR
   has already been loaded.
 - Templates generate HTML. Supply images through render inputs. Register custom fonts
   on an injected renderer as shown above and follow the [resource guide](resources.md).
-- Keep CSS in explicit `stylesheets` inputs so the template layer does not own render
-  configuration.
+- Explicit author CSS belongs in `stylesheets`. Eligible `<style>` elements in the
+  rendered HTML are extracted automatically.
 - Jinja autoescape is enabled by default for HTML, XML, and Jinja files. A caller-owned
   environment retains its own autoescape policy.
 
@@ -135,4 +179,6 @@ See the runnable
 [`examples/render_template.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_template.py)
 example and its
 [`card.html.jinja`](https://github.com/BalconyJH/takumi-py/blob/main/examples/templates/card.html.jinja)
-template.
+template. The
+[`examples/render_static.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_static.py)
+example uses `TemplateRenderer.document`, owned image resources, and a retained raster.

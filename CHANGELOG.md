@@ -9,6 +9,58 @@ contributors, and the release's section is published as its GitHub Release notes
 
 ## [Unreleased]
 
+### Added
+
+- Add resource-owning `Document`, `CompiledDocument`, `Fragment`, and `ResourceSet`
+  values, renderer-independent compilation, and unified static rendering,
+  measurement, and SVG entry points with CSS-pixel layout options.
+- Add `Renderer.rasterize` and immutable `RasterImage` results with actual output
+  dimensions, straight-alpha RGBA access, and repeated encoding without another
+  layout or paint pass. Add template-to-document adapters and a static image example.
+- Add cascade-aware `Renderer.needs`, explicit CSS font-file loading and release,
+  and per-operation failed-font sources for `@font-face` fallback.
+- Add the optional local MathJax engine, static formula fragments, bounded caching,
+  strict SVG validation, and supervised worker timeouts. Runtime installation is
+  optional; the bundled MathJax assets ship in every wheel.
+- Add bilingual static-rendering and Takumi 2.20 migration documentation, isolated
+  core/math distribution checks, and upstream binary-distribution license notices.
+- Run installed-wheel regressions on all eight CI and release platforms in both
+  debug and release builds. Require math execution without skipped tests, retain
+  per-platform JUnit reports, and include math in Python 3.11-3.15 ABI3 smoke checks.
+
+### Changed
+
+- Upgrade the pinned native source to Takumi 2.20.0 / core 0.36.0. HTML and template
+  entry points now apply embedded `<style>` CSS after explicitly supplied sheets,
+  matching upstream ordering. SVG output can flatten embedded SVGs into host paths.
+- Preserve Python mapping order at the Serde boundary and copy image buffers
+  directly into Rust instead of expanding them into Python integer lists.
+- Share compiled stylesheets and encoded resource snapshots across document
+  operations. Appending resources reuses existing native buffers. Existing renderer
+  methods remain available during the next-major preview.
+- Simplify release job dependencies while preserving all validation and publication
+  gates, document CI execution order, and report each required CI layer's result.
+
+### Fixed
+
+- Reject cyclic, excessively nested, and unsupported node values with binding
+  errors instead of interpreter recursion failures or native panics.
+- Validate native floating-point ranges and math timeout/memory budgets before
+  values can overflow at the runtime boundary.
+- Build and release native input snapshots iteratively, and provide a controlled
+  stack for deep native decoding, HTML parsing, and rendering. Preserve the
+  512-node limit on small Python worker stacks in debug and release builds.
+- Convert measured trees and validate node trees iteratively, including cycle and
+  depth failures, without leaking Python recursion errors.
+- Preserve each stylesheet's EOF recovery and CSS/structured keyframe order across
+  composition. Compile and merge CSS outside the GIL, and apply consistent explicit
+  keyframe overrides across legacy render, measure, template, and animation APIs.
+- Accept MathJax's empty spacing glyphs, normalize bbox borders and array rules,
+  and derive formula geometry from its layout box to avoid quadratic large-font
+  scaling. Keep the strict SVG allowlist and validate derived geometry limits.
+- Bound math process startup as part of the request deadline, reclaim cancelled
+  late starts, limit TeX source nesting, and classify V8 heap exhaustion correctly.
+
 ## [0.4.0] - 2026-11-07
 
 ### Added

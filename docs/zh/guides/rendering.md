@@ -10,7 +10,7 @@ flowchart LR
     C --> D["已编译节点"]
     D --> L["布局"]
     L --> M["测量"]
-    L --> R["位图"]
+    L --> R["位图或 RasterImage"]
     L --> S["SVG"]
     L --> N["动画"]
 ```
@@ -26,6 +26,7 @@ flowchart LR
 | HTML | `render_html`、`measure_html`、`render_svg_html` | [HTML 与 CSS](html.md) |
 | Jinja 模板 | `render_template`、`render_svg_template`、`TemplateRenderer` | [Jinja 模板](templates.md) |
 | 已编译节点 | `render_compiled`、`measure_compiled`、`render_svg_compiled` | [编译与复用](#compile-and-reuse) |
+| 文档 | `render`、`rasterize`、`measure`、`render_svg` | [文档](documents.md) |
 | 场景序列 | `render_animation`、`render_sequence_at_time` | [动画](animation.md) |
 
 ## 节点树 { #node-trees }
@@ -60,6 +61,10 @@ png = Renderer().render_node(
 Tailwind 类名的 `tw`，以及 `dir` 和 `lang` 元数据。`TextNode`、`ImageNode` 和
 `ContainerNode` 为类型检查器描述了这些结构。
 
+任一从根到叶的路径最多只能包含 512 个节点。超过该上限的节点映射会由原生解码器抛出
+`NodeDecodeError`；传入 `validate=True` 时会先执行 Python 校验，并对过深节点抛出
+`NodeValidationError`。
+
 向节点入口传入 `validate=True`，即可在映射进入原生解码器之前先用 Python 校验。校验
 失败抛出 `NodeValidationError`；不校验时，格式错误的节点由解码器抛出
 `NodeDecodeError`。
@@ -84,8 +89,10 @@ png = renderer.render_compiled(
 )
 ```
 
-`compile_html` 返回 `CompiledHtml` 组合，而不是单独的 `CompiledNode`。把其中的节点和
-样式表分别传给已编译 API，并在把文档级 CSS 加入样式表元组之前先编译它：
+`compile_html` 返回 `CompiledHtml` 组合，而不是单独的 `CompiledNode`。
+`compiled.stylesheets` 已包含从符合条件的 `<style>` 元素中提取的 CSS。把其中的节点和
+样式表分别传给已编译 API。正如下例所示，显式作者 CSS 应放在前面，因为它先于文档提取出的
+样式应用：
 
 ```python
 from takumi_py import Renderer
@@ -93,8 +100,8 @@ from takumi_py import Renderer
 renderer = Renderer()
 compiled = renderer.compile_html('<div class="card">Reusable HTML</div>')
 stylesheets = (
-    *compiled.stylesheets,
     renderer.compile_stylesheet(".card { width: 320px; height: 160px; color: black; }"),
+    *compiled.stylesheets,
 )
 
 png = renderer.render_compiled(

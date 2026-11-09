@@ -6,6 +6,7 @@ Every input renders to the same set of outputs:
 | --- | --- | --- |
 | PNG, JPEG, WebP, ICO | `render_*` | Encoded `bytes` |
 | Raw RGBA | `render_*` with `format="raw"` | Pixel `bytes` |
+| Retained RGBA | `Renderer.rasterize` | `RasterImage` for repeated encoding |
 | SVG | `render_svg_*` | `str` |
 | Layout only | `measure_*` | `MeasuredNode` |
 | WebP, APNG, GIF animation | `render_animation`, `encode_frames` | Encoded `bytes`; see [Animation](animation.md) |
@@ -39,6 +40,45 @@ pixels, while an inferred dimension scales with the content.
 
 `dithering="ordered-bayer"` dithers gradient fills before they are quantized to 8 bits,
 which reduces banding in smooth gradients.
+
+## Retained raster images { #retained-raster-images }
+
+Use `Renderer.rasterize` when the finished pixels must be encoded more than once.
+Layout and drawing happen once, and every `RasterImage.encode` call reads the retained
+native bitmap:
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+compiled = compile_document(
+    Document.from_node(
+        {
+            "type": "container",
+            "style": {
+                "width": "320px",
+                "height": "160px",
+                "backgroundColor": "#111827",
+            },
+        }
+    )
+)
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=320, height=160),
+    scale=2,
+)
+
+png = image.encode("png")
+webp = image.encode("webp", quality=85)
+rgba = image.tobytes()
+
+assert image.size == (640, 320)
+assert len(rgba) == image.nbytes == image.stride * image.height
+```
+
+The bitmap is immutable and outlives the renderer. Its one-call `render` counterpart
+is simpler when only one encoded result is needed.
 
 ## Raw RGBA
 

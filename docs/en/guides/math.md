@@ -54,6 +54,11 @@ bounded process-termination grace, so the deadline is not an absolute millisecon
 return guarantee. A later cache miss starts a fresh worker, so the reusable runtime
 does not retain the runaway job.
 
+The deadline also covers process creation. A stalled operating-system launch runs
+in one background helper per typesetter, so it cannot block `typeset()` or `close()`
+indefinitely. A process that appears after cancellation is terminated; retries do
+not create additional launch helpers while that launch is still pending.
+
 `typeset` is synchronous and blocks the calling thread while a cache miss is being
 converted. Async applications can construct a typesetter safely, but should run
 conversion calls in an executor when blocking their event loop is undesirable.
@@ -67,6 +72,12 @@ geometry, so it remains valid after the typesetter closes.
 style and makes `MathSvg.to_node()` and `to_fragment()` return a centered block
 container. `font_size_px` uses CSS pixels, `ex_ratio` sets the input environment's
 x-height ratio, and `color` is an optional named CSS color or hexadecimal color.
+
+Dimensions and baseline depth come from MathJax's layout box and scale linearly
+with `font_size_px`, including large sizes. TeX lengths explicitly written in `px`
+retain their absolute units. Derived geometry outside the finite float32 range
+raises `MathLimitError`; a font size too small to represent the minimum box raises
+`MathValidationError` before conversion.
 
 The preferred document path is `to_fragment()`. It returns a `Fragment` whose node and
 `ResourceSet` are inserted by `Document.from_node`; identical formula resources are
@@ -126,15 +137,19 @@ Path("math.png").write_bytes(png)
 Path("math.svg").write_text(svg, encoding="utf-8")
 ```
 
-The inline formula is an atomic image box with a CSS `verticalAlign` derived from
-`MathSvg.depth_px`. The display formula changes TeX style and wraps the image in a
-centered block. The same `CompiledDocument` can then be measured, rasterized at one or
-more scales, or rendered to SVG without rerunning the math engine.
+For layout, the inline formula occupies a single inline box with a CSS `verticalAlign`
+derived from `MathSvg.depth_px`. The display formula changes TeX style and wraps that
+box in a centered block. The same `CompiledDocument` can then be measured, rasterized
+at one or more scales, or rendered to SVG without rerunning the math engine.
 
 With `color=None`, generated fills and strokes use `currentColor`. Takumi resolves that
-value through its verified inline image color-inheritance path. Explicit
-`MathOptions.color` is the deterministic choice when a formula must remain black,
-match a brand palette, or preserve an exact cache key across hosts.
+value through the host element's color when it renders the document. Vector SVG
+resources are flattened into host path geometry when possible; raster image sources
+may still need an `<image>` fallback. Output serialization is therefore an
+implementation detail and should not be assumed to contain one embedded `<image>` or
+an SVG data URI. Explicit `MathOptions.color` is the deterministic choice when a
+formula must remain black, match a brand palette, or preserve an exact cache key across
+hosts.
 
 ## Explicit HTML resources { #explicit-html-resources }
 
@@ -178,6 +193,12 @@ The same two pieces work with the existing HTML API by passing the resource in i
 `images` argument to `Renderer.render_html`. The document path is preferable when the
 resource must travel with the source through compilation and later outputs.
 
+Supplying `MathSvg.to_image_resource()` is still required because the HTML adapter
+must associate the `<img>` with the stored SVG bytes. `Renderer.render_svg()` may then
+flatten that vector resource into host `<path>` and transform elements. Do not inspect
+the result for a guaranteed `data:image/svg+xml` URL or exactly one embedded `<image>`;
+flattening is the preferred vector path, while raster resources may use `<image>`.
+
 The formula's resource ID is a SHA-256 digest of its SVG bytes. Reusing a `MathSvg`
 fragment in several document positions therefore contributes one identical
 `ImageResource` to the compiled document. Resources with conflicting bytes for the
@@ -192,11 +213,18 @@ raises `MathBatchError` and does not return a partially successful tuple. Exceed
 
 `MathLimits` controls execution and cache budgets. Its defaults are a 5,000 ms deadline,
 a 256 MiB V8 heap limit inside the worker, a 65,536-byte input limit, a 1,000,000-byte
-SVG limit, a 1,024-expression batch limit, 128 cache entries, and 16 MiB of cached
+SVG limit, a 128-level source nesting limit, a 1,024-expression batch limit,
+128 cache entries, and 16 MiB of cached
 UTF-8 TeX keys plus SVG bytes combined. The heap limit does not cap the worker process's
 total resident memory. Tighten these values when application inputs are less trusted
 or smaller than the defaults. Timeout and heap budgets must also fit the platform's
 timeout and native integer ranges; out-of-range values raise `ValueError` at construction.
+
+`max_nesting_depth` can be lowered but cannot exceed 128. It checks nested TeX
+groups, environments, and paired delimiters before starting the worker, ignoring
+comments and escaped characters. Exceeding it raises `MathLimitError`. This is a
+source budget, not a bound on macro expansion; expansion remains inside the
+supervised worker's time and memory limits.
 
 The typesetter uses an in-memory LRU cache by default. Pass `cache=False` to disable
 it; it does not read or write a disk cache.
@@ -229,8 +257,8 @@ one expression does not persist into a later call.
 
 The initial math path intentionally covers formulas, not general LaTeX documents.
 The demonstrated subset includes base TeX, AMS math and align environments, matrices
-and cases, resizable delimiters, color, `\cancel`, `\bbox`, and opt-in mhchem
-chemistry.
+and cases, resizable delimiters, named operators such as `\sin` and `\operatorname`,
+text spaces, color, `\cancel`, `\bbox` borders, array rules, and opt-in mhchem chemistry.
 
 It does not promise complete LaTeX packages, arbitrary macros with persistent state,
 `\input`, file access, network retrieval, formula numbering or cross-references,

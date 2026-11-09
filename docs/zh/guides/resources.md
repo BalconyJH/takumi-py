@@ -56,6 +56,158 @@ png = Renderer().render_node(
 字节长度必须恰好等于 `width * height * 4`。数据默认使用非预乘 alpha。只有当 RGB
 通道已经乘过 alpha 时，才设置 `premultiplied=True`。
 
+### 自有位图对象 { #owned-raster-images }
+
+`Renderer.rasterize` 返回拥有已完成原生位图的 `RasterImage`。与再次调用 `render` 不同，
+编码另一种格式不会重复布局、资源解码或绘制：
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+document = Document.from_node(
+    {
+        "type": "container",
+        "style": {
+            "width": "320px",
+            "height": "180px",
+            "backgroundColor": "#111827",
+        },
+    }
+)
+compiled = compile_document(document)
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=320, height=180),
+    scale=2,
+)
+
+png = image.encode("png")
+webp = image.encode("webp", quality=85)
+raw_rgba = image.tobytes()
+
+assert image.size == (640, 360)
+assert image.stride == image.width * 4
+assert len(raw_rgba) == image.nbytes == image.stride * image.height
+```
+
+位图使用紧密排列、按行优先的 RGBA8 和 non-premultiplied alpha。它的原生存储不依赖
+生成它的渲染器或文档。`data` 和 `tobytes()` 会把像素复制成 Python bytes。
+`to_raw_source()` 返回 `RawRgbaImage`，`to_fragment()` 则返回携带复制像素的图片
+`Fragment`，可传给 `Document.from_node`。
+
+`RasterImage.from_raw(data, width=..., height=...)` 导入现有的紧密排列 RGBA8 缓冲区，
+其字节数必须等于 `width * height * 4`。
+
+`RasterImage.encode` 与一次性渲染 API 遵循相同的编码规则：支持 PNG、JPEG、有损或无
+损 WebP、ICO 和 `"raw"`。省略 `quality` 时 WebP 默认使用无损编码。`lossless` 只适用于
+WebP，并且 `lossless=True` 不能与 `quality` 同时使用。
+
+### 发现图片引用 { #discover-image-references }
+
+编译完成后，`CompiledDocument.resource_urls()` 会合并节点和样式表中的图片引用，返回
+去重并排序后的元组。`CompiledDocument.missing_resources()` 会把这些引用与文档已经拥有
+的 `ImageResource.src` 比较：
+
+```python
+from takumi_py import Document, ImageResource, compile_document
+
+compiled = compile_document(
+    Document.from_html(
+        '<img src="https://cdn.example/hero.png"><div class="backdrop"></div>',
+        resources=[
+            ImageResource("https://cdn.example/hero.png", downloaded_hero),
+        ],
+        stylesheets=[
+            '.backdrop { background-image: url("https://cdn.example/pattern.png"); }',
+        ],
+    )
+)
+
+print(compiled.resource_urls())
+print(compiled.missing_resources())
+```
+
+资源发现不会访问网络。小写 `data:` URL、内联 `<svg` 标记，以及已经用相同 `src`
+提供的引用不会出现在 `missing_resources()` 中。应把结果当作保守的图片引用诊断，而不是
+所有未来渲染输入都已就绪的证明：它既不会获取 URL，也不提供完整的级联后资源闭包。请把
+获取到的字节传入 `ResourceSet` 或文档的 `resources` 输入。
+
+`missing_resources()` 只报告信息，不会拒绝渲染。`CompiledDocument.with_resources()` 可在
+发现资源后附加图片，同时复用现有的原生节点和样式表句柄。同一 `src` 的定义发生冲突时
+抛出 `ResourceError`。
+
+### 优先使用 `Renderer.needs()` { #renderer-needs }
+
+样式化文档实际会访问哪些图片标识和字体文件，应使用
+`Renderer.needs(document, *, layout=None, scale=1.0)` 查询。缩放规则与栅格输出一致：
+它会像 `render()` 或 `rasterize()` 那样扩大视口并设置设备像素比。调用时应传入计划用于
+栅格操作的同一个缩放值。`measure()` 和 `render_svg()` 使用缩放 1；为这些输出查询时，
+请使用默认值 `scale=1.0`。其他布局选项和字体失败列表也会应用于本次查询：
+
+```python
+from dataclasses import replace
+
+from takumi_py import (
+    Document,
+    FontError,
+    ImageResource,
+    LayoutOptions,
+    Renderer,
+    compile_document,
+)
+
+renderer = Renderer()
+compiled = compile_document(Document.from_html(html))
+layout = LayoutOptions(width=1200, height=630)
+raster_scale = 2.0
+needs = renderer.needs(compiled, layout=layout, scale=raster_scale)
+
+supplied = {resource.src for resource in compiled.resources.images}
+pending_images = set(needs.images) - supplied
+if pending_images:
+    compiled = compiled.with_resources(
+        [ImageResource(url, fetch_bytes(url)) for url in sorted(pending_images)]
+    )
+
+for url in needs.font_files:
+    try:
+        data = fetch_bytes(url)
+    except OSError:
+        layout = replace(
+            layout,
+            failed_font_files=(*layout.failed_font_files, url),
+        )
+        continue
+    try:
+        renderer.load_font_file(url, data)
+    except FontError:
+        layout = replace(
+            layout,
+            failed_font_files=(*layout.failed_font_files, url),
+        )
+
+# Supplying pixels or changing a font source can reveal fallback sources and
+# SVG text read from decoded images.
+needs = renderer.needs(compiled, layout=layout, scale=raster_scale)
+```
+
+`needs.images` 不包含 `data:` URI 和内联 SVG，但会包含文档已经提供的标识，因此应与
+`compiled.resources` 求差，而不是循环到集合为空。`needs.font_files` 报告每个已使用
+`@font-face` 的下一个来源；请显式加载该来源，把应用侧下载失败记录到
+`LayoutOptions.failed_font_files`，然后再次查询。字体数据不可用时抛出 `FontError`。
+如果你的 HTTP 客户端使用其他异常类型，请替换示例中的 `OSError`。
+
+`needs()` 不会访问网络或文件系统。`faces` 为分别管理字形的绑定保留上游待加载标识；
+Python 的常规字体 API 通常让它保持为空。另一资源可用后，SVG 文本和回退来源可能增加新
+需求，因此每次有实质输入变化后都应再次查询。请把 `raster_scale` 同样传给
+`RasterOptions(scale=...)` 或 `Renderer.rasterize(..., scale=...)`；SVG 和测量则不要
+额外设置缩放。
+
+编译文档时，编码后的图片字节会复制一次到不透明的原生快照。文档渲染方法借用该快照，
+避免每次渲染都从 Python 向 Rust 重新上传。这不是零拷贝：校验和文档快照仍拥有复制出的
+字节，解码后的图片也仍是渲染器本地缓存中的条目。
+
 ## 字体 { #fonts }
 
 字体注册在渲染器上，并在渲染器的整个生命周期内保持注册：
@@ -230,4 +382,6 @@ renderer = Renderer(cache_max_bytes=128 * 1024 * 1024)
     [Takumi v2 迁移](../migration/takumi-v2.md#resource-apis)列出了它们的替代方式。
 
 可运行示例见
-[`examples/render_resources.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_resources.py)。
+[`examples/render_resources.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_resources.py)
+和
+[`examples/render_static.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_static.py)。

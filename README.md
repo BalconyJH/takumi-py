@@ -14,12 +14,13 @@ Requires Python 3.11+. Published versions are listed on
 
 - **Three input models:** typed node trees, HTML parsed in Rust, and Jinja templates
   with custom filters or a caller-owned environment.
-- **Static output:** PNG, JPEG, WebP, ICO, raw RGBA, and SVG; layout measurement
-  returns a typed tree.
+- **Static output:** PNG, JPEG, WebP, ICO, raw RGBA, SVG, retained raster images,
+  and typed layout measurement.
 - **Animation:** sample CSS or structured keyframes, render scene sequences, or
   encode raw frames as WebP, APNG, and GIF.
-- **Fonts and images:** explicit image bytes, raw RGBA sources, font subsets,
-  fallback stacks, and language-aware text shaping.
+- **Fonts and images:** explicit image bytes, raw RGBA sources, CSS `@font-face`
+  files, font subsets, cascade-aware resource discovery, fallback stacks, and
+  language-aware text shaping.
 - **Optional math (next-major preview):** explicit TeX to self-contained SVG through
   `takumi_py.math`, with bundled fonts and resource-owning document fragments.
 - **Reuse and caching:** compiled nodes and stylesheets, budgeted image and font
@@ -66,8 +67,8 @@ runtime, lifecycle, limits, and supported subset.
 | --- | --- | --- |
 | Markdown | No Markdown parser or extension processing. | Convert Markdown to HTML first and supply its CSS; select and typeset formulas explicitly with `takumi_py.math`. |
 | JavaScript and browser applications | `<script>` elements are dropped. No browser DOM, client-side application execution, page navigation, or browser fallback. | Provide the final static HTML, nodes, or images. |
-| HTML and CSS | `<style>` and `<link>` elements are ignored; inline `style` attributes work. Unsupported stylesheet declarations are skipped by HTML/template entry points and rejected by strict node entry points. | Pass document CSS through `stylesheets` and check the actual output. |
-| External resources | Image URLs and external stylesheets are not downloaded; the renderer provides no HTTP client. | Fetch or read resources in application code, pass image bytes through `images`, and supply CSS explicitly. |
+| HTML and CSS | `<style>` rules and inline `style` attributes work. `<link>` elements and external stylesheets are not fetched. Unsupported stylesheet declarations are skipped by HTML/template entry points and rejected by strict node entry points. | Use embedded `<style>` CSS or pass author CSS through `stylesheets`, then check the actual output. |
+| External resources | Image URLs, `@font-face` sources, and external stylesheets are not downloaded; the renderer provides no HTTP client. | Use `Renderer.needs()` to discover cascade-aware image and font files, read them in application code, and supply images with `ImageResource` and font files with `load_font_file()`. |
 | Font coverage | The bundled Geist fallback covers Latin text. Host system fonts are not automatically loaded. | Register suitable fonts for CJK, emoji, and other scripts. |
 | SVG containing HTML | SVG rasterization does not render HTML inside `<foreignObject>`. | Convert embedded HTML to SVG paths or a raster image before passing it in. |
 | PDF and pagination | The Python API has no PDF output or automatic pagination. | Render images or SVG and use a separate document/PDF tool. |
@@ -145,12 +146,14 @@ Path("out.png").write_bytes(png)
 
 The example writes a 1200 by 630 PNG to `out.png`.
 
-- Pass document-level CSS through `stylesheets`. Inline `style` attributes work,
-  but `<style>` elements in the HTML are ignored.
+- Inline `style` attributes and eligible HTML `<style>` elements work.
+  `stylesheets` remains available for author CSS and is applied before embedded
+  document styles.
 - The bundled Geist fallback covers Latin text. Register suitable fonts for Chinese,
   Japanese, Korean, emoji, or other scripts.
-- The renderer never fetches resources over the network. Supply image bytes through
-  `images` and register fonts on the renderer.
+- The renderer never fetches resources over the network. Use `Renderer.needs()` to
+  discover images and `@font-face` files, supply image bytes, and load font files
+  explicitly.
 
 See [Fonts and images](https://balconyjh.github.io/takumi-py/dev/guides/resources/)
 for resource setup, and [`examples/`](https://github.com/BalconyJH/takumi-py/tree/main/examples)
@@ -163,8 +166,9 @@ The links below open the `dev` documentation built from `main`, in English and
 changes that are not yet on PyPI. For a published package, select its version on the
 [documentation site](https://balconyjh.github.io/takumi-py/).
 
-The `Document` / `CompiledDocument` API and the new `Renderer.render`, `measure`, and
-`render_svg` methods are a next-major preview. The quickstart above uses the existing
+The `Document` / `CompiledDocument` API and the new `Renderer.render`, `rasterize`,
+`needs`, `measure`, and `render_svg` methods are a next-major preview aligned with
+Takumi 2.20.0 / `takumi-core` 0.36.0. The quickstart above uses the existing
 `render_html` API; preview documentation does not mean those newer APIs are available
 in the published package.
 
@@ -187,9 +191,12 @@ English is the source of truth; Chinese mirrors its pages and code samples.
   `register_font` / `register_fonts`.
 - Review font subsets, dithering, animation frame-rate limits, and rendering changes
   when moving from Takumi 2.5 to 2.17.
+- Use `Renderer.needs()`, `load_font_file()`, and `LayoutOptions.failed_font_files`
+  for cascade-aware `@font-face` discovery after moving from Takumi 2.17 to 2.20.
 
 Follow the [Takumi v2 migration](https://balconyjh.github.io/takumi-py/dev/migration/takumi-v2/)
-and [Takumi 2.17 migration](https://balconyjh.github.io/takumi-py/dev/migration/takumi-2.17/),
+and [Takumi 2.17 migration](https://balconyjh.github.io/takumi-py/dev/migration/takumi-2.17/)
+and [Takumi 2.20 migration](https://balconyjh.github.io/takumi-py/dev/migration/takumi-2.20/),
 and read the [changelog](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md).
 
 ## Development
@@ -220,3 +227,5 @@ describes the automated release pipeline.
 This repository includes `takumi` as a git submodule. `takumi` is licensed separately
 under `MIT OR Apache-2.0`; see
 [THIRD_PARTY_NOTICES.md](https://github.com/BalconyJH/takumi-py/blob/main/THIRD_PARTY_NOTICES.md).
+That notice also identifies the Chromium/Blink and Skia, emoji-segmenter, and ICU
+license files packaged with the native extension.

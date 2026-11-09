@@ -10,6 +10,7 @@ Jinja `Environment` 来代替 `template_dir`，并保留原生的加载器、全
       members:
         - __init__
         - environment
+        - document
         - render
 
 ## render_template_to_html { #render_template_to_html }
@@ -20,3 +21,10 @@ Jinja `Environment` 来代替 `template_dir`，并保留原生的加载器、全
 `TemplateRenderer(..., renderer=renderer)`。
 
 ::: takumi_py.template.render_template_to_html
+
+## render_template_to_document { #render_template_to_document }
+
+模板需要先变成不可变的 `Document`、再开始任何布局或编码时，使用这个辅助函数。它接受
+与 `TemplateRenderer.document` 方法相同的环境、过滤器、样式表和文档资源输入。
+
+::: takumi_py.template.render_template_to_document

@@ -23,6 +23,20 @@ core versions. They do not duplicate the commit-by-commit record in the changelo
 
     [:octicons-arrow-right-24: Open migration guide](takumi-2.17.md)
 
+-   :material-update:{ .lg .middle } **Takumi 2.20**
+
+    Cascade-aware resource discovery, HTML `<style>` extraction, `@font-face`
+    files, and additional rendering changes.
+
+    [:octicons-arrow-right-24: Open migration guide](takumi-2.20.md)
+
+-   :material-image-multiple:{ .lg .middle } **Static rendering**
+
+    Owned raster images, repeated encoding, template-to-document conversion, and
+    conservative image resource discovery.
+
+    [:octicons-arrow-right-24: Open migration guide](static-rendering.md)
+
 </div>
 
 !!! tip "Read both migration guidance and release history"

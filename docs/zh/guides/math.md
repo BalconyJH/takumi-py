@@ -46,6 +46,10 @@ worker 使用嵌入式 V8 执行固定的本地 MathJax bundle。它不使用 No
 不是绝对毫秒级的硬返回保证。之后的缓存未命中会启动新的 worker，因此可复用运行时不会
 保留失控任务。
 
+截止时间也覆盖进程创建。操作系统启动阻塞时，每个排版器最多保留一个后台启动线程，
+不会无限阻塞 `typeset()` 或 `close()`。取消之后才出现的进程会被终止；启动仍在等待时，
+重试不会创建额外的启动线程。
+
 `typeset` 是同步接口；缓存未命中时，它会阻塞调用线程。异步应用可以安全地构造排版器，
 但如果不希望阻塞事件循环，应把转换调用放入 executor。`close()` 释放排版器资源，可重复
 调用。排版器生命周期有限时，优先使用上下文管理器。返回的 `MathSvg` 只拥有不可变字节
@@ -57,6 +61,11 @@ worker 使用嵌入式 V8 执行固定的本地 MathJax bundle。它不使用 No
 并使 `MathSvg.to_node()` 和 `to_fragment()` 返回居中的块级容器。`font_size_px`
 使用 CSS 像素，`ex_ratio` 设置输入环境的 x-height 比例，`color` 可选 CSS 命名颜色或
 十六进制颜色。
+
+尺寸和基线深度来自 MathJax 的布局盒，并随 `font_size_px` 线性缩放，大字号也遵循
+同一规则。TeX 中明确以 `px` 表示的长度保留绝对单位。计算后的几何超出有限 float32
+范围时抛出 `MathLimitError`；字号小到无法表示最小布局盒时，会在转换前抛出
+`MathValidationError`。
 
 推荐的文档路径是 `to_fragment()`。它返回一个 `Fragment`，随后由
 `Document.from_node` 插入其中的节点并收集 `ResourceSet`；相同公式资源会自动去重。
@@ -115,13 +124,16 @@ Path("math.png").write_bytes(png)
 Path("math.svg").write_text(svg, encoding="utf-8")
 ```
 
-行内公式是一个原子图片盒，其 CSS `verticalAlign` 根据 `MathSvg.depth_px` 计算。块级
-公式会改变 TeX 样式，并把图片包在居中块容器中。同一个 `CompiledDocument` 随后可以用于
-测量、以一个或多个缩放比例栅格化，或输出 SVG，而不需要再次运行公式引擎。
+在布局中，行内公式占据一个单独的行内盒，其 CSS `verticalAlign` 根据
+`MathSvg.depth_px` 计算。块级公式会改变 TeX 样式，并把该盒包在居中块容器中。同一个
+`CompiledDocument` 随后可以用于测量、以一个或多个缩放比例栅格化，或输出 SVG，而不需要
+再次运行公式引擎。
 
-`color=None` 时，生成的填充和描边使用 `currentColor`。Takumi 已通过验证的行内图片颜色
-继承路径解析该值。公式必须保持黑色、匹配品牌配色，或在不同宿主之间保留精确缓存键时，
-应显式设置 `MathOptions.color`。
+`color=None` 时，生成的填充和描边使用 `currentColor`。Takumi 渲染文档时会用宿主元素的
+颜色解析该值。能在宿主中扁平化时，矢量 SVG 资源会成为宿主路径几何；栅格图片来源仍可能
+需要 `<image>` 回退。因此，输出序列化属于实现细节，不应假定其中一定有一个嵌入的
+`<image>` 或 SVG data URI。公式必须保持黑色、匹配品牌配色，或在不同宿主之间保留精确
+缓存键时，应显式设置 `MathOptions.color`。
 
 ## 显式 HTML 资源 { #explicit-html-resources }
 
@@ -165,6 +177,11 @@ svg = Renderer().render_svg(
 `Renderer.render_html` 的 `images` 参数。若资源需要与源一起经过编译并用于后续多种
 输出，文档路径更合适。
 
+仍然需要传入 `MathSvg.to_image_resource()`，因为 HTML 适配器必须把 `<img>` 与保存的
+SVG 字节关联起来。之后 `Renderer.render_svg()` 可以把该矢量资源扁平化为宿主中的
+`<path>` 与变换元素。不要要求结果中一定出现 `data:image/svg+xml` URL 或恰好一个嵌入的
+`<image>`；优先使用扁平后的矢量路径，而栅格资源仍可能使用 `<image>`。
+
 公式资源 ID 是 SVG 字节的 SHA-256 摘要。因此，在文档多个位置复用同一个 `MathSvg`
 fragment 时，编译后的文档只会获得一个相同 `ImageResource`。若同一个源对应不同字节，
 文档创建资源快照时会抛出 `ResourceError`。
@@ -177,10 +194,15 @@ fragment 时，编译后的文档只会获得一个相同 `ImageResource`。若�
 `MathLimitError`。
 
 `MathLimits` 控制执行和缓存预算。默认值为 5,000 ms 截止时间、worker 内 256 MiB 的 V8
-堆上限、65,536 字节输入上限、1,000,000 字节 SVG 上限、1,024 个表达式的批次上限、
+堆上限、65,536 字节输入上限、1,000,000 字节 SVG 上限、128 层源代码嵌套上限、
+1,024 个表达式的批次上限、
 128 个缓存条目，以及 UTF-8 TeX 键与 SVG 字节合计 16 MiB 的缓存。该堆上限不限制
 worker 进程的总常驻内存。应用输入可信度较低或规模更小时，可收紧这些值。超时和堆预算
 还必须落在平台等待时间和原生整数范围内；超出范围时，构造阶段即抛出 `ValueError`。
+
+`max_nesting_depth` 可以调低，但不能超过 128。它在启动 worker 前检查 TeX 分组、
+环境和成对定界符的嵌套，忽略注释和转义字符；超限抛出 `MathLimitError`。这是源代码
+预算，不是宏展开深度的保证；宏展开仍受独立 worker 的时间和内存限制约束。
 
 排版器默认使用内存 LRU 缓存。传入 `cache=False` 可以禁用它；该缓存不会读写磁盘。
 
@@ -210,8 +232,8 @@ with MathTypesetter(limits=limits, extensions=("mhchem",)) as typesetter:
 ## 语法与支持范围 { #syntax-and-support }
 
 首期数学路径有意面向公式，而不是通用 LaTeX 文档。已验证的子集包括基础 TeX、AMS math
-与 align 环境、矩阵与 cases、可伸缩定界符、颜色、`\cancel`、`\bbox`，以及显式启用的
-mhchem 化学式。
+与 align 环境、矩阵与 cases、可伸缩定界符、`\sin` 和 `\operatorname` 等命名运算符、
+文本空格、颜色、`\cancel`、`\bbox` 边框、array 分隔线，以及显式启用的 mhchem 化学式。
 
 该路径不承诺完整 LaTeX 包、具有持久状态的任意宏、`\input`、文件访问、网络获取、公式
 编号与交叉引用、自动断行、MathML 或 Markdown 公式发现。断行和分页应交给外围布局。

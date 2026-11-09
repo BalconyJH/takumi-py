@@ -38,13 +38,21 @@ fragment. A fragment with several top-level elements is wrapped in a container t
 fills the viewport.
 
 The parser maps `style`, `class`, `id`, `dir`, `lang`, and Tailwind attributes onto the
-node tree. `<style>` elements and other elements that do not render are dropped, and an
+node tree. `<style>` elements are removed from that tree, and their CSS is returned
+separately in document order. Other elements that do not render are dropped, and an
 `<img>` without a `src` renders as an empty box sized by its `width` and `height`.
 
 ## Stylesheets
 
-Inline `style` attributes are part of the HTML. Document-level CSS is always an explicit
-input through `stylesheets=[...]`; `<style>` elements in the markup are ignored.
+Inline `style` attributes are part of the HTML. CSS from eligible `<style>` elements is
+extracted and applied automatically. The `stylesheets=[...]` argument remains available
+for author CSS supplied by the application; it is applied before the document's
+embedded styles so equal-specificity HTML rules come later in cascade order.
+
+A `<style>` block participates when its `type` is absent, empty, or case-insensitively
+`text/css`. Non-empty `media` becomes an enclosing `@media` rule. `<link>` elements,
+scripts, linked stylesheets, and `<base>` URL resolution are not supported; URL strings
+remain exactly as authored.
 
 HTML and node entry points compile `stylesheets` differently:
 
@@ -93,7 +101,9 @@ png = Renderer().render_html(
 | `tailwind_property` | `None` | Attribute that carries Tailwind classes; `None` reads the `tw` attribute |
 | `max_depth` | `None` | Maximum element nesting; `None` uses Takumi's limit of 512 |
 
-Nesting deeper than `max_depth` raises `HtmlParseError`.
+The effective HTML nesting limit is therefore always 512 or lower. Passing a
+`max_depth` greater than 512 raises `ValueError` before parsing. HTML nested deeper
+than the effective limit raises `HtmlParseError`.
 
 ## Parse once, render many
 
@@ -105,7 +115,7 @@ and stylesheets to the compiled APIs as described in
 ```python
 from takumi_py import Renderer, parse_html
 
-parsed = parse_html("<article>Hello</article>")
+parsed = parse_html("<style>article { color: red; }</style><article>Hello</article>")
 png = Renderer().render_compiled(
     parsed.node,
     stylesheets=parsed.stylesheets,
@@ -114,28 +124,70 @@ png = Renderer().render_compiled(
 )
 ```
 
-The parser does not extract `<style>` elements. `ParsedHtml.stylesheets` and
-`CompiledHtml.stylesheets` are therefore empty in the current API; compile
-document-level CSS separately and append it to the compiled stylesheets.
+`ParsedHtml.stylesheets` and `CompiledHtml.stylesheets` contain the extracted CSS in
+document order. When combining them with explicit author CSS, pass the explicit sheets
+first and the extracted sheets afterward.
 
 ## Discover external resources
 
-The renderer never fetches anything. `CompiledNode.resource_urls()` lists the HTTP(S)
-image references in image nodes and styles, so the application can fetch them first:
+The renderer never fetches anything. `CompiledNode.resource_urls()` lists image-source
+identifiers from image nodes, `CompiledStyleSheet.resource_urls()` lists identifiers
+from CSS, and `CompiledDocument.resource_urls()` returns their deduplicated union.
+Discovery is not limited to HTTP(S): every identifier it finds is included, including
+custom schemes such as `memory://`:
 
 ```python
-from takumi_py import Renderer
+from takumi_py import Document, compile_document
 
-compiled = Renderer().compile_node(
-    {"type": "image", "src": "https://example.com/logo.png"}
+compiled = compile_document(
+    Document.from_node({"type": "image", "src": "https://example.com/logo.png"})
 )
 
 print(compiled.resource_urls())
+print(compiled.missing_resources())
 ```
 
-It does not report sources the caller already supplied, such as `memory://` resources
-or byte buffers. Pass fetched bytes back as `ImageResource` values, as described in
-[Fonts and images](resources.md#images).
+`missing_resources()` excludes references already supplied by the document and
+self-contained data URLs or inline SVG. Raw byte-backed image sources have no string
+identifier to discover; identifier sources retain their scheme. Pass application-read
+bytes back as `ImageResource` values, as described in
+[Fonts and images](resources.md#discover-image-references). Treat the result as a
+conservative image-reference diagnostic rather than a complete post-cascade resource
+closure.
+
+For the resources a styled document actually reaches, prefer
+`Renderer.needs(document, *, layout=None, scale=1.0)`. It accounts for CSS matching,
+custom properties, media queries, hidden nodes, generated content, and `@font-face`
+files. For raster output, pass the raster operation's scale so resolution queries and
+viewport rounding match; measurement and SVG use scale one:
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+compiled = compile_document(
+    Document.from_html(
+        """
+        <style>
+          @font-face { font-family: Article; src: url(article.woff2); }
+          .card { font-family: Article; background: url(card.png); }
+        </style>
+        <div class="card">Hello</div>
+        """
+    )
+)
+needs = Renderer().needs(
+    compiled,
+    layout=LayoutOptions(width=1200, height=630),
+    scale=2.0,
+)
+print(needs.images)
+print(needs.font_files)
+```
+
+The renderer still performs no I/O. Load reported font files with
+`load_font_file()`, mark failed downloads through
+`LayoutOptions.failed_font_files`, and query `needs()` again after either changes.
+See [Upgrade to Takumi 2.20](../migration/takumi-2.20.md#resource-discovery).
 
 See the runnable
 [`examples/render_html.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_html.py)

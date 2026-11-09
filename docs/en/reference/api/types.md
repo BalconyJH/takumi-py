@@ -21,6 +21,10 @@ Its byte length follows the same `width * height * 4` contract.
 
 ::: takumi_py.types.MeasuredTextRun
 
+::: takumi_py.types.RenderNeeds
+
+::: takumi_py.raster.RasterImage
+
 ::: takumi_py.types.AnimationScene
 
 ::: takumi_py.types.RawAnimationFrame

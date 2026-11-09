@@ -31,8 +31,9 @@ png = renderer.render_html(
 Path("out.png").write_bytes(png)
 ```
 
-1. Stylesheets are passed as document-level render inputs, rather than hidden global
-   renderer state.
+1. Explicit author stylesheets are passed as document-level render inputs, rather than
+   hidden global renderer state. Eligible `<style>` elements embedded in HTML are
+   extracted automatically.
 2. Fix both viewport dimensions when the output must be repeatable across calls.
 
 ## Choose an input model
@@ -56,7 +57,8 @@ Path("out.png").write_bytes(png)
     Check these boundaries first:
 
     1. Are the viewport dimensions explicit or intentionally inferred?
-    2. Was document-level CSS passed through `stylesheets`?
+    2. Was additional author CSS passed through `stylesheets`, or embedded in an
+       eligible HTML `<style>` element?
     3. Were the fonts required by the text registered?
 
     Continue with the [rendering model](../guides/rendering.md) and

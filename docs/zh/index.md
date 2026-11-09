@@ -81,7 +81,8 @@ png = Renderer().render_html(
 Path("out.png").write_bytes(png)
 ```
 
-1. 文档级 CSS 是显式输入，内联 `style` 属性仍属于 HTML 输入的一部分。
+1. 显式作者 CSS 是输入的一部分；内联 `style` 属性和符合条件的嵌入 `<style>` 元素也
+   仍属于 HTML 输入。
 2. 显式视口让输出尺寸保持确定。任一维度也可以交由布局推断。
 
 ## 设计边界 { #design-boundary }

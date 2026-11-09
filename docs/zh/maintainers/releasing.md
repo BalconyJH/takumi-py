@@ -68,29 +68,37 @@ alpha、beta 或 release candidate，例如 `make release VERSION=0.4.0rc1`，�
 
 ## 自动发布链路 { #automatic-release-pipeline }
 
-```mermaid
-flowchart TD
-    M["版本提交进入 main"] --> C["Check · Build and test: tests + 八平台 wheel + sdist + abi3"]
-    M --> D["Check · Docs: strict build"]
-    M --> K["Check · Lint: repository + Actions lint"]
-    C --> T["Release · Tag: 聚合同一 source SHA"]
-    D --> T
-    K --> T
-    T --> V["校验版本、locks、changelog 与 main 祖先"]
-    V --> G["创建 annotated tag 并派发 Release · Publish"]
-    G --> B["重新检查并构建八个 wheel 与一个 sdist"]
-    B --> A["校验元数据、许可证、平台与隔离安装"]
-    A --> P["生成 provenance 并发布 PyPI"]
-    P --> H["核对 PyPI 文件名与 SHA-256"]
-    H --> R["发布或恢复 GitHub Release"]
-    R --> X["从 release tag 准备版本化文档"]
-    X --> Y["通过 GitHub Pages artifact 与 OIDC 部署"]
+六个 workflow 的总体拓扑、精确 SHA 的 Check 汇合和独立预览分支见
+[CI 执行顺序](development.md#ci-execution-order)。`Release · Tag` 派发匹配标签后，
+`publish.yml` 运行以下平铺 job 链：
+
+```text
+release-guard
+  |
+release-check
+  +--> wheels [8 x 2] -----+
+  `--> sdist --------------+--> artifact-validation
+                                    |
+                                provenance
+                                    |
+                                pypi-publish
+                                    |
+                                verify-pypi
+                                    |
+                                github-release
+                                    |
+                                docs-release
+                                    |
+                                pages-deploy
 ```
 
-发布构建包含八个 `cp311-abi3` wheel 和一个 sdist：manylinux2014 与 musllinux_1_2 上的
-Linux x86_64 与 aarch64、macOS arm64 与 x86_64，以及 Windows x64 与 arm64。每个 wheel 都在
-其所属平台的 runner 上构建并执行 smoke 测试，musllinux wheel 则在 Alpine 容器中执行。
-验证层会：
+16 个 wheel 单元都会构建并测试；只有八个 `release` 单元上传 wheel 用于发布。连同
+一个 sdist，发布集合仍是八个 `cp311-abi3` wheel 加一个 sdist：manylinux2014 与
+musllinux_1_2 上的 Linux x86_64 与 aarch64、macOS arm64 与 x86_64，以及 Windows x64
+与 arm64。`artifact-validation` 等待两条构建分支，并校验完整的九个文件。Provenance
+覆盖同一批文件；PyPI、哈希核验和 GitHub Release 也消费该已验证分发集合。Docs 与 Pages
+job 则把已发布 Release 作为状态门禁，并读取 `gh-pages`。图中只画执行门禁；仅为读取
+`release-guard` outputs 而存在的直接边未全部画出。验证层会：
 
 1. 检查完整制品集合、包元数据、许可证、ABI/平台标签及内置字体边界。
 2. 在仓库外的临时虚拟环境安装并执行渲染 smoke，避免意外导入 checkout。
@@ -156,13 +164,14 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 
     修复问题并合并到 `main`。因为修复提交的版本可能与父提交相同，自动检测不会再次
     把它视为版本变化；此时从当前 `main` 手工运行 `Release · Tag`，传入
-    当前完整 40 位 `source_sha`。恢复模式只接受当前 `main` 且仍会要求三个精确提交
-    工作流全部成功。
+    当前完整 40 位 `source_sha`。恢复模式只接受当前 `main`，并会重新检查三个工作流
+    是否都在该精确提交上成功。
 
 === "标签存在，但 Publish 未成功"
 
     从匹配标签或默认分支手工运行 `Release · Publish`，传入相同 `release_tag`。不要创建替代标签，
-    也不要改写标签指向。
+    也不要改写标签指向。它会重新运行 `release-guard` 和 `release-check`，再构建并重新
+    校验制品。
 
 === "PyPI 已经接收部分或全部文件"
 
@@ -173,7 +182,8 @@ wheel 以及 sdist 重建路径。`DIST_SMOKE_PYTHON` 可指定 smoke 使用的 
 
     再次运行同一标签的 `Release · Publish`。已发布 Release 只有在文件集合与摘要完全一致时才被
     复用；草稿可从已验证制品恢复。文档准备会重新读取远端 `gh-pages` 并重试冲突，
-    随后的 Pages deployment 会重新使用同一次运行上传的静态 artifact。
+    随后的 Pages deployment 会重新使用同一次运行上传的静态 artifact。手动重跑从
+    release guard 开始，不会从失败的 job 继续，也不会信任前一次运行的制品。
 
 !!! danger "不要改写已经发布的制品"
 

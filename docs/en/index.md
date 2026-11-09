@@ -83,8 +83,8 @@ png = Renderer().render_html(
 Path("out.png").write_bytes(png)
 ```
 
-1. Document-level CSS is an explicit input. Inline `style` attributes remain part
-   of the HTML input.
+1. Explicit author CSS is an input. Inline `style` attributes and eligible embedded
+   `<style>` elements remain part of the HTML input.
 2. An explicit viewport makes output dimensions deterministic. Either dimension
    can also be inferred from layout.
 

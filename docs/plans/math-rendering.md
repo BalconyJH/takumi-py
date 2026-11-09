@@ -4,6 +4,12 @@
 
 日期：2026-11-08。目标项目为 `takumi-py`；公式引擎不放在 Entari 或其他机器人框架插件中。
 
+2026-11-09 补充：整体静态管线已升级到正式 `takumi@2.20.0` / `takumi-core 0.36.0`
+（`ae2a35011e5cddedb0a4c8b33ab0c9242ca76b2d`）。以下基线表记录最初审查状态；
+当前架构加入可保留的 `RasterImage`、原生资源快照、`needs()`、HTML `<style>` 提取与
+`@font-face` 文件加载，详见 [binding 架构](binding-next.md)。MathJax bundle 保持不变；
+SVG 后端现在可将公式展开为宿主路径，测量按上游 1/64 px 布局单位量化。
+
 ## 1. 目标与基线
 
 为 Python 调用方提供显式的 TeX 公式预排版能力，输出带尺寸与基线信息的静态 SVG，再复用 Takumi 的图片、布局、测量和输出管线。运行时不需要浏览器，不依赖 NoneBot、Entari 或 Markdown 解析器。
@@ -177,11 +183,21 @@ P0 交付可重复实验、依赖锁、输出样本及结论。“运行机器�
 
 父进程为 bundle 启动、JS 执行和异步任务统一施加墙钟 deadline。到期的 worker 会先 terminate、再有界等待并用 kill 兜底回收，因此调用方返回超时后不会留下继续无限运行的后台任务。这个进程级监督覆盖 MiniRacer 自身无法中断 Promise 回调死循环的缺口。
 
+进程创建本身也计入期限：最多一个后台启动尝试，取消后迟到的进程立即回收，重试期间
+不累积启动线程。操作系统中阻塞的 `Popen` 调用不能被强行结束；该单个后台线程可能
+稍晚退出，但调用方等待和 `close()` 均有明确边界。`max_nesting_depth` 默认且最多
+128，先检查源代码中的分组、环境和成对定界符，忽略注释、转义与 `\verb`；这是输入
+预算，宏展开仍通过 worker 的时间与内存限制隔离。
+
 ## 6. SVG、尺寸与基线
 
 ### 自包含 SVG
 
 当前实现使用 MathJax SVG output 的 `fontCache: "none"`，让字形路径进入每个公式，不依赖其他公式或页面级全局字体缓存。严格验证器的实际元素白名单是 `svg`、`g`、`path`、`rect` 和 `line`；`use`、`defs` 与 `style` 不在当前接受范围内。
+
+空格字形允许带合法 `data-c` 的空 `d`，使命名运算符和含空格文本保持有效。bbox 的
+polygon 在桥接层转换为 path，array 的描边类转换为明确属性，再移除已识别的 MathJax
+元数据。任意原始 `style`、URL 与无来源标记的空 path 仍然拒绝。
 
 验证 SVG 根、有效 `viewBox`、有限坐标及数值尺寸。拒绝脚本、事件属性、外部 URL、`foreignObject`、外部字体、XML 外部实体和超预算的树；引擎 safe 配置与输出检查共同使用，不能把 safe 扩展当作完整沙箱，并显式限制 `\href`、`\style`、`\class` 等命令。
 
@@ -193,9 +209,11 @@ P0 交付可重复实验、依赖锁、输出样本及结论。“运行机器�
 
 MathJax 常见输出含 `ex` 尺寸及负的 `vertical-align`，不能原样塞进当前 Takumi HTML 的 CSS。适配层需要：
 
-- 优先从排版结果读取 width、height、depth，确认 `em`、`ex`、SVG user units 的含义后统一换算为 CSS px。
+- 实际读取 `svgJax.getBBox()` 的 `w/h/d`，将 em 几何乘一次显式字号得到 CSS px。
 - 使用显式 `font_size_px`；`ex_ratio` 描述输入环境的 x-height/em。0.5 可以作为实验默认值，但须明确记录并允许覆盖，不能当作所有字体的事实。
-- 为图片输出明确的宽高，保留 `viewBox`，避免仅有比例的 SVG 意外铺满容器；不使用正则盲猜全部几何量。
+- 为图片输出明确的宽高，并由 BBox 重建 `viewBox`；最小盒为固定 `0.001 em`。
+  不能直接复用 MathJax 随输入 em 增大的最小 SVG 盒，否则 1000/2000 px 等大字号
+  会产生二次缩放。计算后的 f32 溢出抛出 `MathLimitError`。
 - 公式尺寸始终为 CSS px，不预乘 DPR。新文档 API 通过 `RasterOptions.scale` 在适配层缩放 viewport，并把倍率交给原生长度解析；它也影响原生布局，而非纯绘制后处理。`measure(document)` 固定 DPR=1，SVG 同样使用 CSS 单位。旧测量接口仍可能返回 device px。
 - 首期不自动解析父元素的继承字号；字号变化后重新排版，或使用经过验证的显式等比缩放。
 

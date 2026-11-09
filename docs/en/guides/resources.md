@@ -60,6 +60,172 @@ The byte length must be exactly `width * height * 4`. Data uses straight alpha b
 default. Set `premultiplied=True` only for pixels whose RGB channels already include
 the alpha multiplication.
 
+### Owned raster images { #owned-raster-images }
+
+`Renderer.rasterize` returns a `RasterImage` that owns the completed native bitmap.
+Unlike a second `render` call, encoding another format does not repeat layout,
+resource decoding, or drawing:
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+document = Document.from_node(
+    {
+        "type": "container",
+        "style": {
+            "width": "320px",
+            "height": "180px",
+            "backgroundColor": "#111827",
+        },
+    }
+)
+compiled = compile_document(document)
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=320, height=180),
+    scale=2,
+)
+
+png = image.encode("png")
+webp = image.encode("webp", quality=85)
+raw_rgba = image.tobytes()
+
+assert image.size == (640, 360)
+assert image.stride == image.width * 4
+assert len(raw_rgba) == image.nbytes == image.stride * image.height
+```
+
+The bitmap is tightly packed, row-major RGBA8 with straight alpha. Its native storage
+does not depend on the renderer or document that produced it. `data` and `tobytes()`
+copy the pixels to Python bytes. `to_raw_source()` returns a `RawRgbaImage`, while
+`to_fragment()` returns an image `Fragment` carrying copied pixels that can be passed
+to `Document.from_node`.
+
+`RasterImage.from_raw(data, width=..., height=...)` imports an existing tightly packed
+RGBA8 buffer. The byte count must equal `width * height * 4`.
+
+The same encoder rules apply to `RasterImage.encode` and the one-call render APIs:
+PNG, JPEG, lossy or lossless WebP, ICO, and `"raw"` are supported. WebP defaults to
+lossless when `quality` is omitted. `lossless` is accepted only for WebP, and
+`lossless=True` cannot be combined with `quality`.
+
+### Discover image references { #discover-image-references }
+
+After compilation, `CompiledDocument.resource_urls()` combines image references from
+the compiled node and stylesheet into a deduplicated, sorted tuple.
+`CompiledDocument.missing_resources()` compares those references with the
+`ImageResource.src` values already owned by the document:
+
+```python
+from takumi_py import Document, ImageResource, compile_document
+
+compiled = compile_document(
+    Document.from_html(
+        '<img src="https://cdn.example/hero.png"><div class="backdrop"></div>',
+        resources=[
+            ImageResource("https://cdn.example/hero.png", downloaded_hero),
+        ],
+        stylesheets=[
+            '.backdrop { background-image: url("https://cdn.example/pattern.png"); }',
+        ],
+    )
+)
+
+print(compiled.resource_urls())
+print(compiled.missing_resources())
+```
+
+Discovery never performs network access. Lowercase `data:` URLs, inline `<svg` markup,
+and references already supplied under the same `src` are excluded from
+`missing_resources()`. Treat the result as a conservative image-reference diagnostic
+rather than proof that every future render input is present: it does not fetch URLs or
+provide a complete post-cascade resource closure. Pass the fetched bytes in a
+`ResourceSet` or the document's `resources` input.
+
+`missing_resources()` reports information; it does not reject rendering.
+`CompiledDocument.with_resources()` attaches resources after discovery while reusing
+the existing native node and stylesheet handles. A conflicting definition for the
+same `src` raises `ResourceError`.
+
+### Prefer `Renderer.needs()` { #renderer-needs }
+
+Use `Renderer.needs(document, *, layout=None, scale=1.0)` for the image identifiers
+and font files the styled document actually reaches. The scale follows raster output:
+it enlarges the viewport and sets the device pixel ratio exactly as `render()` or
+`rasterize()` does. Pass the same scale used by the planned raster operation.
+`measure()` and `render_svg()` use scale one, so use the default `scale=1.0` when
+discovery is for those outputs. The other layout options and failed-font list apply
+to that operation too:
+
+```python
+from dataclasses import replace
+
+from takumi_py import (
+    Document,
+    FontError,
+    ImageResource,
+    LayoutOptions,
+    Renderer,
+    compile_document,
+)
+
+renderer = Renderer()
+compiled = compile_document(Document.from_html(html))
+layout = LayoutOptions(width=1200, height=630)
+raster_scale = 2.0
+needs = renderer.needs(compiled, layout=layout, scale=raster_scale)
+
+supplied = {resource.src for resource in compiled.resources.images}
+pending_images = set(needs.images) - supplied
+if pending_images:
+    compiled = compiled.with_resources(
+        [ImageResource(url, fetch_bytes(url)) for url in sorted(pending_images)]
+    )
+
+for url in needs.font_files:
+    try:
+        data = fetch_bytes(url)
+    except OSError:
+        layout = replace(
+            layout,
+            failed_font_files=(*layout.failed_font_files, url),
+        )
+        continue
+    try:
+        renderer.load_font_file(url, data)
+    except FontError:
+        layout = replace(
+            layout,
+            failed_font_files=(*layout.failed_font_files, url),
+        )
+
+# Supplying pixels or changing a font source can reveal fallback sources and
+# SVG text read from decoded images.
+needs = renderer.needs(compiled, layout=layout, scale=raster_scale)
+```
+
+`needs.images` excludes `data:` URIs and inline SVG, but includes identifiers already
+supplied by the document. Diff it against `compiled.resources` instead of looping until
+the set is empty. `needs.font_files` reports the next source for each used
+`@font-face`; load that source explicitly, record an application-side fetch failure in
+`LayoutOptions.failed_font_files`, and query again. A malformed font raises
+`FontError`. Replace the exception used by your HTTP client where the example uses
+`OSError`.
+
+`needs()` performs no network or filesystem access. `faces` preserves upstream
+pending-face identifiers for bindings that manage faces individually; Python's normal
+font APIs usually leave it empty. SVG text and fallback sources can add needs after
+another resource becomes available, so repeat the query after each meaningful input
+change. Reuse `raster_scale` as `RasterOptions(scale=...)` or
+`Renderer.rasterize(..., scale=...)`; omit the extra scale for SVG and measurement.
+
+When a document is compiled, its encoded image bytes are copied once into an opaque
+native snapshot. The document render methods borrow that snapshot, avoiding a
+Python-to-Rust upload on every render. This is not zero-copy: validation and document
+snapshots still own copied bytes, and decoded images remain renderer-local cache
+entries.
+
 ## Fonts
 
 Fonts register on a renderer and stay registered for its lifetime:
@@ -244,4 +410,6 @@ process-wide caches.
 
 See the runnable
 [`examples/render_resources.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_resources.py)
-example.
+and
+[`examples/render_static.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_static.py)
+examples.

@@ -2,10 +2,11 @@
 
 !!! info "下一主版本预览"
 
-    `Document`、`CompiledDocument`、`Fragment`、`ResourceSet`，以及新增的
-    `Renderer.render`、`Renderer.measure` 和 `Renderer.render_svg` 入口，是当前代码检出
-    中的下一主版本预览。这些 API 是增量能力：包元数据和版本保持不变，现有
-    `render_*`、`measure_*` 和 `render_svg_*` API 继续兼容。
+    `Document`、`CompiledDocument`、`Fragment`、`ResourceSet`、`RasterImage`，以及新增
+    的 `Renderer.render`、`Renderer.rasterize`、`Renderer.measure` 和
+    `Renderer.render_svg` 入口，是当前代码检出中的下一主版本预览。这些 API 是增量
+    能力：包元数据和版本保持不变，现有 `render_*`、`measure_*` 和 `render_svg_*` API
+    继续兼容。
 
 文档 API 把渲染输入与它拥有的资源组合在一起，再将编译与输出分开。同一内容需要输出
 位图、进行测量并输出 SVG，尤其是图片字节需要随文档一起传递时，这种方式更合适。
@@ -21,6 +22,8 @@ flowchart LR
     D --> C["compile_document"]
     C --> N["已编译节点 + 样式表 + 资源"]
     N --> L1["位图布局"]
+    L1 --> P["保留的 RasterImage"]
+    P --> E["编码 PNG、JPEG、WebP 或原始 RGBA"]
     N --> L2["测量布局"]
     N --> L3["SVG 布局"]
 ```
@@ -33,17 +36,24 @@ flowchart LR
 | --- | --- |
 | `node` | 原生 `CompiledNode` |
 | `stylesheets` | 零个或一个已合并的原生样式表 |
-| `resources` | 不可变的 `ResourceSet` 快照 |
+| `resources` | 不可变的 `ResourceSet` 与不透明的原生编码资源快照 |
 
-`Renderer.render`、`Renderer.measure` 和 `Renderer.render_svg` 接受 `Document` 或
-`CompiledDocument`。传入原始 `Document` 时，该次调用会先编译它。需要复用编译结果时，
-请先调用 `compile_document`。
+`Renderer.render`、`Renderer.rasterize`、`Renderer.measure` 和
+`Renderer.render_svg` 接受 `Document` 或 `CompiledDocument`。传入原始 `Document` 时，
+该次调用会先编译它。需要复用编译结果时，请先调用 `compile_document`。
 
-!!! warning "只复用编译结果，不复用布局"
+!!! warning "已编译文档不拥有布局"
 
     `CompiledDocument` 拥有已解析的源和资源，不拥有预计算布局、绘制树或像素缓冲区。
     每次输出调用都会重新布局已编译节点。因此，相同已编译文档在布局选项、动画时间、
-    媒体分辨率和位图缩放不同时，可能产生不同的几何或像素。
+    媒体分辨率和位图缩放不同时，可能产生不同的几何或像素。需要复用已经绘制出的像素时，
+    请调用 `Renderer.rasterize`。它返回的 `RasterImage` 拥有布局结果，后续重复调用
+    `encode` 会复用该位图，不会再次布局或绘制文档。
+
+`compile_document` 会把编码后的图片字节复制一次到不透明的原生资源快照。文档渲染方法
+借用该快照，因此后续渲染不会再次把这些数据从 Python 上传到 Rust。这不是零拷贝：
+`ResourceSet` 校验和文档快照仍拥有复制出的字节。图片解码仍属于渲染器本地状态，并遵循
+该渲染器的资源缓存。
 
 ## 创建文档 { #create-a-document }
 
@@ -110,8 +120,9 @@ png = renderer.render(
 ### HTML 文档 { #html-documents }
 
 `Document.from_html` 保存 HTML 字符串，以及显式提供的资源和样式表。原生解析器负责 HTML
-结构和配置的样式预设；文档级 CSS 仍然需要显式提供。HTML 文档使用 Takumi 的容错 CSS
-解析器，因为浏览器生成的样式表通常会包含渲染器不支持的声明。
+结构、提取符合条件的 `<style>` 元素，并应用配置的样式预设。显式作者样式表仍受支持，
+并在文档提取出的样式之前应用。HTML 文档使用 Takumi 的容错 CSS 解析器，因为浏览器生成
+的样式表通常会包含渲染器不支持的声明。
 
 ```python
 from pathlib import Path
@@ -146,8 +157,8 @@ svg = renderer.render_svg(
 )
 ```
 
-HTML 解析不会发现图片字节、Markdown、公式或外部样式表。请显式传入每个图片资源，并把
-所有文档级 CSS 放入 `stylesheets`。
+HTML 解析不会抓取图片字节、Markdown、公式或链接式外部样式表。请显式传入每个图片资源。
+符合条件的嵌入 `<style>` CSS 会被自动收集；其他作者 CSS 放入 `stylesheets`。
 
 ### Fragment 与资源 { #fragments-and-resources }
 
@@ -179,6 +190,45 @@ except ResourceError as error:
 fragment 携带的资源与传给 `Document.from_node` 的资源共享同一个命名空间。组装后的文档中
 只要任意位置发生冲突，就会报错，而不会采用最后出现的资源。
 
+## 编译后补充资源 { #add-resources }
+
+`CompiledDocument.with_resources()` 可以扩展已编译文档，不会再次解析节点或样式表。
+原值保持不变，返回的文档共享原生节点和样式表句柄。
+
+```python
+from takumi_py import Document, ImageResource, compile_document
+
+logo = b"""
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+  <rect width="16" height="16" fill="#38bdf8"/>
+</svg>
+"""
+
+compiled = compile_document(
+    Document.from_node(
+        {
+            "type": "image",
+            "src": "https://assets.example/logo.svg",
+            "width": 16,
+            "height": 16,
+        }
+    )
+)
+assert compiled.missing_resources() == ("https://assets.example/logo.svg",)
+
+enriched = compiled.with_resources(
+    [ImageResource("https://assets.example/logo.svg", logo)]
+)
+assert enriched.missing_resources() == ()
+assert enriched.node is compiled.node
+assert enriched.stylesheets is compiled.stylesheets
+assert compiled.missing_resources() == ("https://assets.example/logo.svg",)
+```
+
+资源保持首次出现的顺序。添加完全相同的资源不会改变文档，并可能返回同一个已编译文档。
+为已有 `src` 提供不同字节或缓存策略会抛出 `ResourceError`。
+`ResourceSet.merged()` 在编译之前提供同样的不可变合并行为。
+
 ## 编译一次，为每种输出分别布局 { #compile-once }
 
 对 `Document` 捕获的源和选项而言，编译结果是确定的。同一个 `CompiledDocument` 可以在多个
@@ -208,6 +258,49 @@ svg = renderer.render_svg(compiled, layout=layout)
 上例每次调用都会独立布局内容。这是有意设计：测量始终使用设备像素比 1，SVG 使用
 CSS 像素尺寸，位图输出则可能使用其他缩放比例。图片资源可通过文档获得，但解码后的图片
 仍属于渲染器本地状态，并遵循各渲染器的资源缓存策略。
+`Renderer.render` 是只需要最终字节时的一次性便捷入口。
+
+## 复用位图结果 { #reuse-a-raster-result }
+
+`Renderer.rasterize` 返回一个不可变的 `RasterImage`，其中包含紧密排列、使用非预乘 alpha
+的 RGBA8 像素。调用完成后，渲染器和源文档都可以释放；图片拥有自己的原生位图，之后仍可
+使用。
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+compiled = compile_document(
+    Document.from_node(
+        {
+            "type": "container",
+            "style": {
+                "width": "240px",
+                "height": "120px",
+                "backgroundColor": "#0f172a",
+            },
+        }
+    )
+)
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=240, height=120),
+    scale=2,
+)
+
+png = image.encode("png")
+jpeg = image.encode("jpeg", quality=90)
+webp = image.encode("webp", quality=85)
+rgba = image.tobytes()
+
+assert image.size == (480, 240)
+assert len(rgba) == image.nbytes == image.stride * image.height
+```
+
+只有 `rasterize` 调用会执行布局和绘制。上面的编码调用读取同一份保留位图。
+`image.data` 和 `image.tobytes()` 会把像素复制成 Python 拥有的字节。
+`image.to_raw_source()` 返回 `RawRgbaImage` 映射，`image.to_fragment()` 则把该映射包装成
+可组合进另一个文档的 `Fragment`。两个转换方法都会把像素缓冲区复制到新文档的快照中。
 
 ## 使用 CSS 像素布局 { #layout-in-css-pixels }
 
@@ -233,7 +326,8 @@ SVG 之间的 `resolution` 媒体查询结果也可能不同。
 
 ## 位图输出与缩放 { #raster-output-and-scale }
 
-`RasterOptions` 控制位图编码，对 `measure` 或 `render_svg` 没有影响。
+`RasterOptions` 配置一次性 `Renderer.render` 便捷入口，对 `rasterize`、`measure` 或
+`render_svg` 没有影响。
 
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -278,6 +372,10 @@ png = Renderer().render(
 
 assert struct.unpack(">II", png[16:24]) == (1800, 945)
 ```
+
+需要保留位图时，把 `scale`、`dithering` 和 `draw_debug_border` 直接传给
+`Renderer.rasterize`。之后通过 `RasterImage.encode` 选择输出格式；这些编码器选项不会改变
+位图，也不会重新执行布局。
 
 ## 旧版像素尺寸 { #legacy-pixel-sizing }
 
@@ -324,14 +422,20 @@ new_api = Renderer().render(
 | HTML 非法或超出解析深度 | `HtmlParseError` |
 | 严格模式的节点 CSS 或结构化关键帧非法 | `StyleSheetError` |
 | 布局或输出数值选项非法 | `ValueError` |
+| 原始位图尺寸、溢出或字节数非法 | `ValueError` |
 | 渲染、图片解码或编码失败 | 原生渲染异常 |
 
 传入 `CompiledDocument` 可以避免重新编译，但不会跳过布局期校验或输出编码检查。渲染器
 仍会解析图片、选择字体、在请求的视口和缩放比例下计算媒体查询、执行布局并编码请求的
-输出。
+输出。相比之下，`RasterImage.encode` 只校验编码器参数，并复用已经通过布局和绘制阶段的
+像素。
 
 ## API 参考 { #api-reference }
 
 新增文档 API 的完整生成签名位于
 [Renderer API 页面](../reference/api/renderer.md#document-apis)。现有签名也仍可在该页
 查看。
+
+可运行示例
+[`examples/render_static.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_static.py)
+演示了模板到文档的流水线、资源发现、一次位图布局和多种编码输出。

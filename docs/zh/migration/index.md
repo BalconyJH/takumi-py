@@ -22,6 +22,18 @@ icon: lucide/route
 
     [:octicons-arrow-right-24: 打开迁移指南](takumi-2.17.md)
 
+-   :material-update:{ .lg .middle } **Takumi 2.20**
+
+    级联感知的资源发现、HTML `<style>` 提取、`@font-face` 文件，以及更多渲染变化。
+
+    [:octicons-arrow-right-24: 打开迁移指南](takumi-2.20.md)
+
+-   :material-image-multiple:{ .lg .middle } **静态渲染**
+
+    自有位图、重复编码、模板到文档的转换，以及保守的图片资源发现。
+
+    [:octicons-arrow-right-24: 打开迁移指南](static-rendering.md)
+
 </div>
 
 !!! tip "同时阅读迁移指南和发布历史"

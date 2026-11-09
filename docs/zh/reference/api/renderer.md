@@ -12,6 +12,8 @@
       members:
         - __init__
         - render
+        - rasterize
+        - needs
         - measure
         - render_svg
         - compile_node
@@ -22,6 +24,8 @@
         - register_fonts
         - cache_font
         - cached_fonts
+        - load_font_file
+        - forget_font_file
         - unregister_font
         - clear_fonts
         - render_compiled
@@ -48,10 +52,32 @@
         - node
         - stylesheets
 
+## 位图对象 { #raster-images }
+
+::: takumi_py.raster.RasterImage
+    options:
+      members:
+        - from_raw
+        - width
+        - height
+        - size
+        - stride
+        - nbytes
+        - data
+        - tobytes
+        - encode
+        - to_raw_source
+        - to_fragment
+
 ## 文档 API { #document-apis }
 
 文档 API 是下一主版本预览。这些能力是增量的，现有渲染入口继续保持兼容和当前的像素
 尺寸语义。
+
+`CompiledDocument` 会把编码后的图片字节复制一次到不透明的原生快照。它的渲染器方法借用
+该快照，解码后的图片仍保留在所选用渲染器的资源缓存中。`resource_urls()` 是节点和
+样式表图片引用去重后的并集。`missing_resources()` 是保守诊断，不会阻止渲染。
+`with_resources()` 可在不重新编译节点或样式表的情况下附加图片资源。
 
 ::: takumi_py.document.Document
 

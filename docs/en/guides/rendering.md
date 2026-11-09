@@ -10,7 +10,7 @@ flowchart LR
     C --> D["Compiled node"]
     D --> L["Layout"]
     L --> M["Measurement"]
-    L --> R["Raster image"]
+    L --> R["Raster image or RasterImage"]
     L --> S["SVG"]
     L --> N["Animation"]
 ```
@@ -27,6 +27,7 @@ configuring a render. [HTML and CSS](html.md) covers parsing, and
 | HTML | `render_html`, `measure_html`, `render_svg_html` | [HTML and CSS](html.md) |
 | Jinja template | `render_template`, `render_svg_template`, `TemplateRenderer` | [Jinja templates](templates.md) |
 | Compiled node | `render_compiled`, `measure_compiled`, `render_svg_compiled` | [Compile and reuse](#compile-and-reuse) |
+| Document | `render`, `rasterize`, `measure`, `render_svg` | [Documents](documents.md) |
 | Scene sequence | `render_animation`, `render_sequence_at_time` | [Animation](animation.md) |
 
 ## Node trees
@@ -61,6 +62,9 @@ Every node also accepts `className`, `id`, `tagName`, and `attributes` for selec
 `tw` for Tailwind classes, and `dir` and `lang` metadata. `TextNode`, `ImageNode`, and
 `ContainerNode` describe these shapes for type checkers.
 
+A node tree may contain at most 512 nodes along any root-to-leaf path. Node mappings
+past that limit raise `NodeDecodeError` from the native decoder. Passing `validate=True`
+runs the Python validation first and raises `NodeValidationError` for excessive depth.
 Pass `validate=True` to a node entry point to check the mapping in Python before it
 reaches the native decoder. Validation raises `NodeValidationError`; without it, a
 malformed node raises `NodeDecodeError` from the decoder.
@@ -85,9 +89,11 @@ png = renderer.render_compiled(
 )
 ```
 
-`compile_html` returns a `CompiledHtml` bundle rather than a bare `CompiledNode`. Pass
-its node and stylesheets separately to the compiled APIs, and compile any
-document-level CSS before adding it to that stylesheet tuple:
+`compile_html` returns a `CompiledHtml` bundle rather than a bare `CompiledNode`.
+`compiled.stylesheets` already contains CSS extracted from eligible `<style>`
+elements. Pass the node and stylesheets separately to the compiled APIs. Put explicit
+author CSS first, as shown below, because it is applied before the extracted document
+styles:
 
 ```python
 from takumi_py import Renderer
@@ -95,8 +101,8 @@ from takumi_py import Renderer
 renderer = Renderer()
 compiled = renderer.compile_html('<div class="card">Reusable HTML</div>')
 stylesheets = (
-    *compiled.stylesheets,
     renderer.compile_stylesheet(".card { width: 320px; height: 160px; color: black; }"),
+    *compiled.stylesheets,
 )
 
 png = renderer.render_compiled(

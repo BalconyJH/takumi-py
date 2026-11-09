@@ -14,6 +14,8 @@ is process-wide and configured separately before first use.
       members:
         - __init__
         - render
+        - rasterize
+        - needs
         - measure
         - render_svg
         - compile_node
@@ -24,6 +26,8 @@ is process-wide and configured separately before first use.
         - register_fonts
         - cache_font
         - cached_fonts
+        - load_font_file
+        - forget_font_file
         - unregister_font
         - clear_fonts
         - render_compiled
@@ -50,10 +54,34 @@ is process-wide and configured separately before first use.
         - node
         - stylesheets
 
+## Raster images { #raster-images }
+
+::: takumi_py.raster.RasterImage
+    options:
+      members:
+        - from_raw
+        - width
+        - height
+        - size
+        - stride
+        - nbytes
+        - data
+        - tobytes
+        - encode
+        - to_raw_source
+        - to_fragment
+
 ## Document APIs { #document-apis }
 
 The document APIs are a next-major preview. They are additive, while the existing
 renderer entry points retain their current compatibility and pixel-sizing behavior.
+
+`CompiledDocument` copies encoded image bytes once into an opaque native snapshot.
+Its renderer methods borrow that snapshot, while decoded images remain in the chosen
+renderer's resource cache. `resource_urls()` is the deduplicated union of image
+references from the node and stylesheet. `missing_resources()` is a conservative
+diagnostic and does not block rendering. `with_resources()` adds image resources
+without recompiling the node or stylesheet.
 
 ::: takumi_py.document.Document
 

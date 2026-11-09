@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | PNG、JPEG、WebP、ICO | `render_*` | 编码后的 `bytes` |
 | 原始 RGBA | 使用 `format="raw"` 的 `render_*` | 像素 `bytes` |
+| 保留 RGBA | `Renderer.rasterize` | 可重复编码的 `RasterImage` |
 | SVG | `render_svg_*` | `str` |
 | 仅布局 | `measure_*` | `MeasuredNode` |
 | WebP、APNG、GIF 动画 | `render_animation`、`encode_frames` | 编码后的 `bytes`，见 [动画](animation.md) |
@@ -39,6 +40,44 @@ jpeg = Renderer().render_html(
 
 `dithering="ordered-bayer"` 会在渐变填充量化到 8 位之前对其抖动，以减少平滑渐变中的
 色带。
+
+## 保留位图 { #retained-raster-images }
+
+已经完成的像素需要多次编码时，使用 `Renderer.rasterize`。布局和绘制只执行一次，每次
+`RasterImage.encode` 都读取保留的原生位图：
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+compiled = compile_document(
+    Document.from_node(
+        {
+            "type": "container",
+            "style": {
+                "width": "320px",
+                "height": "160px",
+                "backgroundColor": "#111827",
+            },
+        }
+    )
+)
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=320, height=160),
+    scale=2,
+)
+
+png = image.encode("png")
+webp = image.encode("webp", quality=85)
+rgba = image.tobytes()
+
+assert image.size == (640, 320)
+assert len(rgba) == image.nbytes == image.stride * image.height
+```
+
+位图不可变，并且可以在渲染器释放后继续使用。只需要一个编码结果时，一次性 `render`
+入口更简单。
 
 ## 原始 RGBA { #raw-rgba }
 

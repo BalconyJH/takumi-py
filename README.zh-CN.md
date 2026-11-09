@@ -13,10 +13,10 @@
 
 - **三种输入模型**：类型化节点树、由 Rust 解析的 HTML，以及支持自定义过滤器或调用方
   自有环境的 Jinja 模板。
-- **静态输出**：PNG、JPEG、WebP、ICO、原始 RGBA 和 SVG；布局测量返回类型化的树。
+- **静态输出**：PNG、JPEG、WebP、ICO、原始 RGBA、SVG、自有位图和类型化布局测量。
 - **动画**：对 CSS 或结构化关键帧采样、渲染场景序列，或将原始帧编码为 WebP、APNG 和 GIF。
-- **字体与图片**：显式提供图片字节，支持原始 RGBA 图片源、字体子集、回退栈和按语言的
-  文本整形。
+- **字体与图片**：显式提供图片字节，支持原始 RGBA 图片源、CSS `@font-face` 文件、
+  字体子集、级联感知的资源发现、回退栈和按语言的文本整形。
 - **可选数学公式（下一主版本预览）**：通过 `takumi_py.math` 把显式 TeX 转为自包含
   SVG，内置字体，并使用拥有资源的文档 fragment。
 - **复用与缓存**：已编译节点与样式表、带预算的图片和字体缓存，以及可配置的进程级字形
@@ -54,8 +54,8 @@ MathML 或 `\text{中文}` 这类 CJK 文本。运行时、生命周期、限制
 | --- | --- | --- |
 | Markdown | 没有 Markdown 解析器，也不处理其扩展语法。 | 先转换为 HTML 并提供 CSS；使用 `takumi_py.math` 显式选取并排版公式。 |
 | JavaScript 与浏览器应用 | `<script>` 元素会被丢弃；不提供浏览器 DOM、客户端应用执行、页面导航或浏览器回退。 | 提供最终的静态 HTML、节点或图片。 |
-| HTML 与 CSS | 忽略 `<style>` 和 `<link>` 元素；支持内联 `style` 属性。HTML/模板入口会跳过不支持的样式表声明，严格解析的节点入口会报错。 | 通过 `stylesheets` 传入文档级 CSS，并检查实际输出。 |
-| 外部资源 | 不下载图片 URL 或外部样式表；渲染器不提供 HTTP 客户端。 | 在应用中获取或读取资源，通过 `images` 提供图片字节，并显式传入 CSS。 |
+| HTML 与 CSS | `<style>` 规则和内联 `style` 属性可用；不抓取 `<link>` 元素和外部样式表。HTML/模板入口会跳过不支持的样式表声明，严格解析的节点入口会报错。 | 使用内嵌 `<style>` CSS，或通过 `stylesheets` 传入作者 CSS，并检查实际输出。 |
+| 外部资源 | 不下载图片 URL、`@font-face` 来源或外部样式表；渲染器不提供 HTTP 客户端。 | 用 `Renderer.needs()` 发现级联后的图片和字体文件，在应用中读取，再通过 `ImageResource` 提供图片，并用 `load_font_file()` 加载字体文件。 |
 | 字体覆盖 | 内置 Geist 回退字体覆盖拉丁文字，不自动加载宿主系统字体。 | 为中日韩文字、emoji 和其他文字注册合适的字体。 |
 | 包含 HTML 的 SVG | SVG 栅格化时不渲染 `<foreignObject>` 中的 HTML 内容。 | 先将其中的 HTML 转为 SVG 路径或位图，再传入渲染器。 |
 | PDF 与分页 | Python API 不提供 PDF 输出或自动分页布局。 | 先渲染图片或 SVG，再使用独立的文档/PDF 工具。 |
@@ -126,11 +126,12 @@ Path("out.png").write_bytes(png)
 
 示例会将一张 1200 × 630 的 PNG 写入 `out.png`。
 
-- 文档级 CSS 通过 `stylesheets` 传入。支持内联 `style` 属性，HTML 中的 `<style>` 元素会被
-  忽略。
+- 内联 `style` 属性和符合条件的 HTML `<style>` 元素可用。`stylesheets` 仍用于作者 CSS，
+  并在文档内嵌样式之前应用。
 - 内置的 Geist 回退字体覆盖拉丁文字。中文、日文、韩文、emoji 和其他文字需要注册合适的
   字体。
-- 渲染器从不通过网络抓取资源。请通过 `images` 提供图片字节，并在渲染器上注册字体。
+- 渲染器从不通过网络抓取资源。请用 `Renderer.needs()` 发现图片和 `@font-face` 文件，
+  显式提供图片字节并加载字体文件。
 
 资源配置见[字体与图片](https://balconyjh.github.io/takumi-py/zh/dev/guides/resources/)。
 [`examples/`](https://github.com/BalconyJH/takumi-py/tree/main/examples) 提供节点、HTML、模板、
@@ -142,9 +143,10 @@ Path("out.png").write_bytes(png)
 [英文版](https://balconyjh.github.io/takumi-py/dev/)。其中可能包含尚未发布到 PyPI 的变更。
 使用已发布的包时，请在[文档站点](https://balconyjh.github.io/takumi-py/)选择对应版本。
 
-`Document` / `CompiledDocument` API 及新的 `Renderer.render`、`measure`、`render_svg`
-方法属于下一大版本的预览。上面的快速上手使用现有 `render_html` API；预览文档中的新接口
-不代表已发布的包包含这些能力。
+`Document` / `CompiledDocument` API 及新的 `Renderer.render`、`rasterize`、`needs`、
+`measure`、`render_svg` 方法属于下一大版本的预览，并与 Takumi 2.20.0 /
+`takumi-core` 0.36.0 对齐。上面的快速上手使用现有 `render_html` API；预览文档中的
+新接口不代表已发布的包包含这些能力。
 
 | 任务 | 文档 |
 | --- | --- |
@@ -164,9 +166,12 @@ Path("out.png").write_bytes(png)
 - 将自 0.2.0 起弃用的资源 API 替换为单次渲染的 `images` 和
   `register_font` / `register_fonts`。
 - 从 Takumi 2.5 升级到 2.17 时，检查字体子集、抖动、动画帧率限制和渲染结果变化。
+- 从 Takumi 2.17 升级到 2.20 时，使用 `Renderer.needs()`、`load_font_file()` 和
+  `LayoutOptions.failed_font_files` 处理级联感知的 `@font-face` 资源发现。
 
 请按 [Takumi v2 迁移指南](https://balconyjh.github.io/takumi-py/zh/dev/migration/takumi-v2/)
-和 [Takumi 2.17 迁移指南](https://balconyjh.github.io/takumi-py/zh/dev/migration/takumi-2.17/)
+、[Takumi 2.17 迁移指南](https://balconyjh.github.io/takumi-py/zh/dev/migration/takumi-2.17/)
+和 [Takumi 2.20 迁移指南](https://balconyjh.github.io/takumi-py/zh/dev/migration/takumi-2.20/)
 完成升级，并阅读[变更日志](https://github.com/BalconyJH/takumi-py/blob/main/CHANGELOG.md)。
 
 ## 开发
@@ -194,3 +199,5 @@ Takumi 升级，[发布指南](https://balconyjh.github.io/takumi-py/zh/dev/main
 
 本仓库以 git 子模块的形式包含 `takumi`。`takumi` 单独以 `MIT OR Apache-2.0` 授权，见
 [THIRD_PARTY_NOTICES.md](https://github.com/BalconyJH/takumi-py/blob/main/THIRD_PARTY_NOTICES.md)。
+该通知还列出了随原生扩展一起分发的 Chromium/Blink 与 Skia、emoji-segmenter 和 ICU
+许可证文件。

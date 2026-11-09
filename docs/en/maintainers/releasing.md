@@ -80,29 +80,40 @@ the whole cycle.
 
 ## Automatic release pipeline { #automatic-release-pipeline }
 
-```mermaid
-flowchart TD
-    M["Version commit lands on main"] --> C["Check · Build and test: tests + eight platform wheels + sdist + abi3"]
-    M --> D["Check · Docs: strict build"]
-    M --> K["Check · Lint: repository + Actions lint"]
-    C --> T["Release · Tag: aggregate the same source SHA"]
-    D --> T
-    K --> T
-    T --> V["Check version, locks, changelog, and main ancestry"]
-    V --> G["Create annotated tag and dispatch Release · Publish"]
-    G --> B["Re-check and build eight wheels and one sdist"]
-    B --> A["Verify metadata, licenses, platforms, and isolated installs"]
-    A --> P["Generate provenance and publish to PyPI"]
-    P --> H["Verify PyPI filenames and SHA-256 digests"]
-    H --> R["Publish or recover the GitHub Release"]
-    R --> X["Prepare versioned docs from the release tag"]
-    X --> Y["Deploy through a GitHub Pages artifact and OIDC"]
+The general six-workflow topology, exact-SHA Check join, and independent preview branch
+are in [CI execution order](development.md#ci-execution-order). Once `Release · Tag`
+dispatches a matching tag, `publish.yml` runs this flat job chain:
+
+```text
+release-guard
+  |
+release-check
+  +--> wheels [8 x 2] -----+
+  `--> sdist --------------+--> artifact-validation
+                                    |
+                                provenance
+                                    |
+                                pypi-publish
+                                    |
+                                verify-pypi
+                                    |
+                                github-release
+                                    |
+                                docs-release
+                                    |
+                                pages-deploy
 ```
 
-A release build produces eight `cp311-abi3` wheels, plus one sdist: Linux x86_64 and
-aarch64 for manylinux2014 and musllinux_1_2, macOS arm64 and x86_64, and Windows x64
-and arm64. Each wheel builds and runs its smoke test on a runner of its own platform;
-the musllinux wheels run theirs in an Alpine container. The verification layer:
+All 16 wheel cells build and test; only the eight `release` cells upload their wheels
+for publication. Together with one sdist, the published set remains eight
+`cp311-abi3` wheels plus one sdist: Linux x86_64 and aarch64 for manylinux2014 and
+musllinux_1_2, macOS arm64 and x86_64, and Windows x64 and arm64. `artifact-validation`
+waits for both build branches and verifies the complete nine-file set. Provenance covers
+those same files; PyPI, hash verification, and the GitHub Release also consume the
+validated distribution set. The docs and Pages jobs instead follow the published
+release as gates and read `gh-pages` state. The diagram shows only execution gates;
+direct edges added solely for a job to read `release-guard` outputs are not all shown.
+The verification layer:
 
 1. Checks the complete artifact set, package metadata, licenses, ABI and platform tags,
    and the bundled-font boundary.
@@ -184,12 +195,13 @@ and PyPI, and an administrator keeps them this way:
     parent's version, automatic detection will not treat it as a version change again.
     Run `Release · Tag` by hand from the current `main`, passing the full
     40-character `source_sha` of the current commit. Recovery mode only accepts the
-    current `main` and still requires all three exact-commit workflows to succeed.
+    current `main` and reruns the exact-SHA check for all three workflows.
 
 === "The tag exists, but Publish did not succeed"
 
     Run `Release · Publish` by hand from the matching tag or the default branch, passing the same
-    `release_tag`. Do not create a replacement tag or move the existing one.
+    `release_tag`. It reruns `release-guard` and `release-check` before rebuilding and
+    revalidating. Do not create a replacement tag or move the existing one.
 
 === "PyPI already accepted some or all files"
 
@@ -203,7 +215,8 @@ and PyPI, and an administrator keeps them this way:
     file set and digests match exactly, and a draft can be recovered from the verified
     artifacts. Docs preparation reads the remote `gh-pages` again and retries conflicts,
     and the Pages deployment that follows reuses the static artifact uploaded by the
-    same run.
+    same run. A manual rerun starts again at the release guard; it does not resume from
+    the failed job or trust an earlier run's artifacts.
 
 !!! danger "Never rewrite published artifacts"
 

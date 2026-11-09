@@ -20,6 +20,10 @@ Python 类型层定义了节点输入、测量结果和动画场景。
 
 ::: takumi_py.types.MeasuredTextRun
 
+::: takumi_py.types.RenderNeeds
+
+::: takumi_py.raster.RasterImage
+
 ::: takumi_py.types.AnimationScene
 
 ::: takumi_py.types.RawAnimationFrame

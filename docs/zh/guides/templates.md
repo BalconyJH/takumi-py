@@ -32,6 +32,48 @@ png = renderer.render(
 模板中可以直接使用 `{{ title | uppercase }}`。调用方只需要 HTML 字符串而非图片输出时，
 `render_template_to_html` 辅助函数接受同样的 `filters` 映射。
 
+## 构建静态文档 { #build-a-static-document }
+
+渲染后的模板需要交给文档 API 时，使用 `TemplateRenderer.document`。模板加载和渲染会在
+返回的 `Document` 创建之前完成；文档保留 HTML 和显式输入，但不会保留 Jinja 环境。
+
+```python
+from takumi_py import (
+    ImageResource,
+    LayoutOptions,
+    Renderer,
+    TemplateRenderer,
+    compile_document,
+)
+
+logo = b"""
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
+  <circle cx="64" cy="64" r="56" fill="#38bdf8"/>
+</svg>
+"""
+
+template = TemplateRenderer("templates")
+document = template.document(
+    "static_card.html.jinja",
+    {"title": "Static card", "subtitle": "Reusable output"},
+    resources=[ImageResource("https://assets.example/cover.svg", logo, cache="none")],
+    stylesheets=[".card { width: 640px; height: 320px; }"],
+)
+
+compiled = compile_document(document)
+assert compiled.missing_resources() == ()
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=640, height=320),
+)
+png = image.encode("png")
+```
+
+`compiled.resource_urls()` 报告从节点和样式表收集到的图片引用。
+`compiled.missing_resources()` 会移除文档已经拥有的资源；两个方法都不会下载任何内容。
+资源发现范围见[资源指南](resources.md#discover-image-references)。
+
 ## 注入完整的 Jinja 环境 { #inject-a-complete-jinja-environment }
 
 基于文件系统的环境只是便捷的默认值，并不限制可用的 Jinja 能力。应用需要其他加载器、
@@ -116,7 +158,8 @@ flowchart LR
   行为可预测。
 - 模板只负责生成 HTML。图片通过渲染输入提供。按上文所示在注入的渲染器上注册自定义字体，
   并遵循 [资源指南](resources.md)。
-- 把 CSS 放在显式的 `stylesheets` 输入中，避免模板层掌管渲染配置。
+- 显式作者 CSS 放在 `stylesheets` 中；渲染后 HTML 里符合条件的 `<style>` 元素会被自动
+  提取。
 - 对 HTML、XML 和 Jinja 文件默认启用 Jinja 自动转义。调用方提供的环境保留其自身的
   自动转义策略。
 
@@ -129,3 +172,5 @@ flowchart LR
 [`examples/render_template.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_template.py)
 及其模板
 [`card.html.jinja`](https://github.com/BalconyJH/takumi-py/blob/main/examples/templates/card.html.jinja)。
+[`examples/render_static.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_static.py)
+示例使用 `TemplateRenderer.document`、自有图片资源和保留位图。

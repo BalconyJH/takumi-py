@@ -2,11 +2,11 @@
 
 !!! info "Next-major preview"
 
-    `Document`, `CompiledDocument`, `Fragment`, `ResourceSet`, and the new
-    `Renderer.render`, `Renderer.measure`, and `Renderer.render_svg` entry points are a
-    next-major preview in this checkout. They are additive: the package metadata and
-    version remain unchanged, and the existing `render_*`, `measure_*`, and
-    `render_svg_*` APIs remain compatible.
+    `Document`, `CompiledDocument`, `Fragment`, `ResourceSet`, `RasterImage`, and the
+    new `Renderer.render`, `Renderer.rasterize`, `Renderer.measure`, and
+    `Renderer.render_svg` entry points are a next-major preview in this checkout.
+    They are additive: the package metadata and version remain unchanged, and the
+    existing `render_*`, `measure_*`, and `render_svg_*` APIs remain compatible.
 
 The document API groups a rendered input with the resources it owns, then separates
 compilation from output. It is useful when the same content is rendered as a raster
@@ -24,6 +24,8 @@ flowchart LR
     D --> C["compile_document"]
     C --> N["Compiled node + stylesheet + resources"]
     N --> L1["Raster layout"]
+    L1 --> P["Retained RasterImage"]
+    P --> E["Encode PNG, JPEG, WebP, or raw RGBA"]
     N --> L2["Measurement layout"]
     N --> L3["SVG layout"]
 ```
@@ -36,18 +38,28 @@ returns a `CompiledDocument` containing:
 | --- | --- |
 | `node` | Native `CompiledNode` |
 | `stylesheets` | Zero or one merged native stylesheet |
-| `resources` | Immutable `ResourceSet` snapshot |
+| `resources` | Immutable `ResourceSet` plus an opaque native encoded-resource snapshot |
 
-`Renderer.render`, `Renderer.measure`, and `Renderer.render_svg` accept either a
-`Document` or a `CompiledDocument`. Passing a raw `Document` compiles it for that
-call. Call `compile_document` first when compilation should be reused.
+`Renderer.render`, `Renderer.rasterize`, `Renderer.measure`, and
+`Renderer.render_svg` accept either a `Document` or a `CompiledDocument`. Passing a
+raw `Document` compiles it for that call. Call `compile_document` first when
+compilation should be reused.
 
-!!! warning "Compilation is reused; layout is not"
+!!! warning "A compiled document does not own layout"
 
     A `CompiledDocument` owns parsed source and resources, not a precomputed layout,
     paint tree, or pixel buffer. Every output call lays out the compiled node again.
     Layout options, animation time, media resolution, and raster scale can therefore
-    produce different geometry or pixels from the same compiled document.
+    produce different geometry or pixels from the same compiled document. Call
+    `Renderer.rasterize` when the drawn pixels themselves should be reused. Its
+    returned `RasterImage` owns the layout result, and repeated `encode` calls reuse
+    that bitmap without laying out or drawing the document again.
+
+`compile_document` copies encoded image bytes once into its opaque native resource
+snapshot. The document render methods borrow that snapshot, so later renders do not
+upload the same data from Python to Rust again. This is not zero-copy:
+`ResourceSet` validation and document snapshots still own copied bytes. Decoding a
+resource remains renderer-local and follows that renderer's resource cache.
 
 ## Create a document { #create-a-document }
 
@@ -115,10 +127,11 @@ defensive copies of mutable node, stylesheet, keyframe, and resource inputs.
 ### HTML documents { #html-documents }
 
 `Document.from_html` keeps the HTML string plus explicitly supplied resources and
-stylesheets. The native parser handles HTML structure and the configured style
-presets; document-level CSS remains explicit. HTML documents use Takumi's lossy CSS
-parser because browser-authored stylesheets commonly contain declarations the renderer
-does not support.
+stylesheets. The native parser handles HTML structure, extracts eligible `<style>`
+elements, and applies the configured style presets. Explicit author stylesheets remain
+available and are applied before the document's extracted styles. HTML documents use
+Takumi's lossy CSS parser because browser-authored stylesheets commonly contain
+declarations the renderer does not support.
 
 ```python
 from pathlib import Path
@@ -153,9 +166,9 @@ svg = renderer.render_svg(
 )
 ```
 
-HTML parsing does not discover image bytes, Markdown, formulas, or external
-stylesheets. Pass every image resource explicitly and include any document-level CSS
-in `stylesheets`.
+HTML parsing does not fetch image bytes, Markdown, formulas, or linked external
+stylesheets. Pass every image resource explicitly. Eligible embedded `<style>` CSS is
+collected automatically; put additional author CSS in `stylesheets`.
 
 ### Fragments and resources { #fragments-and-resources }
 
@@ -190,6 +203,47 @@ Resources attached to fragments and resources passed to `Document.from_node` sha
 the same namespace. A conflict anywhere in the assembled document is an error rather
 than a last-one-wins choice.
 
+## Add resources after compilation { #add-resources }
+
+`CompiledDocument.with_resources()` extends a compiled document without parsing its
+node or stylesheets again. The original value remains unchanged, and the returned
+document shares its native node and stylesheet handles.
+
+```python
+from takumi_py import Document, ImageResource, compile_document
+
+logo = b"""
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+  <rect width="16" height="16" fill="#38bdf8"/>
+</svg>
+"""
+
+compiled = compile_document(
+    Document.from_node(
+        {
+            "type": "image",
+            "src": "https://assets.example/logo.svg",
+            "width": 16,
+            "height": 16,
+        }
+    )
+)
+assert compiled.missing_resources() == ("https://assets.example/logo.svg",)
+
+enriched = compiled.with_resources(
+    [ImageResource("https://assets.example/logo.svg", logo)]
+)
+assert enriched.missing_resources() == ()
+assert enriched.node is compiled.node
+assert enriched.stylesheets is compiled.stylesheets
+assert compiled.missing_resources() == ("https://assets.example/logo.svg",)
+```
+
+Resources keep their first-seen order. Adding an identical resource is a no-op and
+may return the same compiled document. A different byte buffer or cache policy for an
+existing `src` raises `ResourceError`. `ResourceSet.merged()` provides the same
+immutable merge behavior before compilation.
+
 ## Compile once, lay out per output { #compile-once }
 
 Compilation is deterministic with respect to the source and options captured by the
@@ -220,6 +274,52 @@ Each call above lays out the content independently. This is intentional: measure
 always uses a device pixel ratio of one, SVG uses CSS-pixel dimensions, and raster
 output may use another scale. Image resources are available through the document, but
 decoded images remain renderer-local and follow each renderer's resource-cache policy.
+`Renderer.render` is the one-call convenience for callers that need only the finished
+bytes.
+
+## Reuse a raster result { #reuse-a-raster-result }
+
+`Renderer.rasterize` returns an immutable `RasterImage` with tightly packed,
+straight-alpha RGBA8 pixels. The renderer and source document may be released after
+this call; the image owns its native bitmap and remains usable.
+
+```python
+from takumi_py import Document, LayoutOptions, Renderer, compile_document
+
+compiled = compile_document(
+    Document.from_node(
+        {
+            "type": "container",
+            "style": {
+                "width": "240px",
+                "height": "120px",
+                "backgroundColor": "#0f172a",
+            },
+        }
+    )
+)
+
+image = Renderer().rasterize(
+    compiled,
+    layout=LayoutOptions(width=240, height=120),
+    scale=2,
+)
+
+png = image.encode("png")
+jpeg = image.encode("jpeg", quality=90)
+webp = image.encode("webp", quality=85)
+rgba = image.tobytes()
+
+assert image.size == (480, 240)
+assert len(rgba) == image.nbytes == image.stride * image.height
+```
+
+Only the `rasterize` call lays out and draws. The encoder calls above read the same
+retained bitmap. `image.data` and `image.tobytes()` copy its pixels into Python-owned
+bytes. `image.to_raw_source()` returns a `RawRgbaImage` mapping, and
+`image.to_fragment()` wraps that mapping in a `Fragment` that can be composed into
+another document. Both conversion methods copy the pixel buffer into the new document
+snapshot.
 
 ## Layout in CSS pixels { #layout-in-css-pixels }
 
@@ -246,8 +346,8 @@ measurement or SVG even when `LayoutOptions` is unchanged.
 
 ## Raster output and scale { #raster-output-and-scale }
 
-`RasterOptions` controls raster encoding. It has no effect on `measure` or
-`render_svg`.
+`RasterOptions` configures the one-call `Renderer.render` helper. It has no effect on
+`rasterize`, `measure`, or `render_svg`.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -296,6 +396,10 @@ png = Renderer().render(
 
 assert struct.unpack(">II", png[16:24]) == (1800, 945)
 ```
+
+For a retained bitmap, pass `scale`, `dithering`, and `draw_debug_border` directly to
+`Renderer.rasterize`. Choose an output format later through `RasterImage.encode`;
+those encoder choices do not change the bitmap or rerun layout.
 
 ## Legacy pixel sizing { #legacy-pixel-sizing }
 
@@ -346,15 +450,22 @@ them:
 | Invalid HTML or parser depth | `HtmlParseError` |
 | Invalid strict node CSS or structured keyframes | `StyleSheetError` |
 | Invalid layout/output numeric option | `ValueError` |
+| Invalid raw bitmap dimensions, overflow, or byte count | `ValueError` |
 | Rendering, image decoding, or encoding failure | Native render exception |
 
 Passing a `CompiledDocument` avoids recompilation but does not bypass layout-time
 validation or output encoding checks. A renderer still resolves images, selects
 fonts, evaluates media queries at the requested viewport and scale, performs layout,
-and encodes the requested output.
+and encodes the requested output. In contrast, `RasterImage.encode` validates encoder
+arguments and reuses pixels that have already passed those layout and paint stages.
 
 ## API reference { #api-reference }
 
 The complete generated signatures for the new document APIs are on the
 [Renderer API page](../reference/api/renderer.md#document-apis). Existing signatures
 remain available there as well.
+
+The runnable
+[`examples/render_static.py`](https://github.com/BalconyJH/takumi-py/blob/main/examples/render_static.py)
+demonstrates a template-to-document pipeline, resource discovery, one raster layout,
+and multiple encodings.

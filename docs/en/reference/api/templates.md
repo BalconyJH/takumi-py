@@ -11,6 +11,7 @@ undefined-value policies, caches, and other Jinja configuration.
       members:
         - __init__
         - environment
+        - document
         - render
 
 ## render_template_to_html
@@ -21,3 +22,11 @@ custom-filter mapping. For image output with custom renderer state, prefer
 `TemplateRenderer(..., renderer=renderer)`.
 
 ::: takumi_py.template.render_template_to_html
+
+## render_template_to_document
+
+Use this helper when a template should become an immutable `Document` before any
+layout or encoding begins. It accepts the same environment, filter, stylesheet, and
+document resource inputs as the `TemplateRenderer.document` method.
+
+::: takumi_py.template.render_template_to_document

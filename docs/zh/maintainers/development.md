@@ -32,17 +32,99 @@ Clippy。文档构建使用 docs 依赖组，因此单独运行：它先检查�
 
 ## 测试 { #tests }
 
-pytest 测试套件位于 `tests/`，通过 `make test` 并行运行：
+`pytest` 测试套件位于 `tests/`。Ubuntu quality job 通过 `make test` 并行运行完整套件；
+安装包可移植性矩阵运行下文所述的较小回归选择。
 
 | 模块 | 覆盖范围 |
 | --- | --- |
 | `test_render_node.py`、`test_render_html.py`、`test_render_template.py` | 节点、HTML 和模板入口 |
+| `test_document.py`、`test_document_rendering.py` | Document 与 fragment 所有权、编译、布局、画布尺寸和 SVG/raster 输出 |
 | `test_html_adapter.py`、`test_inline_style.py` | HTML 解析与内联样式 |
+| `test_native_compile.py`、`test_stylesheet_composition.py`、`test_keyframe_options.py`、`test_render_needs.py` | 独立编译器函数、CSS 合并、关键帧、渲染选项和资源需求 |
 | `test_core_binding_features.py` | 选项、字体、图片、缓存、测量、SVG 和动画 |
+| `test_node_bytes.py`、`test_raster.py` | 缓冲节点数据、原生解码限制、位图所有权和图片编码 |
+| `test_native_stack.py` | 小线程栈下的全深度原生与 CSS 管线、边界错误和子进程阶段诊断 |
 | `test_takumi_core_fixtures.py` | `takumilib/takumi/tests/fixtures-html` 下的每个上游 HTML 样例都能渲染 |
 | `test_examples.py` | `examples/` 中的每个脚本都能运行并写出输出 |
+| `test_math.py`、`test_math_validation.py`、`test_math_process.py`、`test_math_layout.py`、`test_math_integration.py` | MathJax 输出、SVG 与 TeX 校验、工作进程崩溃和截止时间、布局以及下游渲染 |
 | `test_typing_surface.py` | 文档化的公共 `Renderer` 接口和原生类型文件 |
 | `test_repository_scripts.py` | `.github/scripts/` 中的发布、changelog、文档部署与文档翻译脚本 |
+
+## CI 矩阵 { #ci-matrix }
+
+本节描述工作流配置，并不表示每个矩阵单元都已成功完成。`quality` job 只在 Ubuntu 上运行完整
+`pytest` 套件。可移植性覆盖来自 `wheel-smoke` job：它配置了八个目标和 `debug`、`release` 两种
+构建配置，共 16 个 wheel 与回归测试单元。八个目标是 Linux x86_64 与 aarch64、musllinux
+x86_64 与 aarch64、macOS x86_64 与 aarch64，以及 Windows x64 与 arm64。
+
+每个单元都会构建自己的 wheel，并针对安装后的制品运行 11 个选定的测试模块。
+`test-wheel.py` 会把这些模块从 runner 检出目录复制到仓库之外的临时目录，创建全新的虚拟
+环境，并安装带 math extra 的 wheel。探针会确认 `takumi_py`、其原生扩展和
+`py_mini_racer` 都从该环境加载。只要任何选定测试被跳过，JUnit 报告就会让 job 失败，
+因此缺少 math runtime 不会产生虚假通过。
+
+可移植性选择包含以下 native、node 与 CSS 模块：
+
+- `test_native_stack.py`
+- `test_node_bytes.py`
+- `test_native_compile.py`
+- `test_stylesheet_composition.py`
+- `test_keyframe_options.py`
+- `test_render_node.py`
+
+它还包含以下数学模块：
+
+- `test_math.py`
+- `test_math_validation.py`
+- `test_math_process.py`
+- `test_math_layout.py`
+- `test_math_integration.py`
+
+### CI 执行顺序 { #ci-execution-order }
+
+六个 workflow 文件保持平铺：没有任何一个通过 reusable workflow 或 composite action
+调用另一个 workflow。`ci.yml` 内部的 job 顺序如下：
+
+```text
+quality ---------------------------------------------------------+
+  |                                                              |
+  +--> sdist-smoke ----------------------------------------------+
+  |                                                              +--> result
+  `--> wheel-smoke [8 platforms x 2 profiles] -------------------+
+         `--> abi3-smoke [Python 3.11..3.15] --------------------+
+```
+
+`quality` 是这两条构建分支的前置门禁，随后 `sdist-smoke` 与 `wheel-smoke` 并行。`wheel-smoke`
+包含 16 个矩阵单元；只有其中八个 `release` 单元上传 `ci-wheel-*` wheel，两种配置都会保留
+各自的 `ci-regressions-*` 结果。矩阵依赖使 `abi3-smoke` 等待全部单元完成，再用 Python
+3.11 至 3.15 检查 Linux x86_64 release wheel。`result` 直接读取 `quality`、
+`sdist-smoke`、`wheel-smoke` 与 `abi3-smoke` 这四层 job 结果；这些直接 `needs` 使它成为
+真正的四层 Required checks。它会写出四层状态摘要表，任一层失败、取消或跳过都会使
+Required checks 失败。
+
+在 workflow 层面，可信的 `main` 推送有一条精确 SHA 协调路径和一条独立预览路径：
+
+```text
+Check - Build and test ---+
+Check - Docs -------------+--> exact-SHA join --> Release - Tag --> Publish
+Check - Lint -------------+
+
+Check - Docs --> Preview - Docs --> gh-pages --> Pages
+```
+
+三个 `workflow_run` 各自完成时，都会重新通过 GitHub API 查询 `main` 上三个 push run，
+并要求三者的成功 `head_sha` 都等于标签源 SHA，因此最先结束的检查不能提前创建标签。
+预览走自己独立的 `workflow_run` 分支，不等待 CI、打标签或发布。发布与预览的 Pages job
+共用 `github-pages` 并发组；该锁只串行部署，不构成 `needs` 依赖。打标签后的发布 job
+见[自动发布链路](releasing.md#automatic-release-pipeline)。
+
+把恰好一个当前平台的 wheel 构建到 `dist/` 后，从仓库根目录重现选定的安装包测试套件：
+
+```bash
+python .github/scripts/test-wheel.py dist --python 3.11 --uv uv --junit-xml reports/regressions.xml
+```
+
+该命令会创建自己的临时环境，并在 `reports/` 下同时写入 JUnit 报告和对应的 pytest 日志。
 
 ## 分发约定 { #distribution-contract }
 
@@ -76,9 +158,15 @@ Takumi 是本仓库显式的源码依赖。请把 `takumilib` 固定到上游 `t
 
 ```bash
 git -C takumilib fetch origin --tags
-git -C takumilib checkout --detach 'takumi@2.17.1^{commit}'
+git -C takumilib checkout --detach 'takumi@2.20.0^{commit}'
 cargo update -w
 ```
+
+当前下一主版本的静态渲染预览遵循 Takumi 2.20 的规范 API：crate 根部的 `render`、
+`measure`、`render_svg` 和 `needs`，场景复用仍作为同线程内部的实现细节。Python 接口
+保留完成的位图，不暴露不稳定的 `Scene`。HTML 资源遵循正式发布的 `parse_html` 契约：
+节点与 `<style>` CSS 分开返回，渲染器方法返回级联感知的 `RenderNeeds`，应用显式提供
+`@font-face` 字节。
 
 升级时必须检查：
 
@@ -94,7 +182,13 @@ cargo update -w
 - `tests/test_takumi_core_fixtures.py` 读取的 HTML 样例是否仍位于
   `takumilib/takumi/tests/fixtures-html`
 - 源码分发包能否仍在隔离环境中重新构建出 wheel
-- 绑定在 `takumilib/assets` 下引用的资源是否发生变化
+- 绑定在 `takumilib/assets` 下引用的资源是否发生变化。2.20 绑定会内嵌
+  `geist-latin-wght-300-800.ttf` 和 `geist-latin-wght-300-800.woff2`，因此两者都必须
+  保留在源码分发包中。
+- 新增 crate 或内置源码是否改变许可证清单。Cargo 源码包目前会携带
+  `takumi-core/LICENSE-CHROMIUM`、`LICENSE-EMOJI-SEGMENTER` 和 `LICENSE-ICU`；
+  它们已列入 `[project].license-files`，因此每个 sdist 和 wheel 都会携带通知，并在包
+  元数据中记录这些路径。
 
 上游针对 fontations 和 harfrust 的 `[patch.crates-io]` 分叉只在 Takumi 工作区内部生效。
 本 crate 基于 crates.io 上的发布版本构建，因此不会继承上游新增的补丁。
