@@ -6,10 +6,13 @@ import math
 import re
 from xml.etree import ElementTree as ET
 
-from takumi_py.math.errors import MathValidationError
+from takumi_py.math.errors import MathLimitError, MathValidationError
 
 F32_MIN = 1.401298464324817e-45
 F32_MAX = 3.4028234663852886e38
+MIN_GEOMETRY_EM = 0.001
+MIN_FONT_SIZE_PX = F32_MIN / MIN_GEOMETRY_EM
+MAX_TEX_NESTING_DEPTH = 128
 SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 MAX_VALIDATED_SVG_BYTES = 1_000_000
 
@@ -113,6 +116,8 @@ _RECT_ATTRIBUTES = frozenset(
         "fill",
         "stroke",
         "stroke-width",
+        "stroke-dasharray",
+        "stroke-linecap",
         "transform",
         "data-bgcolor",
     }
@@ -123,8 +128,11 @@ _LINE_ATTRIBUTES = frozenset(
         "y1",
         "x2",
         "y2",
+        "fill",
         "stroke",
         "stroke-width",
+        "stroke-dasharray",
+        "stroke-linecap",
         "transform",
     }
 )
@@ -155,6 +163,20 @@ def validate_positive_f32(name: str, value: object) -> float:
         or not F32_MIN <= value <= F32_MAX
     ):
         raise MathValidationError(f"{name} must be a finite positive f32-range number")
+    return float(value)
+
+
+def validate_font_size(value: object) -> float:
+    """Return a font size whose guarded BBox remains representable as f32."""
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not MIN_FONT_SIZE_PX <= value <= F32_MAX
+    ):
+        raise MathValidationError(
+            "font_size_px must be finite and provide f32-representable geometry"
+        )
     return float(value)
 
 
@@ -284,7 +306,7 @@ def validate_svg(
                 + ", ".join(unexpected)
             )
         for attribute, value in element.attrib.items():
-            _validate_svg_attribute(name, attribute, value)
+            _validate_svg_attribute(element, name, attribute, value)
         stack.extend((child, depth_level + 1) for child in element)
 
     root_width = _parse_px_attribute(root, "width")
@@ -305,7 +327,12 @@ def _local_name(tag: object) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def _validate_svg_attribute(element: str, attribute: str, value: str) -> None:
+def _validate_svg_attribute(
+    node: ET.Element,
+    element: str,
+    attribute: str,
+    value: str,
+) -> None:
     lowered = attribute.lower()
     if lowered.startswith("on") or lowered in {"style", "href", "src"}:
         raise MathValidationError(f"SVG attribute {attribute!r} is not allowed")
@@ -331,10 +358,27 @@ def _validate_svg_attribute(element: str, attribute: str, value: str) -> None:
     if attribute == "stroke-width":
         _validate_nonnegative_number("stroke-width", value)
         return
+    if attribute == "stroke-dasharray":
+        _validate_dash_array(value)
+        return
+    if attribute == "stroke-linecap":
+        if value not in {"butt", "round", "square"}:
+            raise MathValidationError("SVG stroke-linecap is not supported")
+        return
     if attribute == "transform":
         _validate_transform(value)
         return
     if attribute == "d":
+        if value == "":
+            codepoint = node.get("data-c")
+            if (
+                codepoint is None
+                or re.fullmatch(r"[0-9A-Fa-f]{1,6}", codepoint) is None
+            ):
+                raise MathValidationError(
+                    "SVG path data may be empty only for an encoded character"
+                )
+            return
         _validate_path_data(value)
         return
     if attribute in {"x", "y", "x1", "y1", "x2", "y2", "width", "height", "rx", "ry"}:
@@ -343,7 +387,7 @@ def _validate_svg_attribute(element: str, attribute: str, value: str) -> None:
             raise MathValidationError(f"SVG {attribute} must not be negative")
         return
     if attribute == "data-c":
-        if not re.fullmatch(r"[0-9A-Fa-f]+", value):
+        if not re.fullmatch(r"[0-9A-Fa-f]{1,6}", value):
             raise MathValidationError("SVG data-c must be a hexadecimal codepoint")
         return
     if attribute == "data-bgcolor" and value != "true":
@@ -387,6 +431,14 @@ def _validate_nonnegative_number(name: str, value: str) -> None:
     _validate_finite_number(name, value)
     if float(value) < 0:
         raise MathValidationError(f"SVG {name} must not be negative")
+
+
+def _validate_dash_array(value: str) -> None:
+    parts = [part for part in re.split(r"[\s,]+", value.strip()) if part]
+    if not parts:
+        raise MathValidationError("SVG stroke-dasharray must not be empty")
+    for part in parts:
+        _validate_nonnegative_number("stroke-dasharray", part)
 
 
 def _validate_transform(value: str) -> None:
@@ -471,3 +523,66 @@ def _skip_separators(value: str, position: int) -> int:
     if match is None:
         raise AssertionError("the separator pattern must always match")
     return match.end()
+
+
+def validate_tex_nesting_depth(tex: str, max_depth: int) -> None:
+    """Reject excessive source nesting before it reaches the supervised worker.
+
+    This is a lexical precheck, not a bound on nesting introduced by macro
+    expansion. The worker process and SVG-depth validation remain the final
+    isolation layers.
+    """
+    depth = 0
+    position = 0
+    while position < len(tex):
+        char = tex[position]
+        if char == "%":
+            newline = tex.find("\n", position + 1)
+            if newline < 0:
+                break
+            position = newline + 1
+            continue
+        if char == "\\":
+            position += 1
+            if position >= len(tex):
+                break
+            if tex[position].isascii() and tex[position].isalpha():
+                start = position
+                while (
+                    position < len(tex)
+                    and tex[position].isascii()
+                    and tex[position].isalpha()
+                ):
+                    position += 1
+                command = tex[start:position]
+                if command == "verb":
+                    if position < len(tex) and tex[position] == "*":
+                        position += 1
+                    if position >= len(tex):
+                        break
+                    delimiter = tex[position]
+                    closing = tex.find(delimiter, position + 1)
+                    if closing < 0:
+                        break
+                    position = closing + 1
+                    continue
+                if command in {"begin", "left"}:
+                    depth += 1
+                elif command in {"end", "right"} and depth > 0:
+                    depth -= 1
+            else:
+                position += 1
+            if depth > max_depth:
+                raise MathLimitError(
+                    f"tex source exceeds the {max_depth}-level nesting limit"
+                )
+            continue
+        if char == "{":
+            depth += 1
+            if depth > max_depth:
+                raise MathLimitError(
+                    f"tex source exceeds the {max_depth}-level nesting limit"
+                )
+        elif char == "}" and depth > 0:
+            depth -= 1
+        position += 1

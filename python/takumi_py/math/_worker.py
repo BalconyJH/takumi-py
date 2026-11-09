@@ -145,7 +145,8 @@ def _typeset(request: dict[str, object]) -> dict[str, object]:
 
     deadline = monotonic() + timeout_sec
     _ensure_runtime(bundle_path_value, memory_limit_bytes, _remaining(deadline))
-    if _STATE.runtime is None or _STATE.typeset_function is None:
+    runtime = _STATE.runtime
+    if runtime is None or _STATE.typeset_function is None:
         raise _WorkerFailure("runtime", "math runtime was not initialized")
 
     try:
@@ -160,7 +161,7 @@ def _typeset(request: dict[str, object]) -> dict[str, object]:
         )
         result = promise.get(timeout=_remaining(deadline))
     except BaseException as error:
-        raise _classify_runtime_error(error) from error
+        raise _classify_runtime_error(error, runtime) from error
 
     try:
         svg = result["svg"]
@@ -185,11 +186,20 @@ def _typeset(request: dict[str, object]) -> dict[str, object]:
             isinstance(value, bool)
             or not isinstance(value, (int, float))
             or not math.isfinite(value)
-            or abs(value) > 3.4028234663852886e38
         ):
             raise _WorkerFailure(
                 "runtime",
                 f"math runtime returned invalid {name}",
+            )
+        if abs(value) > 3.4028234663852886e38:
+            raise _WorkerFailure(
+                "limit",
+                f"math geometry {name} exceeds the f32 output range",
+            )
+        if name in {"width_px", "height_px"} and value <= 0:
+            raise _WorkerFailure(
+                "runtime",
+                f"math runtime returned non-positive {name}",
             )
         geometry.append(float(value))
     return {
@@ -248,13 +258,19 @@ def _ensure_runtime(
     except BaseException as error:
         with suppress(Exception):
             runtime.close()
-        raise _classify_runtime_error(error) from error
+        raise _classify_runtime_error(error, runtime) from error
     _STATE.runtime = runtime
     _STATE.typeset_function = typeset
     _STATE.bundle_path = bundle_path
 
 
-def _classify_runtime_error(error: BaseException) -> _WorkerFailure:
+def _classify_runtime_error(
+    error: BaseException, runtime: Any = None
+) -> _WorkerFailure:
+    if runtime is not None:
+        with suppress(Exception):
+            if runtime.was_hard_memory_limit_reached():
+                return _WorkerFailure("limit", "JavaScript memory limit reached")
     try:
         from py_mini_racer import (
             JSEvalException,
@@ -270,6 +286,8 @@ def _classify_runtime_error(error: BaseException) -> _WorkerFailure:
         reason = error.reason
         if isinstance(reason, str):
             error_id = reason.split(":", 1)[0].strip()
+            if error_id == "GeometryLimit":
+                return _WorkerFailure("limit", reason)
             if error_id and error_id not in {
                 "Error",
                 "MathJaxError",

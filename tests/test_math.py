@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from importlib.util import find_spec
+from math import ceil
 from time import monotonic
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
 import pytest
 
+from takumi_py import Document, LayoutOptions, RasterOptions, Renderer
 from takumi_py.math import (
     MathLimitError,
     MathLimits,
@@ -89,6 +91,133 @@ def test_inline_operators_ams_matrix_and_geometry_are_complete() -> None:
         assert large.depth_px == pytest.approx(small.depth_px * 2, abs=0.02)
 
 
+def test_large_font_geometry_remains_linear() -> None:
+    with MathTypesetter(cache=False) as typesetter:
+        small = typesetter.typeset("x+y", options=MathOptions(font_size_px=20))
+        large = typesetter.typeset("x+y", options=MathOptions(font_size_px=2000))
+
+        assert large.width_px == pytest.approx(small.width_px * 100, abs=0.02)
+        assert large.height_px == pytest.approx(small.height_px * 100, abs=0.02)
+        assert large.depth_px == pytest.approx(small.depth_px * 100, abs=0.02)
+
+        root = ET.fromstring(large.data)  # noqa: S314
+        view_box = [float(value) for value in root.attrib["viewBox"].split()]
+        assert view_box[2] == pytest.approx(large.width_px / 2, rel=1e-12)
+        assert view_box[3] == pytest.approx(large.height_px / 2, rel=1e-12)
+
+
+def test_derived_geometry_outside_f32_is_a_limit_error() -> None:
+    with MathTypesetter(cache=False) as typesetter:
+        with pytest.raises(MathLimitError, match="f32 range"):
+            typesetter.typeset(
+                r"\rule{1em}{10em}",
+                options=MathOptions(font_size_px=4e37),
+            )
+
+        assert typesetter.typeset("x").width_px > 0
+
+
+def test_array_rules_and_bbox_borders_are_self_contained() -> None:
+    with MathTypesetter(cache=False) as typesetter:
+        matrix = typesetter.typeset(
+            r"\begin{array}{|c|c|}\hline a&b\\\hline c&d\\\hline\end{array}"
+        )
+        matrix_root = ET.fromstring(matrix.data)  # noqa: S314
+        namespace = f"{{{SVG_NS}}}"
+        lines = list(matrix_root.iter(f"{namespace}line"))
+        frames = list(matrix_root.iter(f"{namespace}rect"))
+        assert len(lines) == 2
+        assert len(frames) == 1
+        assert all(line.get("stroke-width") == "70" for line in lines)
+        assert all(line.get("fill") == "none" for line in lines)
+        assert frames[0].get("stroke-width") == "70"
+        assert frames[0].get("fill") == "none"
+        assert not list(matrix_root.iter(f"{namespace}polygon"))
+
+        dashed_matrix = typesetter.typeset(
+            r"\begin{array}{:c:c:}\hline a&b\\\hline c&d\\\hline\end{array}"
+        )
+        dashed_matrix_root = ET.fromstring(dashed_matrix.data)  # noqa: S314
+        dashed_lines = list(dashed_matrix_root.iter(f"{namespace}line"))
+        assert len(dashed_lines) == 4
+        assert all(line.get("fill") == "none" for line in dashed_lines)
+        assert all(line.get("stroke") != "" for line in dashed_lines)
+        assert all(line.get("width") is None for line in dashed_lines)
+        assert sum(bool(line.get("stroke-dasharray")) for line in dashed_lines) == 3
+
+        view_box = [
+            float(value) for value in dashed_matrix_root.attrib["viewBox"].split()
+        ]
+        dashed_column = next(
+            line for line in dashed_lines if line.get("stroke-dasharray") == "140"
+        )
+        column_x = round(
+            (float(dashed_column.get("x1", "0")) - view_box[0])
+            * dashed_matrix.width_px
+            / view_box[2]
+        )
+        width = ceil(dashed_matrix.width_px)
+        height = ceil(dashed_matrix.height_px)
+        pixels = Renderer().render(
+            Document.from_node(
+                dashed_matrix.to_node(),
+                resources=[dashed_matrix.to_image_resource()],
+            ),
+            layout=LayoutOptions(width=width, height=height),
+            output=RasterOptions(format="raw"),
+        )
+        assert (
+            sum(
+                any(
+                    pixels[(y * width + sample_x) * 4 + 3] > 0
+                    for sample_x in range(column_x - 2, column_x + 3)
+                    if 0 <= sample_x < width
+                )
+                for y in range(height)
+            )
+            > 20
+        )
+
+        bordered = typesetter.typeset(r"\bbox[5px,border:2px dashed blue]{x}")
+        bordered_root = ET.fromstring(bordered.data)  # noqa: S314
+        border_lines = list(bordered_root.iter(f"{namespace}line"))
+        assert len(border_lines) == 4
+        assert all(line.get("stroke") == "blue" for line in border_lines)
+        assert all(line.get("stroke-dasharray") for line in border_lines)
+
+        solid = typesetter.typeset(r"\bbox[5px,border:2px solid red]{x}")
+        document = Document.from_node(
+            solid.to_node(),
+            resources=[solid.to_image_resource()],
+        )
+        pixels = Renderer().render(
+            document,
+            layout=LayoutOptions(
+                width=int(solid.width_px + 0.999),
+                height=int(solid.height_px + 0.999),
+            ),
+            output=RasterOptions(format="raw"),
+        )
+        assert (
+            sum(
+                pixels[offset] > 200
+                and pixels[offset + 1] < 30
+                and pixels[offset + 2] < 30
+                and pixels[offset + 3] > 0
+                for offset in range(0, len(pixels), 4)
+            )
+            > 20
+        )
+
+        for root in (matrix_root, dashed_matrix_root, bordered_root):
+            assert not [
+                (node, attribute)
+                for node in root.iter()
+                for attribute in node.attrib
+                if attribute in {"class", "style", "data-line", "data-frame"}
+            ]
+
+
 def test_mhchem_is_explicit_and_macro_state_does_not_leak() -> None:
     with MathTypesetter() as disabled, pytest.raises(MathSyntaxError):
         disabled.typeset(r"\ce{2H2 -> 2H2O}")
@@ -113,6 +242,26 @@ def test_mhchem_is_explicit_and_macro_state_does_not_leak() -> None:
         ):
             with pytest.raises(MathSyntaxError):
                 enabled.typeset(unsupported)
+
+
+def test_color_definitions_do_not_leak_between_expressions() -> None:
+    with MathTypesetter(cache=False) as typesetter:
+        first = typesetter.typeset(
+            r"\definecolor{reviewcolor}{RGB}{12,34,56}\color{reviewcolor}{x}"
+        )
+        assert b'fill="#0c2238"' in first.data
+
+        with pytest.raises(MathValidationError, match="color"):
+            typesetter.typeset(r"\color{reviewcolor}{x}")
+
+
+def test_empty_encoded_character_path_uses_the_minimum_linear_geometry() -> None:
+    with MathTypesetter(cache=False) as typesetter:
+        formula = typesetter.typeset(r"\unicode{xFEFF}")
+
+    assert formula.width_px == pytest.approx(0.02)
+    assert formula.height_px == pytest.approx(0.02)
+    assert b'data-c="FEFF" d=""' in formula.data
 
 
 def test_cache_hits_are_bounded_and_options_are_semantic() -> None:
@@ -172,6 +321,35 @@ def test_wall_clock_limit_rejects_cold_start_and_does_not_hang() -> None:
         with pytest.raises(MathLimitError):
             typesetter.typeset("x")
         assert monotonic() - started < 2.0
+    finally:
+        typesetter.close()
+
+
+def test_typesetter_keeps_runtime_responsibility_for_limit_cleanup() -> None:
+    with MathTypesetter() as typesetter:
+        with (
+            patch.object(
+                typesetter,
+                "_typeset_uncached",
+                side_effect=MathLimitError("execution deadline"),
+            ),
+            patch.object(typesetter, "_discard_after_failure") as discard,
+            pytest.raises(MathLimitError, match="deadline"),
+        ):
+            typesetter.typeset("x")
+
+        discard.assert_not_called()
+
+
+def test_nesting_budget_rejects_before_starting_the_worker() -> None:
+    typesetter = MathTypesetter(
+        limits=MathLimits(max_nesting_depth=8),
+        cache=False,
+    )
+    try:
+        with pytest.raises(MathLimitError, match="8-level nesting"):
+            typesetter.typeset("{" * 9 + "x" + "}" * 9)
+        assert typesetter._runtime is None
     finally:
         typesetter.close()
 

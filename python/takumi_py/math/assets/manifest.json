@@ -2,9 +2,9 @@
   "schema_version": 1,
   "bundle": {
     "file": "mathjax.bundle.js",
-    "sha256": "34435f1a42235a039f132a80ae33a04a8869b7540846e190aaa54aed16454e71",
-    "bytes": 11511436,
-    "gzip_bytes": 3706700
+    "sha256": "bc09bf62b474f76568b8df3810cc4a62140eaae6d25f08050f87ce95223c740d",
+    "bytes": 11515590,
+    "gzip_bytes": 3707780
   },
   "build": {
     "bun_version": "1.4.4",
@@ -12,7 +12,7 @@
     "target": "browser",
     "format": "iife",
     "entry": "mathjax-entry.mjs",
-    "entry_sha256": "a45c53bde86ad8d780b0ef11c3e881b3d50aac213db4c6233b8ec47d5b4bff24",
+    "entry_sha256": "21f4b80029579ee89f434148596056f71d16cfa3fe71328285b1684a027a2ba6",
     "lock_sha256": "3e7984f29b1f34b973c64768ad862eb50368b5074aa5dd002a0f46f13409a4f5"
   },
   "packages": [

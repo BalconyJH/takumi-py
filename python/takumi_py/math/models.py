@@ -10,8 +10,10 @@ from threading import TIMEOUT_MAX
 from typing import TYPE_CHECKING, Protocol
 
 from takumi_py.math._validation import (
+    MAX_TEX_NESTING_DEPTH,
     MAX_VALIDATED_SVG_BYTES,
     validate_color,
+    validate_font_size,
     validate_positive_f32,
     validate_signed_f32,
     validate_svg,
@@ -53,7 +55,7 @@ class MathOptions:
         object.__setattr__(
             self,
             "font_size_px",
-            validate_positive_f32("font_size_px", self.font_size_px),
+            validate_font_size(self.font_size_px),
         )
         object.__setattr__(
             self,
@@ -80,6 +82,7 @@ class MathLimits:
     max_batch_size: int = 1024
     cache_entries: int = 128
     cache_bytes: int = 16_777_216
+    max_nesting_depth: int = MAX_TEX_NESTING_DEPTH
 
     def __post_init__(self) -> None:
         for name in (
@@ -88,6 +91,7 @@ class MathLimits:
             "max_input_bytes",
             "max_svg_bytes",
             "max_batch_size",
+            "max_nesting_depth",
         ):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -100,6 +104,11 @@ class MathLimits:
             raise ValueError(
                 "max_svg_bytes cannot exceed the validated SVG byte limit "
                 f"({MAX_VALIDATED_SVG_BYTES})"
+            )
+        if self.max_nesting_depth > MAX_TEX_NESTING_DEPTH:
+            raise ValueError(
+                f"max_nesting_depth cannot exceed the safe limit "
+                f"({MAX_TEX_NESTING_DEPTH})"
             )
         for name in ("cache_entries", "cache_bytes"):
             value = getattr(self, name)

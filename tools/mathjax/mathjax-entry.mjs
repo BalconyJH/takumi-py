@@ -128,8 +128,12 @@ mathjax.asyncLoad = (name) => {
 
 const XML_NUMBER =
   /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
-const EX_DIMENSION =
-  /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)ex$/;
+const MIN_BBOX_EM = 0.001;
+const F32_MAX = 3.4028234663852886e38;
+const SAFE_BORDER_DECLARATION =
+  /^border(?:-(?:top|right|bottom|left))?:\s*(?:0|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:px|pt|pc|in|cm|mm|em|ex))\s+(?:solid|dashed|dotted)(?:\s+(?:[A-Za-z]+|#[0-9A-Fa-f]{3,8}))?$/i;
+const SAFE_FRAME_STYLES =
+  /^(?:none|solid|dashed|dotted)(?:\s+(?:none|solid|dashed|dotted)){3}$/;
 
 function parseFinite(value, label) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -138,43 +142,246 @@ function parseFinite(value, label) {
   return value;
 }
 
-function parseExDimension(value, label) {
-  if (value === "0") {
-    return 0;
+function geometryPixels(value, fontSizePx, label) {
+  const pixels = value * fontSizePx;
+  if (!Number.isFinite(pixels) || Math.abs(pixels) > F32_MAX) {
+    const error = new RangeError(`${label} exceeds the finite f32 range`);
+    error.id = "GeometryLimit";
+    throw error;
   }
-  const match =
-    typeof value === "string" ? EX_DIMENSION.exec(value) : null;
-  if (!match) {
-    throw new Error(`${label} must use an explicit finite ex unit`);
-  }
-  return parseFinite(Number(match[1]), label);
+  return pixels;
 }
 
-function parseViewBox(value) {
-  if (typeof value !== "string") {
-    throw new Error("MathJax SVG is missing viewBox");
+function polygonPath(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error("MathJax polygon is missing points");
   }
-  const parts = value.trim().split(/[\s,]+/);
-  if (parts.length !== 4 || parts.some((part) => !XML_NUMBER.test(part))) {
-    throw new Error(`unexpected MathJax viewBox: ${JSON.stringify(value)}`);
+  const points = value.trim().split(/\s+/).map((point) => {
+    const parts = point.split(",");
+    if (
+      parts.length !== 2 ||
+      !XML_NUMBER.test(parts[0]) ||
+      !XML_NUMBER.test(parts[1])
+    ) {
+      throw new Error(`unexpected MathJax polygon point: ${JSON.stringify(point)}`);
+    }
+    return [parseFinite(Number(parts[0]), "polygon x"), parseFinite(Number(parts[1]), "polygon y")];
+  });
+  if (points.length < 3) {
+    throw new Error("MathJax polygon must contain at least three points");
   }
-  const [x, y, width, height] = parts.map((part) => Number(part));
-  for (const [label, number] of [
-    ["viewBox x", x],
-    ["viewBox y", y],
-    ["viewBox width", width],
-    ["viewBox height", height],
-  ]) {
-    parseFinite(number, label);
-  }
-  if (width <= 0 || height <= 0) {
-    throw new Error("MathJax viewBox dimensions must be positive");
-  }
-  return { x, y, width, height };
+  return (
+    `M${points[0][0]} ${points[0][1]}` +
+    points
+      .slice(1)
+      .map(([x, y]) => `L${x} ${y}`)
+      .join("") +
+    "Z"
+  );
 }
 
-function approximatelyEqual(left, right, tolerance) {
-  return Math.abs(left - right) <= tolerance;
+function isSafeBorderStyle(value) {
+  const declarations = value
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean);
+  return (
+    declarations.length > 0 &&
+    declarations.every((declaration) =>
+      SAFE_BORDER_DECLARATION.test(declaration),
+    )
+  );
+}
+
+function normalizeTableRule(rule, kind) {
+  const marker = kind === "line" ? "data-line" : "data-frame";
+  const allowed = new Set([
+    "class",
+    "fill",
+    "stroke",
+    "stroke-width",
+    "stroke-thickness",
+    "stroke-dasharray",
+    "stroke-linecap",
+    "transform",
+    marker,
+    ...(kind === "line" ? ["x1", "y1", "x2", "y2"] : ["x", "y", "width", "height"]),
+  ]);
+  const unsupported = Object.keys(rule.attributes).filter(
+    (name) => !allowed.has(name),
+  );
+  if (unsupported.length) {
+    throw new Error(
+      `unsupported MathJax table-rule attributes: ${unsupported.join(", ")}`,
+    );
+  }
+
+  const markerValue = adaptor.getAttribute(rule, marker);
+  if (
+    (kind === "line" && !["h", "v"].includes(markerValue)) ||
+    (kind === "rect" && markerValue !== "true")
+  ) {
+    throw new Error(`unexpected MathJax ${marker}: ${JSON.stringify(markerValue)}`);
+  }
+  const className = adaptor.getAttribute(rule, "class");
+  const style = /^mjx-(solid|dashed|dotted)$/.exec(className ?? "")?.[1];
+  if (!style) {
+    throw new Error(
+      `unexpected MathJax table-rule class: ${JSON.stringify(className)}`,
+    );
+  }
+
+  const strokeWidth = adaptor.getAttribute(rule, "stroke-width");
+  const strokeThickness = adaptor.getAttribute(rule, "stroke-thickness");
+  if (typeof strokeWidth === "string" && typeof strokeThickness === "string") {
+    throw new Error("MathJax table rule has two stroke widths");
+  }
+  if (typeof strokeThickness === "string") {
+    if (
+      !XML_NUMBER.test(strokeThickness) ||
+      !Number.isFinite(Number(strokeThickness)) ||
+      Number(strokeThickness) < 0
+    ) {
+      throw new Error(
+        `invalid MathJax table-rule stroke thickness: ${JSON.stringify(strokeThickness)}`,
+      );
+    }
+    adaptor.setAttribute(rule, "stroke-width", strokeThickness);
+  } else if (typeof strokeWidth !== "string") {
+    // MathJax's SVG stylesheet supplies this for ordinary table rules.
+    adaptor.setAttribute(rule, "stroke-width", "70");
+  }
+
+  adaptor.setAttribute(rule, "fill", "none");
+  adaptor.removeAttribute(rule, marker);
+  adaptor.removeAttribute(rule, "class");
+  adaptor.removeAttribute(rule, "stroke-thickness");
+  adaptor.removeAttribute(rule, "stroke-dasharray");
+  adaptor.removeAttribute(rule, "stroke-linecap");
+  if (style === "dashed") {
+    adaptor.setAttribute(rule, "stroke-dasharray", "140");
+  } else if (style === "dotted") {
+    adaptor.setAttribute(rule, "stroke-dasharray", "0,140");
+    adaptor.setAttribute(rule, "stroke-linecap", "round");
+  }
+}
+
+function normalizeDashedColumnRule(line) {
+  const allowed = new Set([
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "stroke",
+    "stroke-width",
+    "stroke-linecap",
+    "stroke-dasharray",
+    "width",
+  ]);
+  const unsupported = Object.keys(line.attributes).filter(
+    (name) => !allowed.has(name),
+  );
+  if (unsupported.length) {
+    throw new Error(
+      `unsupported MathJax dashed-column attributes: ${unsupported.join(", ")}`,
+    );
+  }
+  const width = adaptor.getAttribute(line, "width");
+  if (
+    typeof width === "string" &&
+    (!XML_NUMBER.test(width) ||
+      !Number.isFinite(Number(width)) ||
+      Number(width) < 0)
+  ) {
+    throw new Error(
+      `unexpected MathJax dashed-column width: ${JSON.stringify(width)}`,
+    );
+  }
+  if (
+    adaptor.getAttribute(line, "stroke") !== "" ||
+    adaptor.getAttribute(line, "stroke-linecap") !== "square" ||
+    typeof adaptor.getAttribute(line, "stroke-dasharray") !== "string" ||
+    typeof adaptor.getAttribute(line, "stroke-width") !== "string"
+  ) {
+    throw new Error("unexpected MathJax dashed-column markup");
+  }
+  adaptor.removeAttribute(line, "stroke");
+  adaptor.removeAttribute(line, "width");
+  adaptor.setAttribute(line, "fill", "none");
+}
+
+function sanitizeRenderedSvg(rendered) {
+  for (const polygon of adaptor.tags(rendered, "polygon")) {
+    const attributes = new Set(Object.keys(polygon.attributes));
+    const allowed = new Set([
+      "points",
+      "fill",
+      "stroke",
+      "stroke-width",
+      "transform",
+    ]);
+    const unsupported = [...attributes].filter((name) => !allowed.has(name));
+    if (unsupported.length) {
+      throw new Error(
+        `unsupported MathJax polygon attributes: ${unsupported.join(", ")}`,
+      );
+    }
+    const path = adaptor.node("path");
+    adaptor.setAttribute(
+      path,
+      "d",
+      polygonPath(adaptor.getAttribute(polygon, "points")),
+    );
+    for (const name of ["fill", "stroke", "stroke-width", "transform"]) {
+      const value = adaptor.getAttribute(polygon, name);
+      if (typeof value === "string") {
+        adaptor.setAttribute(path, name, value);
+      }
+    }
+    adaptor.replace(path, polygon);
+  }
+  for (const line of adaptor.tags(rendered, "line")) {
+    if (typeof adaptor.getAttribute(line, "data-line") === "string") {
+      normalizeTableRule(line, "line");
+    } else if (
+      adaptor.getAttribute(line, "stroke") === "" ||
+      typeof adaptor.getAttribute(line, "width") === "string"
+    ) {
+      normalizeDashedColumnRule(line);
+    }
+  }
+  for (const rect of adaptor.tags(rendered, "rect")) {
+    if (typeof adaptor.getAttribute(rect, "data-frame") === "string") {
+      normalizeTableRule(rect, "rect");
+    }
+  }
+  for (const group of adaptor.tags(rendered, "g")) {
+    const style = adaptor.getAttribute(group, "style");
+    if (typeof style === "string") {
+      if (!isSafeBorderStyle(style.trim())) {
+        throw new Error(`unsupported MathJax SVG style: ${JSON.stringify(style)}`);
+      }
+      adaptor.removeAttribute(group, "style");
+    }
+    const frameStyles = adaptor.getAttribute(group, "data-frame-styles");
+    if (typeof frameStyles === "string") {
+      if (frameStyles !== "" && !SAFE_FRAME_STYLES.test(frameStyles.trim())) {
+        throw new Error(
+          `unexpected MathJax frame styles: ${JSON.stringify(frameStyles)}`,
+        );
+      }
+      adaptor.removeAttribute(group, "data-frame-styles");
+    }
+    const padding = adaptor.getAttribute(group, "data-padding");
+    if (typeof padding === "string") {
+      if (padding !== "0") {
+        throw new Error(
+          `unexpected MathJax frame padding: ${JSON.stringify(padding)}`,
+        );
+      }
+      adaptor.removeAttribute(group, "data-padding");
+    }
+  }
 }
 
 async function typeset(
@@ -282,33 +489,43 @@ async function typeset(
       adaptor.setAttribute(foreground, "stroke", color);
     }
 
-    const viewBox = parseViewBox(adaptor.getAttribute(rendered, "viewBox"));
-    const widthPx = (viewBox.width * fontSizePx) / 1000;
-    const heightPx = (viewBox.height * fontSizePx) / 1000;
-
-    // MathJax writes dimensions rounded to three decimal places in ex. Use
-    // the viewBox supplied by MathJax's wrapper BBox for the actual geometry,
-    // then verify its rounded presentation attributes against that geometry.
-    const widthEx = parseExDimension(
-      adaptor.getAttribute(rendered, "width"),
-      "MathJax SVG width",
+    const bbox = svgJax.getBBox(svgJax.math, html);
+    const widthEm = parseFinite(bbox.w, "MathJax BBox width");
+    const heightAboveBaselineEm = parseFinite(
+      bbox.h,
+      "MathJax BBox height",
     );
-    const heightEx = parseExDimension(
-      adaptor.getAttribute(rendered, "height"),
-      "MathJax SVG height",
-    );
-    const verticalAlignEx = parseExDimension(
-      adaptor.getStyle(rendered, "vertical-align"),
-      "MathJax SVG vertical-align",
-    );
-    const xHeight = svgJax.font.params.x_height;
-    const exTolerancePx = 0.001 * xHeight * fontSizePx + 1e-9;
-    const viewBoxTolerancePx = 0.0001 * fontSizePx + 1e-9;
-    const roundedWidthPx = widthEx * xHeight * fontSizePx;
-    const roundedHeightPx = heightEx * xHeight * fontSizePx;
-    const roundedDepthPx = -verticalAlignEx * xHeight * fontSizePx;
-    const depthPx = roundedDepthPx;
-    const heightAboveBaselinePx = (-viewBox.y * fontSizePx) / 1000;
+    const depthEm = parseFinite(bbox.d, "MathJax BBox depth");
+    const rawHeightEm = heightAboveBaselineEm + depthEm;
+    if (!Number.isFinite(rawHeightEm)) {
+      const error = new RangeError(
+        "MathJax BBox total height exceeds the finite range",
+      );
+      error.id = "GeometryLimit";
+      throw error;
+    }
+    const heightEm = parseFinite(rawHeightEm, "MathJax BBox total height");
+    if (widthEm < 0 || heightEm < 0) {
+      throw new Error("MathJax BBox dimensions must not be negative");
+    }
+    const renderedWidthEm = Math.max(widthEm, MIN_BBOX_EM);
+    const renderedHeightEm = Math.max(heightEm, MIN_BBOX_EM);
+    const widthPx = geometryPixels(renderedWidthEm, fontSizePx, "width");
+    const heightPx = geometryPixels(renderedHeightEm, fontSizePx, "height");
+    const depthPx = geometryPixels(depthEm, fontSizePx, "depth");
+    for (const [label, value] of [
+      ["viewBox y", -heightAboveBaselineEm * 1000],
+      ["viewBox width", renderedWidthEm * 1000],
+      ["viewBox height", renderedHeightEm * 1000],
+    ]) {
+      const checked = parseFinite(value, label);
+      if (Math.abs(checked) > F32_MAX) {
+        throw Object.assign(
+          new RangeError(`${label} exceeds the finite f32 range`),
+          { id: "GeometryLimit" },
+        );
+      }
+    }
     for (const [label, number] of [
       ["width", widthPx],
       ["height", heightPx],
@@ -316,38 +533,22 @@ async function typeset(
     ]) {
       parseFinite(number, label);
     }
-    if (
-      widthEx <= 0 ||
-      heightEx <= 0 ||
-      !approximatelyEqual(widthPx, roundedWidthPx, exTolerancePx) ||
-      !approximatelyEqual(heightPx, roundedHeightPx, exTolerancePx) ||
-      !approximatelyEqual(
-        heightPx,
-        Math.max(
-          heightAboveBaselinePx + depthPx,
-          (fontSizePx / 1000) * fontSizePx,
-        ),
-        exTolerancePx + viewBoxTolerancePx,
-      )
-    ) {
-      throw new Error(
-        "MathJax SVG geometry disagrees with its bounding box: " +
-          JSON.stringify({
-            widthPx,
-            roundedWidthPx,
-            heightPx,
-            roundedHeightPx,
-            depthPx,
-            roundedDepthPx,
-            verticalAlignEx,
-            exTolerancePx,
-          }),
-      );
-    }
 
     adaptor.setAttribute(rendered, "width", `${String(widthPx)}px`);
     adaptor.setAttribute(rendered, "height", `${String(heightPx)}px`);
+    adaptor.setAttribute(
+      rendered,
+      "viewBox",
+      [
+        0,
+        -heightAboveBaselineEm * 1000,
+        renderedWidthEm * 1000,
+        renderedHeightEm * 1000,
+      ].join(" "),
+    );
     adaptor.removeAttribute(rendered, "style");
+    adaptor.removeAttribute(rendered, "data-mjx-viewBox");
+    sanitizeRenderedSvg(rendered);
 
     return {
       svg: adaptor.outerHTML(rendered),

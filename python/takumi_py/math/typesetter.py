@@ -18,6 +18,7 @@ from types import TracebackType
 from typing import Literal, Self
 
 from takumi_py.math._process import ProcessRuntime
+from takumi_py.math._validation import validate_tex_nesting_depth
 from takumi_py.math.errors import (
     MathBatchError,
     MathError,
@@ -107,6 +108,8 @@ class MathTypesetter:
                     resolved,
                     timeout_sec=remaining,
                 )
+            except MathLimitError:
+                raise
             except BaseException:
                 self._discard_after_failure()
                 raise
@@ -297,6 +300,10 @@ class MathTypesetter:
     def _validate_tex(self, tex: object) -> None:
         if not isinstance(tex, str):
             raise MathValidationError("tex must be a string")
+        if len(tex) > self._limits.max_input_bytes:
+            raise MathValidationError(
+                f"tex exceeds the {self._limits.max_input_bytes}-byte input limit"
+            )
         if not tex.strip():
             raise MathValidationError("tex must contain a non-whitespace expression")
         try:
@@ -312,6 +319,7 @@ class MathTypesetter:
             for char in tex
         ):
             raise MathValidationError("tex contains a forbidden control character")
+        validate_tex_nesting_depth(tex, self._limits.max_nesting_depth)
 
     def _ensure_open(self) -> None:
         with self._state:

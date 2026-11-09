@@ -7,7 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
+from typing import Any, Callable, cast
 
 import pytest
 
@@ -55,6 +56,8 @@ for line in sys.stdin:
         promise.get(timeout=0.1)
     if tex == 'exit':
         sys.exit(1)
+    if tex == 'crash':
+        os._exit(1)
     if tex == 'invalid':
         print('not-json', flush=True)
     elif tex == 'large':
@@ -71,13 +74,34 @@ for line in sys.stdin:
     )
 
     class FaultyRuntime(ProcessRuntime):
+        start_gate: Event | None = None
+        ready_gate: Event | None = None
+        start_entered = Event()
+        ready_entered = Event()
+        spawned: list[subprocess.Popen[bytes]]
+        start_calls: int
+
+        def __init__(self, bundle_path: str) -> None:
+            super().__init__(bundle_path)
+            self.spawned = []
+            self.start_calls = 0
+
         def _start(self) -> subprocess.Popen[bytes]:
-            return subprocess.Popen(  # noqa: S603
+            self.start_calls += 1
+            self.start_entered.set()
+            if self.start_gate is not None and not self.start_gate.wait(timeout=5):
+                raise TimeoutError("test start gate was not released")
+            process = subprocess.Popen(  # noqa: S603
                 [sys.executable, "-I", "-u", str(worker)],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
+            self.spawned.append(process)
+            self.ready_entered.set()
+            if self.ready_gate is not None and not self.ready_gate.wait(timeout=5):
+                raise TimeoutError("test ready gate was not released")
+            return process
 
     instance = FaultyRuntime("unused")
     yield instance
@@ -90,7 +114,7 @@ def test_worker_is_reused_only_after_success(runtime: ProcessRuntime) -> None:
     assert first["pid"] == second["pid"]
 
 
-@pytest.mark.parametrize("fault", ["exit", "invalid", "large", "syntax"])
+@pytest.mark.parametrize("fault", ["exit", "crash", "invalid", "large", "syntax"])
 def test_worker_failure_discards_process(runtime: ProcessRuntime, fault: str) -> None:
     first = request(runtime, "ok")
     error = MathSyntaxError if fault == "syntax" else MathRuntimeError
@@ -143,3 +167,186 @@ def test_close_interrupts_inflight_worker(runtime: ProcessRuntime) -> None:
     runtime.close()
     with pytest.raises(MathRuntimeError, match="closed"):
         request(runtime, "ok")
+
+
+def test_deadlines_share_and_cancel_one_delayed_start_attempt(
+    runtime: ProcessRuntime,
+) -> None:
+    instance = cast(Any, runtime)
+    instance.start_gate = Event()
+    try:
+        for _ in range(2):
+            started = monotonic()
+            with pytest.raises(MathLimitError, match=r"deadline|being cancelled"):
+                request(instance, "ok", timeout=0.1)
+            assert monotonic() - started < 1
+
+        assert instance.start_entered.wait(timeout=1)
+        assert instance.start_calls == 1
+
+        instance.start_gate.set()
+        _wait_until(lambda: bool(instance.spawned), timeout=2)
+        late_process = instance.spawned[0]
+        _wait_until(lambda: late_process.poll() is not None, timeout=2)
+        _wait_until(lambda: instance._starting is None, timeout=2)
+
+        assert request(instance, "ok")["width_px"] == 20
+        assert instance.start_calls == 2
+    finally:
+        instance.start_gate.set()
+
+
+def test_close_interrupts_delayed_start_and_reclaims_the_late_process(
+    runtime: ProcessRuntime,
+) -> None:
+    instance = cast(Any, runtime)
+    instance.start_gate = Event()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        result = pool.submit(request, instance, "ok", 10)
+        assert instance.start_entered.wait(timeout=1)
+        started = monotonic()
+        instance.close()
+        with pytest.raises(MathRuntimeError, match="closed"):
+            result.result(timeout=2)
+        assert monotonic() - started < 2
+
+        instance.start_gate.set()
+        _wait_until(lambda: bool(instance.spawned), timeout=2)
+        late_process = instance.spawned[0]
+        _wait_until(lambda: late_process.poll() is not None, timeout=2)
+
+
+def test_close_during_ready_start_reclaims_the_unaccepted_process(
+    runtime: ProcessRuntime,
+) -> None:
+    instance = cast(Any, runtime)
+    instance.ready_gate = Event()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        result = pool.submit(request, instance, "ok", 10)
+        assert instance.ready_entered.wait(timeout=1)
+        started = monotonic()
+        instance.close()
+        with pytest.raises(MathRuntimeError, match="closed"):
+            result.result(timeout=2)
+        assert monotonic() - started < 2
+
+        instance.ready_gate.set()
+        _wait_until(lambda: bool(instance.spawned), timeout=2)
+        late_process = instance.spawned[0]
+        _wait_until(lambda: late_process.poll() is not None, timeout=2)
+
+
+def test_keyboard_interrupt_abandons_a_pending_start(
+    runtime: ProcessRuntime,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from takumi_py.math import _process
+
+    instance = cast(Any, runtime)
+    instance.start_gate = Event()
+    original_wait = _process._StartAttempt.wait
+
+    def interrupt(_attempt: object, _deadline: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(_process._StartAttempt, "wait", interrupt)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            request(instance, "ok", timeout=2)
+        assert instance.start_entered.wait(timeout=1)
+        assert instance._starting is not None
+
+        monkeypatch.setattr(_process._StartAttempt, "wait", original_wait)
+        with pytest.raises(MathLimitError, match="being cancelled"):
+            request(instance, "ok", timeout=2)
+        assert instance.start_calls == 1
+
+        instance.start_gate.set()
+        _wait_until(lambda: bool(instance.spawned), timeout=2)
+        late_process = instance.spawned[0]
+        _wait_until(lambda: late_process.poll() is not None, timeout=2)
+        _wait_until(lambda: instance._starting is None, timeout=2)
+        assert request(instance, "ok")["width_px"] == 20
+        assert instance.start_calls == 2
+    finally:
+        instance.start_gate.set()
+
+
+def test_abandon_start_cannot_leave_a_finished_attempt_as_a_tombstone(
+    runtime: ProcessRuntime,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from takumi_py.math import _process
+
+    instance = cast(Any, runtime)
+    attempt = _process._StartAttempt()
+    instance._starting = attempt
+    original_cancel = attempt.cancel
+
+    def cancel_then_finish_launch() -> subprocess.Popen[bytes] | None:
+        result = original_cancel()
+        attempt.finish_launch()
+        return result
+
+    monkeypatch.setattr(attempt, "cancel", cancel_then_finish_launch)
+
+    assert instance._abandon_start(attempt) is None
+    assert instance._starting is None
+
+
+def test_stopping_a_process_is_idempotent_under_concurrency() -> None:
+    from takumi_py.math._process import _stop
+
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(10)"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+    )
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda _: _stop(process), range(4)))
+
+    assert process.poll() is not None
+    assert process.stdin is not None and process.stdin.closed
+    assert process.stdout is not None and process.stdout.closed
+
+
+def test_null_promise_reason_uses_the_runtime_memory_marker() -> None:
+    pytest.importorskip("py_mini_racer")
+    from py_mini_racer import JSPromiseError
+
+    from takumi_py.math import _worker
+
+    class MemoryLimitedRuntime:
+        @staticmethod
+        def was_hard_memory_limit_reached() -> bool:
+            return True
+
+    failure = _worker._classify_runtime_error(
+        JSPromiseError(None),
+        MemoryLimitedRuntime(),
+    )
+
+    assert failure.kind == "limit"
+    assert failure.args == ("JavaScript memory limit reached",)
+
+
+def test_geometry_limit_error_is_not_misclassified_as_syntax() -> None:
+    pytest.importorskip("py_mini_racer")
+    from py_mini_racer import JSPromiseError
+
+    from takumi_py.math import _worker
+
+    failure = _worker._classify_runtime_error(
+        JSPromiseError("GeometryLimit: height exceeds the finite f32 range")
+    )
+
+    assert failure.kind == "limit"
+
+
+def _wait_until(predicate: Callable[[], bool], *, timeout: float) -> None:
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        if predicate():
+            return
+        sleep(0.01)
+    raise AssertionError("condition was not satisfied before the test deadline")

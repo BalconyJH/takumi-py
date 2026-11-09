@@ -7,7 +7,12 @@ from threading import TIMEOUT_MAX
 import pytest
 
 from takumi_py import TakumiError
-from takumi_py.math._validation import validate_color, validate_svg
+from takumi_py.math._validation import (
+    MAX_TEX_NESTING_DEPTH,
+    validate_color,
+    validate_svg,
+    validate_tex_nesting_depth,
+)
 from takumi_py.math.errors import MathError, MathValidationError
 from takumi_py.math.models import MathLimits
 
@@ -48,6 +53,11 @@ def test_math_error_integrates_with_takumi_errors() -> None:
 def test_math_limits_cannot_exceed_validated_svg_byte_cap() -> None:
     with pytest.raises(ValueError, match="max_svg_bytes"):
         MathLimits(max_svg_bytes=1_000_001)
+
+
+def test_math_limits_cannot_exceed_the_safe_tex_nesting_depth() -> None:
+    with pytest.raises(ValueError, match="max_nesting_depth"):
+        MathLimits(max_nesting_depth=MAX_TEX_NESTING_DEPTH + 1)
 
 
 @pytest.mark.parametrize("timeout_ms", [int(TIMEOUT_MAX) * 1000 + 1, 10**1000])
@@ -223,3 +233,56 @@ def test_bbox_background_marker_must_be_literal_true() -> None:
 
     with pytest.raises(MathValidationError, match="data-bgcolor"):
         validate(data)
+
+
+def test_empty_path_is_allowed_only_for_an_encoded_character() -> None:
+    data = svg('<path data-c="200B" d=""/>')
+
+    assert validate(data) == data
+
+    with pytest.raises(MathValidationError, match="encoded character"):
+        validate(svg('<path d=""/>'))
+    for codepoint in ("not-a-codepoint", "1234567"):
+        with pytest.raises(MathValidationError, match="data-c"):
+            validate(svg(f'<path data-c="{codepoint}" d=""/>'))
+
+
+@pytest.mark.parametrize(
+    "element",
+    [
+        '<line class="mjx-solid" x1="0" y1="0" x2="1" y2="1"/>',
+        '<rect data-frame="true" width="1" height="1"/>',
+        '<g data-frame-styles="solid none solid none"/>',
+    ],
+)
+def test_raw_mathjax_layout_metadata_is_not_accepted(element: str) -> None:
+    with pytest.raises(MathValidationError, match="unsupported attributes"):
+        validate(svg(element))
+
+
+def test_tex_nesting_budget_counts_braces_and_environment_boundaries() -> None:
+    validate_tex_nesting_depth("{^{2}}", max_depth=2)
+    validate_tex_nesting_depth(r"\left(x\right)", max_depth=1)
+    validate_tex_nesting_depth(
+        r"\begin{matrix}a\end{matrix}",
+        max_depth=2,
+    )
+
+    for tex in (
+        "{{{",
+        r"\left(\left(x\right)\right)",
+        r"\begin{matrix}\begin{matrix}x\end{matrix}\end{matrix}",
+    ):
+        with pytest.raises(TakumiError, match="nesting limit"):
+            validate_tex_nesting_depth(tex, max_depth=1)
+
+
+@pytest.mark.parametrize(
+    "tex",
+    [
+        r"\verb|{{{\left(\begin{matrix}%|",
+        r"\verb*+{{{\left(\begin{matrix}%+",
+    ],
+)
+def test_tex_nesting_budget_skips_verbatim_delimiters(tex: str) -> None:
+    validate_tex_nesting_depth(tex, max_depth=1)
