@@ -3,8 +3,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import math
-from typing import Final, Literal, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, Final, Literal, TypeAlias, TypedDict
 from warnings import warn
+
+if TYPE_CHECKING:
+    from takumi_py._core import CompiledResources
 
 ImageOutputFormat: TypeAlias = Literal["png", "jpeg", "jpg", "webp", "ico", "raw"]
 AnimationOutputFormat: TypeAlias = Literal["webp", "apng", "gif"]
@@ -141,7 +144,8 @@ class HtmlOptions:
         tailwind_property: HTML attribute that contains Tailwind classes.
             ``None`` reads the ``tw`` attribute.
         max_depth: Maximum element nesting depth, or ``None`` for Takumi's
-            default limit.
+            default limit of 512. Values greater than 512 are rejected when
+            the parser is invoked.
     """
 
     presets: HtmlStylePresets = "chromium"
@@ -206,6 +210,7 @@ class LayoutOptions:
     time_ms: int = 0
     font_families: Sequence[str] | None = None
     lang: str | None = None
+    failed_font_files: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         for name in ("width", "height"):
@@ -229,6 +234,11 @@ class LayoutOptions:
             ):
                 raise TypeError("font_families must be a sequence of strings")
             object.__setattr__(self, "font_families", tuple(self.font_families))
+        if isinstance(self.failed_font_files, str) or any(
+            not isinstance(url, str) for url in self.failed_font_files
+        ):
+            raise TypeError("failed_font_files must be a sequence of strings")
+        object.__setattr__(self, "failed_font_files", tuple(self.failed_font_files))
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,9 +309,10 @@ class NativeRenderSettings:
     draw_debug_border: bool
     time_ms: int
     dithering: DitheringAlgorithm
-    images: list[ImageResource]
+    images: list[ImageResource] | CompiledResources
     font_families: list[str] | None
     lang: str | None
+    failed_font_files: tuple[str, ...] = ()
 
 
 def native_render_settings(
@@ -309,6 +320,8 @@ def native_render_settings(
     *,
     raster: bool = True,
     time_ms: int | None = None,
+    resources: CompiledResources | None = None,
+    failed_font_files: Sequence[str] = (),
 ) -> NativeRenderSettings:
     """Flatten resolved options for the native extension.
 
@@ -324,11 +337,14 @@ def native_render_settings(
         draw_debug_border=options.draw_debug_border if raster else False,
         time_ms=options.time_ms if time_ms is None else time_ms,
         dithering=options.dithering if raster else "none",
-        images=normalize_image_resources(options.images),
+        images=normalize_image_resources(options.images)
+        if resources is None
+        else resources,
         font_families=(
             None if options.font_families is None else list(options.font_families)
         ),
         lang=options.lang,
+        failed_font_files=tuple(failed_font_files),
     )
 
 

@@ -43,8 +43,9 @@ from takumi_py.options import (
     StyleValue,
     UnicodeRange,
 )
+from takumi_py.raster import RasterImage
 from takumi_py.renderer import CompiledHtml, Renderer, set_glyph_cache_max_bytes
-from takumi_py.template import TemplateRenderer
+from takumi_py.template import TemplateRenderer, render_template_to_document
 from takumi_py.types import (
     AnimationScene,
     CompiledNode,
@@ -57,6 +58,7 @@ from takumi_py.types import (
     NodeInput,
     RawAnimationFrame,
     RawRgbaImage,
+    RenderNeeds,
     TextNode,
     validate_node,
 )
@@ -98,10 +100,12 @@ __all__ = [
     "NodeInput",
     "NodeValidationError",
     "ParsedHtml",
+    "RasterImage",
     "RasterOptions",
     "RawAnimationFrame",
     "RawRgbaImage",
     "RenderError",
+    "RenderNeeds",
     "RenderOptions",
     "Renderer",
     "ResourceError",
@@ -117,6 +121,7 @@ __all__ = [
     "UnsupportedFormatError",
     "compile_document",
     "parse_html",
+    "render_template_to_document",
     "set_glyph_cache_max_bytes",
     "validate_node",
 ]

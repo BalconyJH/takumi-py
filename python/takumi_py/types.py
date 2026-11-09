@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NotRequired, TypeAlias, TypedDict, cast
 
@@ -11,6 +12,7 @@ from takumi_py.options import StyleMap
 
 CompiledNode: TypeAlias = _core.CompiledNode
 CompiledStyleSheet: TypeAlias = _core.CompiledStyleSheet
+_MAX_NODE_DEPTH = 512
 
 if TYPE_CHECKING:
     from takumi_py._core import _MeasuredNodeOutput
@@ -153,6 +155,23 @@ class MeasuredNode:
 
 
 @dataclass(frozen=True, slots=True)
+class RenderNeeds:
+    """Resource needs reported by Takumi after applying the CSS cascade.
+
+    ``images`` lists referenced external image identifiers, including supplied
+    ones. ``font_files`` lists the next pending ``@font-face`` source URLs.
+    ``faces`` preserves upstream pending-face identifiers (empty unless a font
+    registry contains pending faces). No network or disk reads are performed.
+    Query again after adding image/font files or marking a failed font source:
+    SVG text and fallback sources can reveal additional needs.
+    """
+
+    images: tuple[str, ...]
+    faces: tuple[int, ...]
+    font_files: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class AnimationScene:
     """One timed scene in a rendered animation sequence.
 
@@ -197,50 +216,131 @@ def validate_node(node: object) -> Node:
             shape.
     """
     try:
-        kind = msgspec.convert(node, type=_NodeKind)["type"]
-        if kind == "text":
-            return msgspec.convert(node, type=TextNode)
-        if kind == "image":
-            image = msgspec.convert(node, type=_ImageNodeInput)
-            source = image["src"]
-            if isinstance(source, dict):
-                image["src"] = msgspec.convert(source, type=RawRgbaImage)
-            elif not isinstance(source, (str, bytes)):
-                raise NodeValidationError(
-                    "image src must be a string, bytes, or raw RGBA mapping"
-                )
-            return cast(ImageNode, image)
+        normalized: dict[int, Node] = {}
+        subtree_heights: dict[int, int] = {}
+        containers: dict[int, _ContainerNodeInput] = {}
+        child_ids: dict[int, list[int]] = {}
+        active: set[int] = set()
+        stack: list[tuple[object, int, bool]] = [(node, 1, False)]
 
-        container = msgspec.convert(node, type=_ContainerNodeInput)
-        if "children" in container:
-            container["children"] = [
-                validate_node(child) for child in container["children"]
-            ]
-        return cast(ContainerNode, container)
+        while stack:
+            current, depth, expanded = stack.pop()
+            identity = id(current)
+
+            if expanded:
+                container = containers.pop(identity)
+                identities = child_ids.pop(identity)
+                children = [normalized[child_identity] for child_identity in identities]
+                container["children"] = cast(list[object], children)
+                active.remove(identity)
+                height = 1 + max(
+                    (subtree_heights[child_identity] for child_identity in identities),
+                    default=0,
+                )
+                if depth + height - 1 > _MAX_NODE_DEPTH:
+                    raise NodeValidationError(
+                        f"nodes nest deeper than {_MAX_NODE_DEPTH} levels"
+                    )
+                normalized[identity] = cast(ContainerNode, container)
+                subtree_heights[identity] = height
+                continue
+
+            if identity in active:
+                raise NodeValidationError("node contains a cycle")
+            if depth > _MAX_NODE_DEPTH:
+                raise NodeValidationError(
+                    f"nodes nest deeper than {_MAX_NODE_DEPTH} levels"
+                )
+            if identity in normalized:
+                height = subtree_heights[identity]
+                if depth + height - 1 > _MAX_NODE_DEPTH:
+                    raise NodeValidationError(
+                        f"nodes nest deeper than {_MAX_NODE_DEPTH} levels"
+                    )
+                continue
+
+            kind = msgspec.convert(current, type=_NodeKind)["type"]
+            if kind == "text":
+                normalized[identity] = msgspec.convert(current, type=TextNode)
+                subtree_heights[identity] = 1
+                continue
+            if kind == "image":
+                image = msgspec.convert(current, type=_ImageNodeInput)
+                source = image["src"]
+                if isinstance(source, dict):
+                    image["src"] = msgspec.convert(source, type=RawRgbaImage)
+                elif not isinstance(source, (str, bytes)):
+                    raise NodeValidationError(
+                        "image src must be a string, bytes, or raw RGBA mapping"
+                    )
+                normalized[identity] = cast(ImageNode, image)
+                subtree_heights[identity] = 1
+                continue
+
+            source = cast(Mapping[str, object], current)
+            raw_children = source.get("children")
+            if raw_children is None:
+                container = msgspec.convert(source, type=_ContainerNodeInput)
+                normalized[identity] = cast(ContainerNode, container)
+                subtree_heights[identity] = 1
+                continue
+            if not isinstance(raw_children, Sequence) or isinstance(
+                raw_children, (str, bytes, bytearray, memoryview)
+            ):
+                msgspec.convert(source, type=_ContainerNodeInput)
+                raise NodeValidationError("children must be an array")
+
+            identities = [id(child) for child in raw_children]
+            active.add(identity)
+            container_source = dict(source)
+            container_source["children"] = []
+            containers[identity] = msgspec.convert(
+                container_source,
+                type=_ContainerNodeInput,
+            )
+            child_ids[identity] = identities
+            stack.append((current, depth, True))
+            stack.extend((child, depth + 1, False) for child in reversed(raw_children))
+
+        return normalized[id(node)]
     except msgspec.ValidationError as error:
         raise NodeValidationError(str(error)) from error
+    except RecursionError as error:
+        raise NodeValidationError(
+            f"nodes exceed the supported nesting depth of {_MAX_NODE_DEPTH}"
+        ) from error
 
 
 def measured_node_from_mapping(data: _MeasuredNodeOutput) -> MeasuredNode:
-    children = tuple(measured_node_from_mapping(child) for child in data["children"])
-    runs = tuple(
-        MeasuredTextRun(
-            text=run["text"],
-            x=run["x"],
-            y=run["y"],
-            width=run["width"],
-            height=run["height"],
-        )
-        for run in data["runs"]
-    )
-    transform = tuple(data["transform"])
-    if len(transform) != 6:
-        raise NodeDecodeError("measured node transform must contain six values")
+    measured: dict[int, MeasuredNode] = {}
+    stack: list[tuple[_MeasuredNodeOutput, bool]] = [(data, False)]
 
-    return MeasuredNode(
-        width=float(data["width"]),
-        height=float(data["height"]),
-        transform=transform,
-        children=children,
-        runs=runs,
-    )
+    while stack:
+        current, expanded = stack.pop()
+        identity = id(current)
+        if not expanded:
+            stack.append((current, True))
+            stack.extend((child, False) for child in reversed(current["children"]))
+            continue
+
+        transform = tuple(current["transform"])
+        if len(transform) != 6:
+            raise NodeDecodeError("measured node transform must contain six values")
+        measured[identity] = MeasuredNode(
+            width=float(current["width"]),
+            height=float(current["height"]),
+            transform=transform,
+            children=tuple(measured[id(child)] for child in current["children"]),
+            runs=tuple(
+                MeasuredTextRun(
+                    text=run["text"],
+                    x=run["x"],
+                    y=run["y"],
+                    width=run["width"],
+                    height=run["height"],
+                )
+                for run in current["runs"]
+            ),
+        )
+
+    return measured[id(data)]

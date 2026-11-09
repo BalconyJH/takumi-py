@@ -1,10 +1,12 @@
 //! Render settings, read from the Python layer's resolved `RenderOptions`.
 
+use std::sync::Arc;
+
 use pyo3::{Bound, PyAny, PyResult, exceptions::PyValueError, types::PyAnyMethods};
 use takumi::prelude::{FontFamily, Lang, Viewport};
 
 use crate::{
-  images::ImageInput,
+  images::{ImageInput, read_resources},
   options::DitheringAlgorithm,
   validate::{self, attr},
 };
@@ -18,9 +20,10 @@ pub(crate) struct RenderSettings {
   pub(crate) draw_debug_border: bool,
   pub(crate) time_ms: u64,
   pub(crate) dithering: DitheringAlgorithm,
-  pub(crate) images: Vec<ImageInput>,
+  pub(crate) images: Arc<[ImageInput]>,
   font_families: Option<Vec<String>>,
   pub(crate) lang: Option<Lang>,
+  pub(crate) failed_font_files: Vec<String>,
 }
 
 impl RenderSettings {
@@ -50,9 +53,10 @@ impl RenderSettings {
       draw_debug_border: attr(settings, "draw_debug_border")?,
       time_ms,
       dithering: DitheringAlgorithm::parse(&attr::<String>(settings, "dithering")?)?,
-      images: ImageInput::from_py_list(&settings.getattr("images")?)?,
+      images: read_resources(&settings.getattr("images")?)?,
       font_families: attr(settings, "font_families")?,
       lang,
+      failed_font_files: attr(settings, "failed_font_files")?,
     })
   }
 

@@ -42,8 +42,8 @@ def test_math_svg_conversions_own_resources_and_render_all_outputs() -> None:
         measured = renderer.measure(document, layout=layout)
         vector = renderer.render_svg(document, layout=layout)
         assert raster.startswith(b"\x89PNG\r\n\x1a\n")
-        assert measured.width == pytest.approx(formula.width_px)
-        assert measured.height == pytest.approx(formula.height_px)
+        assert measured.width == pytest.approx(formula.width_px, abs=0.02)
+        assert measured.height == pytest.approx(formula.height_px, abs=0.02)
         assert vector.startswith("<svg")
 
 

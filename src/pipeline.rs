@@ -5,8 +5,11 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use takumi::{
-  measure,
-  prelude::{Fonts, MeasuredNode, Node, RenderOptions, SequentialScene, StyleSheet, SvgOptions},
+  measure, needs,
+  prelude::{
+    Bitmap, Fonts, MeasuredNode, Node, RenderNeeds, RenderOptions, SequentialScene, StyleSheet,
+    SvgOptions,
+  },
   render, render_svg, write_animation,
 };
 use takumi_bindings_common::font_cache::FontCache;
@@ -34,28 +37,37 @@ impl Resources {
   pub(crate) fn render(
     &self,
     node: Node,
-    stylesheet: StyleSheet,
-    mut settings: RenderSettings,
+    stylesheet: Arc<StyleSheet>,
+    settings: RenderSettings,
     encoding: ImageEncoding,
   ) -> PyResult<Vec<u8>> {
+    encoding.encode(self.rasterize(node, stylesheet, settings)?)
+  }
+
+  /// The stable Takumi entry point returns a bitmap independently of encoding.
+  pub(crate) fn rasterize(
+    &self,
+    node: Node,
+    stylesheet: Arc<StyleSheet>,
+    mut settings: RenderSettings,
+  ) -> PyResult<Bitmap> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
     let fonts = self.fonts(&settings)?;
     let options = self.raster_options(
       &fonts,
       images,
       node,
-      Arc::new(stylesheet),
+      stylesheet,
       &settings,
       settings.time_ms,
     );
-    let image = render(options).map_err(render_error)?;
-    encoding.encode(image)
+    render(options).map_err(render_error)
   }
 
   pub(crate) fn measure(
     &self,
     node: Node,
-    stylesheet: StyleSheet,
+    stylesheet: Arc<StyleSheet>,
     mut settings: RenderSettings,
   ) -> PyResult<MeasuredNode> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
@@ -64,17 +76,35 @@ impl Resources {
       &fonts,
       images,
       node,
-      Arc::new(stylesheet),
+      stylesheet,
       &settings,
       settings.time_ms,
     );
     measure(options).map_err(render_error)
   }
 
+  pub(crate) fn needs(
+    &self,
+    node: Node,
+    stylesheet: Arc<StyleSheet>,
+    mut settings: RenderSettings,
+  ) -> PyResult<RenderNeeds> {
+    let images = self.decode_images(std::mem::take(&mut settings.images))?;
+    let fonts = self.fonts(&settings)?;
+    Ok(needs(self.raster_options(
+      &fonts,
+      images,
+      node,
+      stylesheet,
+      &settings,
+      settings.time_ms,
+    )))
+  }
+
   pub(crate) fn render_svg(
     &self,
     node: Node,
-    stylesheet: StyleSheet,
+    stylesheet: Arc<StyleSheet>,
     mut settings: RenderSettings,
   ) -> PyResult<String> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
@@ -83,7 +113,7 @@ impl Resources {
       SvgOptions::builder()
         .viewport(settings.svg_viewport())
         .images(images)
-        .stylesheet(Arc::new(stylesheet))
+        .stylesheet(stylesheet)
         .time_ms(settings.time_ms)
         .node(node)
         .fonts(&fonts)
@@ -98,7 +128,7 @@ impl Resources {
   pub(crate) fn render_sequence_at_time(
     &self,
     scenes: Vec<(Node, u32)>,
-    stylesheet: StyleSheet,
+    stylesheet: Arc<StyleSheet>,
     mut settings: RenderSettings,
     time_ms: u64,
     encoding: ImageEncoding,
@@ -117,14 +147,13 @@ impl Resources {
   pub(crate) fn render_animation(
     &self,
     scenes: Vec<(Node, u32)>,
-    stylesheet: StyleSheet,
+    stylesheet: Arc<StyleSheet>,
     mut settings: RenderSettings,
     fps: u32,
     encoder: AnimationEncoder,
   ) -> PyResult<Vec<u8>> {
     let images = self.decode_images(std::mem::take(&mut settings.images))?;
     let fonts = self.fonts(&settings)?;
-    let stylesheet = Arc::new(stylesheet);
     let scenes: Vec<SequentialScene<'_>> = scenes
       .into_iter()
       .map(|(node, duration_ms)| {
@@ -147,7 +176,7 @@ impl Resources {
     Ok(buffer)
   }
 
-  fn decode_images(&self, inputs: Vec<ImageInput>) -> PyResult<ImageMap> {
+  fn decode_images(&self, inputs: Arc<[ImageInput]>) -> PyResult<ImageMap> {
     images::decode_all(&self.resource_cache, inputs)
   }
 
@@ -161,7 +190,13 @@ impl Resources {
     self
       .fonts
       .read()
-      .map(|fonts| fonts.clone())
+      .map(|fonts| {
+        if settings.failed_font_files.is_empty() {
+          fonts.clone()
+        } else {
+          fonts.with_failed_font_files(&settings.failed_font_files)
+        }
+      })
       .map_err(|error| RenderError::new_err(format!("renderer font lock poisoned: {error}")))
   }
 

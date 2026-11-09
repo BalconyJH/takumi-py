@@ -4,7 +4,7 @@
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use pyo3::{Bound, Py, PyAny, PyRef, PyResult, Python, prelude::*, types::PyBytes};
-use takumi::prelude::{Fonts, Node};
+use takumi::prelude::{FontSource, Fonts, Node};
 use takumi_bindings_common::font_cache::FontCache;
 use takumi_core::resources::image::ResourceCache;
 
@@ -12,10 +12,12 @@ use crate::{
   encode::{self, AnimationEncoder, ImageEncoding},
   errors::RenderError,
   fonts::{self, FontInput},
-  measure::measured_node_to_py,
+  measure::{drop_measured_node, measured_node_to_py},
   nodes::CompiledNode,
   pipeline::Resources,
+  raster::RasterImage,
   settings::RenderSettings,
+  stack,
   stylesheets::{self, CompiledStyleSheet},
   validate,
 };
@@ -76,12 +78,16 @@ impl NativeRenderer {
     CompiledNode::from_html(py, html, presets, tailwind_property, max_depth)
   }
 
-  pub fn compile_stylesheet(&self, css: &str) -> PyResult<CompiledStyleSheet> {
-    CompiledStyleSheet::strict(css)
+  pub fn compile_stylesheet(&self, py: Python<'_>, css: &str) -> PyResult<CompiledStyleSheet> {
+    stylesheets::compile_stylesheet(py, css, true)
   }
 
-  pub fn compile_stylesheet_lossy(&self, css: &str) -> CompiledStyleSheet {
-    CompiledStyleSheet::lossy(css)
+  pub fn compile_stylesheet_lossy(
+    &self,
+    py: Python<'_>,
+    css: &str,
+  ) -> PyResult<CompiledStyleSheet> {
+    stylesheets::compile_stylesheet(py, css, false)
   }
 
   pub fn compile_keyframes(&self, keyframes: Bound<'_, PyAny>) -> PyResult<CompiledStyleSheet> {
@@ -116,12 +122,13 @@ impl NativeRenderer {
 
   #[pyo3(signature = (key, pin=false))]
   pub fn cached_fonts(&self, key: &str, pin: bool) -> PyResult<Option<Vec<String>>> {
-    Ok(
-      self
-        .lock_font_cache()?
-        .lookup(key, pin)
-        .map(fonts::family_names),
-    )
+    let mut cache = self.lock_font_cache()?;
+    let fonts = if pin {
+      cache.pin(key)
+    } else {
+      cache.lookup(key)
+    };
+    Ok(fonts.map(fonts::family_names))
   }
 
   pub fn unregister_font(&self, family: &str) -> PyResult<bool> {
@@ -137,6 +144,47 @@ impl NativeRenderer {
     Ok(())
   }
 
+  pub fn load_font_file(&self, py: Python<'_>, url: String, data: &[u8]) -> PyResult<()> {
+    let data = data.to_vec();
+    py.detach(move || {
+      let (source, _) = FontSource::from(data)
+        .into_decoded()
+        .map_err(|error| crate::errors::FontError::new_err(error.to_string()))?;
+      self
+        .write_fonts()?
+        .load_font_file(url, source)
+        .map_err(|error| crate::errors::FontError::new_err(error.to_string()))
+    })
+  }
+
+  pub fn forget_font_file(&self, url: &str) -> PyResult<bool> {
+    Ok(self.write_fonts()?.forget_font_file(url))
+  }
+
+  pub fn needs_compiled(
+    &self,
+    py: Python<'_>,
+    node: PyRef<'_, CompiledNode>,
+    stylesheets: Vec<PyRef<'_, CompiledStyleSheet>>,
+    settings: Bound<'_, PyAny>,
+  ) -> PyResult<(Vec<String>, Vec<usize>, Vec<String>)> {
+    let settings = RenderSettings::from_py(&settings)?;
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = node.deep;
+    let node = Arc::clone(&node.node);
+    let resources = self.resources.clone();
+    let needs = py.detach(move || {
+      run_document(deep, || {
+        resources.needs((*node).clone(), stylesheet, settings)
+      })
+    })?;
+    Ok((
+      needs.images.into_iter().collect(),
+      needs.faces.into_iter().collect(),
+      needs.font_files.into_iter().collect(),
+    ))
+  }
+
   pub fn render_compiled(
     &self,
     py: Python<'_>,
@@ -147,11 +195,16 @@ impl NativeRenderer {
   ) -> PyResult<Py<PyBytes>> {
     let encoding = ImageEncoding::from_py(&encoding)?;
     let settings = RenderSettings::from_py(&settings)?;
-    let stylesheet = stylesheets::merge(&stylesheets)?;
-    let node = node.node.clone();
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = node.deep;
+    let node = Arc::clone(&node.node);
     let resources = self.resources.clone();
 
-    let output = py.detach(move || resources.render(node, stylesheet, settings, encoding))?;
+    let output = py.detach(move || {
+      run_document(deep, || {
+        resources.render((*node).clone(), stylesheet, settings, encoding)
+      })
+    })?;
     Ok(PyBytes::new(py, &output).unbind())
   }
 
@@ -163,12 +216,39 @@ impl NativeRenderer {
     settings: Bound<'_, PyAny>,
   ) -> PyResult<Py<PyAny>> {
     let settings = RenderSettings::from_py(&settings)?;
-    let stylesheet = stylesheets::merge(&stylesheets)?;
-    let node = node.node.clone();
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = node.deep;
+    let node = Arc::clone(&node.node);
     let resources = self.resources.clone();
 
-    let measured = py.detach(move || resources.measure(node, stylesheet, settings))?;
-    measured_node_to_py(py, &measured)
+    let measured = py.detach(move || {
+      run_document(deep, || {
+        resources.measure((*node).clone(), stylesheet, settings)
+      })
+    })?;
+    let result = measured_node_to_py(py, &measured);
+    drop_measured_node(measured);
+    result
+  }
+
+  pub fn rasterize_compiled(
+    &self,
+    py: Python<'_>,
+    node: PyRef<'_, CompiledNode>,
+    stylesheets: Vec<PyRef<'_, CompiledStyleSheet>>,
+    settings: Bound<'_, PyAny>,
+  ) -> PyResult<RasterImage> {
+    let settings = RenderSettings::from_py(&settings)?;
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = node.deep;
+    let node = Arc::clone(&node.node);
+    let resources = self.resources.clone();
+    py.detach(move || {
+      run_document(deep, || {
+        resources.rasterize((*node).clone(), stylesheet, settings)
+      })
+    })
+    .map(RasterImage::new)
   }
 
   pub fn render_svg_compiled(
@@ -179,11 +259,16 @@ impl NativeRenderer {
     settings: Bound<'_, PyAny>,
   ) -> PyResult<String> {
     let settings = RenderSettings::from_py(&settings)?;
-    let stylesheet = stylesheets::merge(&stylesheets)?;
-    let node = node.node.clone();
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = node.deep;
+    let node = Arc::clone(&node.node);
     let resources = self.resources.clone();
 
-    py.detach(move || resources.render_svg(node, stylesheet, settings))
+    py.detach(move || {
+      run_document(deep, || {
+        resources.render_svg((*node).clone(), stylesheet, settings)
+      })
+    })
   }
 
   pub fn render_sequence_at_time_compiled(
@@ -199,12 +284,21 @@ impl NativeRenderer {
     let time_ms = validate::non_negative("time_ms", time_ms)?;
     let encoding = ImageEncoding::from_py(&encoding)?;
     let settings = RenderSettings::from_py(&settings)?;
-    let stylesheet = stylesheets::merge(&stylesheets)?;
-    let scenes = clone_scenes(&scenes);
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = scenes.iter().any(|(node, _)| node.deep);
+    let scenes = snapshot_scenes(&scenes);
     let resources = self.resources.clone();
 
     let output = py.detach(move || {
-      resources.render_sequence_at_time(scenes, stylesheet, settings, time_ms, encoding)
+      run_document(deep, || {
+        resources.render_sequence_at_time(
+          clone_scenes(scenes),
+          stylesheet,
+          settings,
+          time_ms,
+          encoding,
+        )
+      })
     })?;
     Ok(PyBytes::new(py, &output).unbind())
   }
@@ -223,12 +317,16 @@ impl NativeRenderer {
     let encoder = AnimationEncoder::from_py(&encoding)?;
     let settings = RenderSettings::from_py(&settings)?;
     let fps = encoder.validate_fps(fps)?;
-    let stylesheet = stylesheets::merge(&stylesheets)?;
-    let scenes = clone_scenes(&scenes);
+    let stylesheet = stylesheets::merge(py, &stylesheets)?;
+    let deep = scenes.iter().any(|(node, _)| node.deep);
+    let scenes = snapshot_scenes(&scenes);
     let resources = self.resources.clone();
 
-    let output =
-      py.detach(move || resources.render_animation(scenes, stylesheet, settings, fps, encoder))?;
+    let output = py.detach(move || {
+      run_document(deep, || {
+        resources.render_animation(clone_scenes(scenes), stylesheet, settings, fps, encoder)
+      })
+    })?;
     Ok(PyBytes::new(py, &output).unbind())
   }
 
@@ -268,9 +366,23 @@ impl NativeRenderer {
   }
 }
 
-fn clone_scenes(scenes: &Scenes<'_>) -> Vec<(Node, u32)> {
+fn snapshot_scenes(scenes: &Scenes<'_>) -> Vec<(Arc<Node>, u32)> {
   scenes
     .iter()
-    .map(|(node, duration_ms)| (node.node.clone(), *duration_ms))
+    .map(|(node, duration_ms)| (Arc::clone(&node.node), *duration_ms))
     .collect()
+}
+
+fn clone_scenes(scenes: Vec<(Arc<Node>, u32)>) -> Vec<(Node, u32)> {
+  scenes
+    .into_iter()
+    .map(|(node, duration)| ((*node).clone(), duration))
+    .collect()
+}
+
+fn run_document<T: Send>(
+  deep: bool,
+  operation: impl FnOnce() -> PyResult<T> + Send,
+) -> PyResult<T> {
+  stack::run(deep, operation).map_err(RenderError::new_err)?
 }

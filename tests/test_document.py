@@ -1,3 +1,4 @@
+from array import array
 from typing import Any, cast
 
 import pytest
@@ -5,7 +6,9 @@ import pytest
 from takumi_py import (
     CompiledDocument,
     ImageResource,
+    LayoutOptions,
     NodeValidationError,
+    RasterOptions,
     Renderer,
     ResourceError,
     StyleSheetError,
@@ -282,12 +285,140 @@ def test_document_rejects_cyclic_node_trees() -> None:
         Document.from_node(node)
 
 
-def test_fragment_rejects_excessive_node_depth() -> None:
+def test_document_constructor_cannot_bypass_source_snapshots() -> None:
+    source: dict[str, object] = {
+        "type": "image",
+        "src": "memory://original",
+        "width": 8,
+        "height": 4,
+    }
+
+    document = Document(
+        _node=source,
+        _html=None,
+        resources=ResourceSet(),
+        stylesheets=(),
+        _keyframes=None,
+        _html_options=None,
+    )
+    source["src"] = "memory://mutated"
+    source["width"] = 100
+
+    assert document.node == {
+        "type": "image",
+        "src": "memory://original",
+        "width": 8,
+        "height": 4,
+    }
+
+
+def test_document_snapshots_supported_custom_sequences() -> None:
+    offsets = array("f", [0.0, 1.0])
+    document = Document.from_node(
+        {"type": "container", "children": []},
+        keyframes=[
+            {
+                "name": "fade",
+                "keyframes": [
+                    {
+                        "offsets": offsets,
+                        "declarations": {"opacity": 0},
+                    }
+                ],
+            }
+        ],
+    )
+
+    offsets[1] = 0.25
+
+    keyframes = document.keyframes
+    assert isinstance(keyframes, list)
+    assert keyframes[0]["keyframes"][0]["offsets"] == (0.0, 1.0)
+
+
+def test_document_preserves_immutable_native_bytes() -> None:
+    source = b"\x00\xffraw-image-bytes"
+    document = Document.from_node(
+        {
+            "type": "image",
+            "src": {
+                "width": 1,
+                "height": 1,
+                "data": source,
+                "premultiplied": False,
+            },
+        }
+    )
+
+    node = document.node
+    assert node is not None
+    raw_source = cast(dict[str, object], node["src"])
+    assert raw_source["data"] is source
+
+
+def test_document_rejects_nested_compiled_nodes_without_native_panicking() -> None:
+    compiled = compile_document(Document.from_node({"type": "text", "text": "hello"}))
+
+    with pytest.raises(NodeValidationError, match="compiled native values"):
+        Document.from_node(
+            {
+                "type": "container",
+                "children": [Fragment(compiled.node)],
+            }
+        )
+
+
+def test_document_rejects_unsupported_mutable_values() -> None:
+    class MutableValue:
+        pass
+
+    with pytest.raises(NodeValidationError, match="unsupported node value type"):
+        Document.from_node(
+            {
+                "type": "container",
+                "metadata": {"value": MutableValue()},
+            }
+        )
+
+    with pytest.raises(NodeValidationError, match="unsupported node value type"):
+        Document.from_node(
+            {
+                "type": "container",
+                "metadata": {"value": {1, 2}},
+            }
+        )
+
+
+def test_document_supports_the_full_native_node_depth() -> None:
     node: dict[str, Any] = {"type": "text", "text": "deep"}
-    for _ in range(520):
+    for _ in range(511):
         node = {"type": "container", "children": [node]}
 
-    with pytest.raises(NodeValidationError, match="512 levels"):
+    compiled = compile_document(Document.from_node(node))
+
+    assert compiled.node.resource_urls() == []
+
+
+def test_document_converts_python_recursion_failure_to_validation_error() -> None:
+    nested: object = "leaf"
+    for _ in range(1200):
+        nested = [nested]
+
+    with pytest.raises(NodeValidationError, match="supported nesting depth"):
+        Document.from_node(
+            {
+                "type": "container",
+                "metadata": {"nested": nested},
+            }
+        )
+
+
+def test_fragment_rejects_excessive_structural_depth() -> None:
+    node: dict[str, Any] = {"type": "text", "text": "deep"}
+    for _ in range(530):
+        node = {"type": "container", "children": [node]}
+
+    with pytest.raises(NodeValidationError, match="structural depth"):
         Fragment(node)
 
 
@@ -361,6 +492,49 @@ def test_compile_document_uses_html_lossy_and_node_strict_css() -> None:
         compile_document(node_document)
 
 
+def test_html_document_places_author_css_before_embedded_style_css() -> None:
+    compiled = compile_document(
+        Document.from_html(
+            """
+            <style>
+              .box { width: 40px; height: 10px; }
+            </style>
+            <div class="box"></div>
+            """,
+            stylesheets=[
+                ".box { width: 20px; height: 20px; }",
+            ],
+        )
+    )
+    measured = Renderer().measure_compiled(
+        compiled.node,
+        stylesheets=compiled.stylesheets,
+        width=None,
+        height=None,
+    )
+
+    assert len(compiled.stylesheets) == 1
+    assert (measured.width, measured.height) == (40.0, 10.0)
+
+
+def test_html_document_discovers_resources_from_embedded_style() -> None:
+    compiled = compile_document(
+        Document.from_html(
+            """
+            <style>
+              .backdrop {
+                background-image: url("https://cdn.example/from-style.png");
+              }
+            </style>
+            <div class="backdrop"></div>
+            """
+        )
+    )
+
+    assert compiled.resource_urls() == ("https://cdn.example/from-style.png",)
+    assert compiled.missing_resources() == ("https://cdn.example/from-style.png",)
+
+
 @pytest.mark.parametrize("source", ["node", "html"])
 def test_compiled_document_merges_keyframes_after_css(source: str) -> None:
     stylesheets = [
@@ -416,6 +590,162 @@ def test_compiled_document_merges_keyframes_after_css(source: str) -> None:
 
     assert len(compiled.stylesheets) == 1
     assert first != last
+
+
+def test_compiled_document_discovers_node_and_stylesheet_resource_urls() -> None:
+    compiled = compile_document(
+        Document.from_html(
+            '<div class="card"><img src="https://node.example/z.png"></div>',
+            stylesheets=[
+                """
+                .card {
+                    background-image: url("https://css.example/a.png");
+                    mask-image: url("data:image/svg+xml,%3Csvg/%3E");
+                }
+                """
+            ],
+        )
+    )
+
+    data_url = "data:image/svg+xml,%3Csvg/%3E"
+    assert compiled.resource_urls() == (
+        data_url,
+        "https://css.example/a.png",
+        "https://node.example/z.png",
+    )
+    assert compiled.missing_resources() == (
+        "https://css.example/a.png",
+        "https://node.example/z.png",
+    )
+
+    supplied = compiled.with_resources(
+        [
+            ImageResource("https://node.example/z.png", b"node"),
+            ImageResource("https://css.example/a.png", b"css"),
+        ]
+    )
+    assert supplied is not compiled
+    assert supplied.node is compiled.node
+    assert supplied.stylesheets == compiled.stylesheets
+    assert supplied.missing_resources() == ()
+    assert compiled.missing_resources() == (
+        "https://css.example/a.png",
+        "https://node.example/z.png",
+    )
+
+
+def test_compiled_document_does_not_report_inline_svg_bytes() -> None:
+    compiled = compile_document(
+        Document.from_node(
+            {
+                "type": "image",
+                "src": SVG_1X1,
+                "width": 1,
+                "height": 1,
+            }
+        )
+    )
+
+    assert compiled.resource_urls() == ()
+    assert compiled.missing_resources() == ()
+
+
+def test_missing_resources_matches_upstream_embedded_reference_rules() -> None:
+    compiled = compile_document(
+        Document.from_html(
+            '<div class="card"></div>',
+            stylesheets=[
+                """
+                .card {
+                    background-image:
+                        url("DATA:image/png;base64,AA=="),
+                        url("data:image/png;base64,AA=="),
+                        url("prefix <svg xmlns='http://www.w3.org/2000/svg'></svg>"),
+                        url("prefix <SVG xmlns='http://www.w3.org/2000/svg'></SVG>");
+                }
+                """
+            ],
+        )
+    )
+
+    assert compiled.resource_urls() == (
+        "DATA:image/png;base64,AA==",
+        "data:image/png;base64,AA==",
+        "prefix <SVG xmlns='http://www.w3.org/2000/svg'></SVG>",
+        "prefix <svg xmlns='http://www.w3.org/2000/svg'></svg>",
+    )
+    assert compiled.missing_resources() == (
+        "DATA:image/png;base64,AA==",
+        "prefix <SVG xmlns='http://www.w3.org/2000/svg'></SVG>",
+    )
+
+
+def test_with_resources_rejects_conflicting_bytes() -> None:
+    compiled = compile_document(
+        Document.from_html(
+            '<img src="https://example.com/logo.png">',
+            resources=[ImageResource("https://example.com/logo.png", b"first")],
+        )
+    )
+
+    with pytest.raises(ResourceError, match="conflicting image resources"):
+        compiled.with_resources(
+            [ImageResource("https://example.com/logo.png", b"second")]
+        )
+
+    assert compiled.missing_resources() == ()
+
+
+def test_with_resources_snapshots_bytes_for_renderer_local_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = "https://example.com/attached.svg"
+    compiled = compile_document(
+        Document.from_node({"type": "image", "src": url, "width": 1, "height": 1})
+    )
+    data = bytearray(SVG_1X1)
+    resolved = compiled.with_resources(
+        [ImageResource(url, cast(Any, data), cache="none")]
+    )
+    data[:] = b""
+
+    assert resolved.resources.images == (ImageResource(url, SVG_1X1, cache="none"),)
+    assert resolved.missing_resources() == ()
+
+    def images_are_unavailable(_resources: ResourceSet) -> tuple[ImageResource, ...]:
+        raise AssertionError("renderer read Python image inputs")
+
+    monkeypatch.setattr(ResourceSet, "images", property(images_are_unavailable))
+    layout = LayoutOptions(width=1, height=1)
+    for cache_max_bytes in (0, None):
+        pixels = Renderer(cache_max_bytes=cache_max_bytes).render(
+            resolved,
+            layout=layout,
+            output=RasterOptions(format="raw"),
+        )
+        assert pixels == bytes((255, 0, 0, 255))
+
+
+def test_with_resources_incrementally_extends_the_native_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from takumi_py import _core
+
+    compiled = compile_document(
+        Document.from_node(
+            {"type": "image", "src": "memory://logo", "width": 1, "height": 1}
+        )
+    )
+
+    def compilation_is_not_repeated(_resources: object) -> object:
+        raise AssertionError("with_resources recompiled the full resource snapshot")
+
+    monkeypatch.setattr(_core, "compile_resources", compilation_is_not_repeated)
+    resolved = compiled.with_resources([ImageResource("memory://logo", SVG_1X1)])
+
+    assert resolved.resources.images == (ImageResource("memory://logo", SVG_1X1),)
+    assert resolved.node is compiled.node
+    assert resolved.stylesheets == compiled.stylesheets
 
 
 def test_fragment_resources_are_reused_when_rendering() -> None:

@@ -24,6 +24,9 @@ EXPECTED_LICENSES = {
     "LICENSES/mhchemparser-Apache-2.0.txt",
     "THIRD_PARTY_NOTICES.md",
     "takumilib/LICENSE-MIT",
+    "takumilib/takumi-core/LICENSE-CHROMIUM",
+    "takumilib/takumi-core/LICENSE-EMOJI-SEGMENTER",
+    "takumilib/takumi-core/LICENSE-ICU",
 }
 EXPECTED_PLATFORMS = {
     "linux-aarch64",
@@ -35,7 +38,10 @@ EXPECTED_PLATFORMS = {
     "windows-arm64",
     "windows-x64",
 }
-DEFAULT_FONT = "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2"
+SDIST_FONTS = {
+    "takumilib/assets/fonts/geist/geist-latin-wght-300-800.ttf",
+    "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2",
+}
 MATH_BUNDLE = "mathjax.bundle.js"
 MATH_MANIFEST = "manifest.json"
 MATH_RUNTIME_PACKAGE = "mini-racer"
@@ -321,14 +327,14 @@ def check_sdist(path: Path, version: str) -> None:
     expected_members = {
         f"{expected_root}/{license_path}" for license_path in EXPECTED_LICENSES
     }
-    expected_members.add(f"{expected_root}/{DEFAULT_FONT}")
+    expected_members.update(f"{expected_root}/{font}" for font in SDIST_FONTS)
     missing = expected_members - names
     if missing:
         fail(f"{path}: missing expected files {sorted(missing)}")
 
     asset_prefix = f"{expected_root}/takumilib/assets/"
     packaged_assets = {name for name in names if name.startswith(asset_prefix)}
-    expected_assets = {f"{expected_root}/{DEFAULT_FONT}"}
+    expected_assets = {f"{expected_root}/{font}" for font in SDIST_FONTS}
     if packaged_assets != expected_assets:
         fail(
             f"{path}: expected only the embedded default font asset, "

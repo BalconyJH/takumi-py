@@ -25,9 +25,16 @@ impl ImageEncoding {
   /// Reads the `format`, `quality`, and `lossless` fields of a `RenderOptions` object,
   /// rejecting invalid combinations before anything renders.
   pub(crate) fn from_py(options: &Bound<'_, PyAny>) -> PyResult<Self> {
-    let quality = validate::quality(attr(options, "quality")?)?;
-    let format = OutputFormat::parse(&attr::<String>(options, "format")?)?;
-    let lossless: Option<bool> = attr(options, "lossless")?;
+    Self::new(
+      &attr::<String>(options, "format")?,
+      attr(options, "quality")?,
+      attr(options, "lossless")?,
+    )
+  }
+
+  pub(crate) fn new(format: &str, quality: Option<u8>, lossless: Option<bool>) -> PyResult<Self> {
+    let quality = validate::quality(quality)?;
+    let format = OutputFormat::parse(format)?;
     if format != OutputFormat::WebP {
       reject_lossless(lossless)?;
     }
@@ -50,12 +57,19 @@ impl ImageEncoding {
   }
 
   pub(crate) fn encode(self, image: Bitmap) -> PyResult<Vec<u8>> {
-    let Some(format) = self.0 else {
+    if self.0.is_none() {
       return Ok(image.into_raw());
+    }
+    self.encode_ref(&image)
+  }
+
+  pub(crate) fn encode_ref(self, image: &Bitmap) -> PyResult<Vec<u8>> {
+    let Some(format) = self.0 else {
+      return Ok(image.as_raw().to_vec());
     };
 
     let mut buffer = Vec::new();
-    write_image(&image, &mut buffer, format)
+    write_image(image, &mut buffer, format)
       .map_err(|error| RenderError::new_err(error.to_string()))?;
     Ok(buffer)
   }

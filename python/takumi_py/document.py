@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
 
 from takumi_py import _core
@@ -25,7 +25,11 @@ __all__ = [
 ]
 
 NodeT = TypeVar("NodeT")
-_MAX_SNAPSHOT_DEPTH = 512
+_DEFAULT_NODE_DEPTH_LIMIT = 512
+# A node level is two structural levels in the snapshot: its mapping and its
+# children sequence. Keep enough headroom for nested style metadata while
+# preserving Takumi's node-specific depth limit.
+_MAX_SNAPSHOT_DEPTH = 2 * _DEFAULT_NODE_DEPTH_LIMIT + 32
 _OPAQUE_TYPES = (_core.CompiledNode, _core.CompiledStyleSheet)
 
 
@@ -80,6 +84,21 @@ class ResourceSet:
     def __len__(self) -> int:
         return len(self.images)
 
+    def merged(
+        self,
+        *others: ResourceSet | Iterable[ImageResourceInput],
+    ) -> ResourceSet:
+        """Return a snapshot with these resources followed by ``others``.
+
+        Existing resources keep their first-seen order. A later resource with
+        the same ``src`` must be identical or construction raises
+        ``ResourceError``.
+        """
+        images = list(self.images)
+        for other in others:
+            images.extend(_resource_set(other).images)
+        return ResourceSet(images)
+
 
 _EMPTY_RESOURCES = ResourceSet()
 
@@ -104,13 +123,17 @@ class Fragment(Generic[NodeT]):
         node: NodeT,
         resources: ResourceSet | Iterable[ImageResourceInput] = _EMPTY_RESOURCES,
     ) -> None:
-        object.__setattr__(self, "_node", cast(NodeT, _snapshot_value(node)))
+        object.__setattr__(
+            self,
+            "_node",
+            cast(NodeT, _snapshot_value_checked(node, allow_opaque=True)),
+        )
         object.__setattr__(self, "resources", _resource_set(resources))
 
     @property
     def node(self) -> NodeT:
         """Return a defensive copy of the fragment node."""
-        return cast(NodeT, _snapshot_value(self._node))
+        return cast(NodeT, _snapshot_value_checked(self._node, allow_opaque=True))
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -142,17 +165,27 @@ class Document:
         _keyframes: KeyframesInput | None,
         _html_options: HtmlOptions | None,
     ) -> None:
+        if (_node is None) == (_html is None):
+            raise ValueError("exactly one of node or html must be provided")
         if _html is not None and not isinstance(_html, str):
             raise TypeError("html must be a string")
-        object.__setattr__(self, "_node", _node)
-        object.__setattr__(self, "_html", _html)
-        object.__setattr__(self, "resources", _resource_set(resources))
-        object.__setattr__(self, "stylesheets", _snapshot_stylesheets(stylesheets))
-        object.__setattr__(self, "_keyframes", _snapshot_keyframes(_keyframes))
-        object.__setattr__(
-            self,
-            "_html_options",
-            None if _html_options is None else deepcopy(_html_options),
+
+        if _node is not None:
+            if not isinstance(_node, Mapping):
+                raise TypeError("node must be a mapping")
+            node_snapshot = _snapshot_value_checked(_node)
+            if not isinstance(node_snapshot, dict):
+                raise TypeError("node must be a mapping")
+        else:
+            node_snapshot = None
+
+        self._set_snapshot_state(
+            node=node_snapshot,
+            html=_html,
+            resources=_resource_set(resources),
+            stylesheets=_snapshot_stylesheets(stylesheets),
+            keyframes=_snapshot_keyframes(_keyframes),
+            html_options=_html_options,
         )
 
     @classmethod
@@ -181,17 +214,19 @@ class Document:
         """
         base_resources = _resource_set(resources)
         resource_images = list(base_resources.images)
-        snapshot = _snapshot_value(node, resource_images=resource_images)
+        snapshot = _snapshot_value_checked(node, resource_images=resource_images)
         if not isinstance(snapshot, dict):
             raise TypeError("node must resolve to a mapping")
-        return cls(
-            _node=snapshot,
-            _html=None,
+        document = cast(Document, object.__new__(cls))
+        document._set_snapshot_state(
+            node=snapshot,
+            html=None,
             resources=ResourceSet(resource_images),
-            stylesheets=stylesheets,
-            _keyframes=keyframes,
-            _html_options=None,
+            stylesheets=_snapshot_stylesheets(stylesheets),
+            keyframes=_snapshot_keyframes(keyframes),
+            html_options=None,
         )
+        return document
 
     @classmethod
     def from_html(
@@ -251,6 +286,27 @@ class Document:
             return None
         return deepcopy(self._html_options)
 
+    def _set_snapshot_state(
+        self,
+        *,
+        node: dict[str, object] | None,
+        html: str | None,
+        resources: ResourceSet,
+        stylesheets: tuple[str, ...],
+        keyframes: KeyframesInput | None,
+        html_options: HtmlOptions | None,
+    ) -> None:
+        object.__setattr__(self, "_node", node)
+        object.__setattr__(self, "_html", html)
+        object.__setattr__(self, "resources", resources)
+        object.__setattr__(self, "stylesheets", stylesheets)
+        object.__setattr__(self, "_keyframes", keyframes)
+        object.__setattr__(
+            self,
+            "_html_options",
+            None if html_options is None else deepcopy(html_options),
+        )
+
 
 @dataclass(frozen=True, slots=True, init=False)
 class CompiledDocument:
@@ -265,6 +321,7 @@ class CompiledDocument:
     node: CompiledNode
     stylesheets: tuple[CompiledStyleSheet, ...]
     resources: ResourceSet
+    _native_resources: _core.CompiledResources = field(repr=False, compare=False)
 
     def __init__(
         self,
@@ -284,9 +341,84 @@ class CompiledDocument:
             raise TypeError("stylesheets must contain only CompiledStyleSheet values")
         if len(snapshot) > 1:
             raise ValueError("stylesheets must contain at most one merged stylesheet")
+        resource_snapshot = _resource_set(resources)
+        self._set_compiled_state(
+            node=node,
+            stylesheets=snapshot,
+            resources=resource_snapshot,
+            native_resources=_core.compile_resources(resource_snapshot.images),
+        )
+
+    def _set_compiled_state(
+        self,
+        *,
+        node: CompiledNode,
+        stylesheets: tuple[CompiledStyleSheet, ...],
+        resources: ResourceSet,
+        native_resources: _core.CompiledResources,
+    ) -> None:
         object.__setattr__(self, "node", node)
-        object.__setattr__(self, "stylesheets", snapshot)
-        object.__setattr__(self, "resources", _resource_set(resources))
+        object.__setattr__(self, "stylesheets", stylesheets)
+        object.__setattr__(self, "resources", resources)
+        object.__setattr__(self, "_native_resources", native_resources)
+
+    def resource_urls(self) -> tuple[str, ...]:
+        """Return known image references discovered by the native compiler.
+
+        URLs are deduplicated and sorted so callers receive a stable discovery
+        result. Upstream reports references in parsed node metadata, inline
+        styles, and compiled declaration blocks; unresolved constructs such as
+        values reached only through CSS variables are outside this guarantee.
+        Embedded image bytes are not URLs and therefore do not appear.
+        """
+        urls = set(self.node.resource_urls())
+        for stylesheet in self.stylesheets:
+            urls.update(stylesheet.resource_urls())
+        return tuple(sorted(urls))
+
+    def missing_resources(self) -> tuple[str, ...]:
+        """Return referenced external image URLs absent from ``resources``.
+
+        Discovery is conservative. It reports URLs that are not supplied by an
+        ``ImageResource`` with the same ``src``, while ignoring data URLs and
+        inline SVG markup, which are self-contained. A missing URL is diagnostic
+        information; rendering remains responsible for resolving or skipping it.
+        """
+        supplied = {resource.src for resource in self.resources.images}
+        return tuple(
+            url
+            for url in self.resource_urls()
+            if not _is_embedded_image_reference(url) and url not in supplied
+        )
+
+    def with_resources(
+        self,
+        resources: ResourceSet | Iterable[ImageResourceInput],
+    ) -> CompiledDocument:
+        """Return a compiled document with additional image resources attached.
+
+        The original value is unchanged. Node and stylesheet handles are shared
+        with the returned document, so compilation is not repeated. Resources
+        already present keep their order; conflicting definitions raise
+        ``ResourceError``.
+        """
+        merged = self.resources.merged(resources)
+        if merged == self.resources:
+            return self
+        existing_sources = {resource.src for resource in self.resources.images}
+        additions = tuple(
+            resource
+            for resource in merged.images
+            if resource.src not in existing_sources
+        )
+        compiled = object.__new__(CompiledDocument)
+        compiled._set_compiled_state(
+            node=self.node,
+            stylesheets=self.stylesheets,
+            resources=merged,
+            native_resources=self._native_resources.merged(additions),
+        )
+        return compiled
 
 
 def compile_document(document: Document) -> CompiledDocument:
@@ -306,24 +438,26 @@ def compile_document(document: Document) -> CompiledDocument:
     if not isinstance(document, Document):
         raise TypeError("document must be a Document")
 
+    stylesheet_sources = list(document.stylesheets)
     strict_stylesheet = True
     if document._html is None:
         if document._node is None:
             raise RuntimeError("document has neither node nor HTML source")
-        node = _core.compile_node(_copy_node(document._node))
+        node = _core.compile_node(document._node)
     else:
         html_options = document._html_options or HtmlOptions()
-        node = _core.compile_html(
+        node, embedded_stylesheets = _core.parse_html(
             document._html,
             presets=html_options.presets,
             tailwind_property=html_options.tailwind_property,
             max_depth=html_options.max_depth,
         )
+        stylesheet_sources.extend(embedded_stylesheets)
         strict_stylesheet = False
 
     compiled_stylesheets = [
         _core.compile_stylesheet(css, strict=strict_stylesheet)
-        for css in document.stylesheets
+        for css in stylesheet_sources
     ]
     if document._keyframes is not None:
         compiled_stylesheets.append(_core.compile_keyframes(document.keyframes))
@@ -373,7 +507,27 @@ def _snapshot_stylesheets(stylesheets: Iterable[str]) -> tuple[str, ...]:
 def _snapshot_keyframes(keyframes: KeyframesInput | None) -> KeyframesInput | None:
     if keyframes is None:
         return None
-    return cast(KeyframesInput, _snapshot_value(keyframes))
+    return cast(KeyframesInput, _snapshot_value_checked(keyframes))
+
+
+def _snapshot_value_checked(
+    value: object,
+    *,
+    resource_images: list[ImageResource] | None = None,
+    depth: int = 0,
+    active: set[int] | None = None,
+    allow_opaque: bool = False,
+) -> object:
+    try:
+        return _snapshot_value(
+            value,
+            resource_images=resource_images,
+            depth=depth,
+            active=active,
+            allow_opaque=allow_opaque,
+        )
+    except RecursionError as error:
+        raise NodeValidationError("node exceeds the supported nesting depth") from error
 
 
 def _snapshot_value(
@@ -382,11 +536,18 @@ def _snapshot_value(
     resource_images: list[ImageResource] | None = None,
     depth: int = 0,
     active: set[int] | None = None,
+    allow_opaque: bool = False,
 ) -> object:
     if depth > _MAX_SNAPSHOT_DEPTH:
-        raise NodeValidationError(f"node nesting exceeds {_MAX_SNAPSHOT_DEPTH} levels")
+        raise NodeValidationError(
+            f"node exceeds the {_MAX_SNAPSHOT_DEPTH}-level structural depth limit"
+        )
     if isinstance(value, _OPAQUE_TYPES):
-        return value
+        if allow_opaque:
+            return value
+        raise NodeValidationError(
+            "compiled native values cannot be embedded in a document node"
+        )
     active = set() if active is None else active
     if isinstance(value, Fragment):
         identity = id(value)
@@ -399,6 +560,7 @@ def _snapshot_value(
                 resource_images=resource_images,
                 depth=depth + 1,
                 active=active,
+                allow_opaque=allow_opaque,
             )
         finally:
             active.remove(identity)
@@ -416,27 +578,37 @@ def _snapshot_value(
                     resource_images=None,
                     depth=depth + 1,
                     active=active,
+                    allow_opaque=allow_opaque,
                 )
-                mapping_snapshot[snapshot_key] = (
-                    [
-                        _snapshot_value(
-                            child,
-                            resource_images=resource_images,
-                            depth=depth + 2,
-                            active=active,
-                        )
-                        for child in item
-                    ]
-                    if key == "children"
+                if (
+                    key == "children"
                     and isinstance(item, Sequence)
                     and not isinstance(item, (str, bytes, bytearray))
-                    else _snapshot_value(
+                ):
+                    children: list[object] = []
+                    for child in item:
+                        # Keep this loop in the mapping frame so a tree at
+                        # Takumi's 512-node limit does not exhaust Python's
+                        # recursion budget with one list-comprehension frame
+                        # per node.
+                        children.append(  # noqa: PERF401
+                            _snapshot_value(
+                                child,
+                                resource_images=resource_images,
+                                depth=depth + 2,
+                                active=active,
+                                allow_opaque=allow_opaque,
+                            )
+                        )
+                    mapping_snapshot[snapshot_key] = children
+                else:
+                    mapping_snapshot[snapshot_key] = _snapshot_value(
                         item,
                         resource_images=resource_images,
                         depth=depth + 1,
                         active=active,
+                        allow_opaque=allow_opaque,
                     )
-                )
             return mapping_snapshot
         finally:
             active.remove(identity)
@@ -450,6 +622,7 @@ def _snapshot_value(
                     resource_images=resource_images,
                     depth=depth + 1,
                     active=active,
+                    allow_opaque=allow_opaque,
                 )
                 for item in value
             ]
@@ -465,31 +638,35 @@ def _snapshot_value(
                     resource_images=resource_images,
                     depth=depth + 1,
                     active=active,
+                    allow_opaque=allow_opaque,
                 )
                 for item in value
             )
         finally:
             active.remove(identity)
-    if isinstance(value, (set, frozenset)):
+    if isinstance(value, (bytearray, memoryview)):
+        return bytes(value)
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, Sequence) and not isinstance(value, str):
         identity = id(value)
         _enter_snapshot_container(identity, active)
         try:
-            items = set()
-            for item in value:
-                items.add(
-                    _snapshot_value(
-                        item,
-                        resource_images=resource_images,
-                        depth=depth + 1,
-                        active=active,
-                    )
+            return tuple(
+                _snapshot_value(
+                    item,
+                    resource_images=resource_images,
+                    depth=depth + 1,
+                    active=active,
+                    allow_opaque=allow_opaque,
                 )
+                for item in value
+            )
         finally:
             active.remove(identity)
-        return frozenset(items) if isinstance(value, frozenset) else items
-    if isinstance(value, (bytearray, memoryview)):
-        return bytes(value)
-    return value
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise NodeValidationError(f"unsupported node value type {type(value).__name__!r}")
 
 
 def _enter_snapshot_container(identity: int, active: set[int]) -> None:
@@ -506,4 +683,8 @@ def _fragment_from_snapshot(node: object, resources: ResourceSet) -> Fragment[ob
 
 
 def _copy_node(node: Mapping[str, object]) -> dict[str, object]:
-    return cast(dict[str, object], _snapshot_value(node))
+    return cast(dict[str, object], _snapshot_value_checked(node))
+
+
+def _is_embedded_image_reference(value: str) -> bool:
+    return not value or value.startswith("data:") or "<svg" in value

@@ -5,7 +5,10 @@
 This project uses `takumi` as a git submodule.
 
 `takumi` is licensed under `MIT OR Apache-2.0`. This project elects to use
-`takumi` under the MIT License.
+`takumi` under the MIT License. The compiled native extension also contains parts of
+`takumi-core` that incorporate Chromium/Blink and Skia algorithms, an
+emoji-segmenter grammar rewrite, and an ICU algorithm. Their redistribution notices
+are included in source and wheel distributions.
 
 Repository: <https://github.com/kane50613/takumi>
 
@@ -15,6 +18,9 @@ Source and wheel distributions include this notice and the complete selected MIT
 license text as package license metadata:
 
 - `takumilib/LICENSE-MIT`
+- `takumilib/takumi-core/LICENSE-CHROMIUM` (BSD-style Chromium/Blink and Skia terms)
+- `takumilib/takumi-core/LICENSE-EMOJI-SEGMENTER` (Apache-2.0)
+- `takumilib/takumi-core/LICENSE-ICU` (Unicode-3.0)
 
 The full repository checkout also retains `takumilib/LICENSE-APACHE` from the
 dual-licensed upstream project.

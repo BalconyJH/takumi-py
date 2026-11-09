@@ -4,6 +4,7 @@ from typing import Literal, TypeAlias, TypedDict, final, type_check_only
 from takumi_py.options import (
     AnimationEncodeOptions,
     FontResource,
+    ImageResource,
     NativeRenderSettings,
     RenderOptions,
 )
@@ -12,12 +13,14 @@ from takumi_py.types import RawAnimationFrame
 __all__ = [
     "AnimationError",
     "CompiledNode",
+    "CompiledResources",
     "CompiledStyleSheet",
     "FontError",
     "HtmlParseError",
     "NativeRenderer",
     "NodeDecodeError",
     "NodeValidationError",
+    "RasterImage",
     "RenderError",
     "ResourceError",
     "StyleSheetError",
@@ -26,8 +29,10 @@ __all__ = [
     "compile_html",
     "compile_keyframes",
     "compile_node",
+    "compile_resources",
     "compile_stylesheet",
     "merge_stylesheets",
+    "parse_html",
     "set_glyph_cache_max_bytes",
 ]
 
@@ -47,11 +52,34 @@ class CompiledNode:
     def resource_urls(self) -> list[str]: ...
 
 @final
-class CompiledStyleSheet: ...
+class CompiledStyleSheet:
+    def resource_urls(self) -> list[str]: ...
+
+@final
+class CompiledResources:
+    def merged(self, resources: Sequence[ImageResource]) -> CompiledResources: ...
+
+@final
+class RasterImage:
+    @staticmethod
+    def from_raw(data: bytes, width: int, height: int) -> RasterImage: ...
+    @property
+    def width(self) -> int: ...
+    @property
+    def height(self) -> int: ...
+    def tobytes(self) -> bytes: ...
+    def encode(
+        self,
+        *,
+        format: str = "png",
+        quality: int | None = None,
+        lossless: bool | None = None,
+    ) -> bytes: ...
 
 _FontInput: TypeAlias = bytes | FontResource
 
 def compile_node(node: object) -> CompiledNode: ...
+def compile_resources(resources: Sequence[ImageResource]) -> CompiledResources: ...
 def compile_html(
     html: str,
     *,
@@ -64,6 +92,13 @@ def compile_stylesheet(
     *,
     strict: bool = True,
 ) -> CompiledStyleSheet: ...
+def parse_html(
+    html: str,
+    *,
+    presets: Literal["chromium", "none"] = "chromium",
+    tailwind_property: str | None = None,
+    max_depth: int | None = None,
+) -> tuple[CompiledNode, list[str]]: ...
 def compile_keyframes(keyframes: object) -> CompiledStyleSheet: ...
 def merge_stylesheets(
     stylesheets: Sequence[CompiledStyleSheet],
@@ -114,6 +149,14 @@ class NativeRenderer:
     def cached_fonts(self, key: str, pin: bool = False) -> list[str] | None: ...
     def unregister_font(self, family: str) -> bool: ...
     def clear_fonts(self) -> None: ...
+    def load_font_file(self, url: str, data: bytes) -> None: ...
+    def forget_font_file(self, url: str) -> bool: ...
+    def needs_compiled(
+        self,
+        node: CompiledNode,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
+    ) -> tuple[list[str], list[int], list[str]]: ...
     def render_compiled(
         self,
         node: CompiledNode,
@@ -127,6 +170,12 @@ class NativeRenderer:
         stylesheets: Sequence[CompiledStyleSheet],
         settings: NativeRenderSettings,
     ) -> _MeasuredNodeOutput: ...
+    def rasterize_compiled(
+        self,
+        node: CompiledNode,
+        stylesheets: Sequence[CompiledStyleSheet],
+        settings: NativeRenderSettings,
+    ) -> RasterImage: ...
     def render_svg_compiled(
         self,
         node: CompiledNode,

@@ -11,9 +11,9 @@ from takumi_py.types import CompiledNode, CompiledStyleSheet
 class ParsedHtml:
     """A compiled HTML node and any stylesheets produced with it.
 
-    The current parser keeps ``<style>`` elements out of the node tree and
-    returns an empty ``stylesheets`` tuple. Compile document-level CSS
-    explicitly with the native stylesheet compiler.
+    Takumi removes ``<style>`` elements from the node tree and returns their CSS
+    separately in document order. The CSS is compiled with the error-tolerant
+    parser used for browser-authored stylesheets.
 
     Attributes:
         node: The compiled root node.
@@ -33,18 +33,23 @@ def parse_html(markup: str, *, options: HtmlOptions | None = None) -> ParsedHtml
             depth. Defaults to ``HtmlOptions()``.
 
     Returns:
-        A compiled node and its (currently empty) stylesheet bundle.
+        A compiled node and the lossily compiled ``<style>`` CSS in document
+        order.
 
     Raises:
         HtmlParseError: If the HTML cannot be parsed or exceeds configured
             limits.
     """
     resolved_options = options or HtmlOptions()
+    node, css = _core.parse_html(
+        markup,
+        presets=resolved_options.presets,
+        tailwind_property=resolved_options.tailwind_property,
+        max_depth=resolved_options.max_depth,
+    )
     return ParsedHtml(
-        node=_core.compile_html(
-            markup,
-            presets=resolved_options.presets,
-            tailwind_property=resolved_options.tailwind_property,
-            max_depth=resolved_options.max_depth,
-        )
+        node=node,
+        stylesheets=tuple(
+            _core.compile_stylesheet(stylesheet, strict=False) for stylesheet in css
+        ),
     )

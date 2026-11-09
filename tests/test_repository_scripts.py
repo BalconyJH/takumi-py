@@ -345,12 +345,15 @@ def test_wheel_tags_outside_the_release_matrix_are_rejected(
     )
 
 
-def test_distribution_licenses_include_math_engine_terms(
+def test_distribution_licenses_include_bundled_engine_terms(
     check_distributions: Any,
 ) -> None:
     assert {
         "LICENSES/MathJax-Apache-2.0.txt",
         "LICENSES/mhchemparser-Apache-2.0.txt",
+        "takumilib/takumi-core/LICENSE-CHROMIUM",
+        "takumilib/takumi-core/LICENSE-EMOJI-SEGMENTER",
+        "takumilib/takumi-core/LICENSE-ICU",
     } <= check_distributions.EXPECTED_LICENSES
 
 
@@ -520,6 +523,17 @@ def verify_distributions() -> ModuleType:
 @pytest.fixture(scope="module")
 def smoke_wheel() -> ModuleType:
     return load_script("smoke-wheel")
+
+
+def test_smoke_import_defers_runtime_check_until_main(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "py_mini_racer", ModuleType("py_mini_racer"))
+
+    smoke = load_script("smoke-wheel")
+
+    with pytest.raises(SystemExit, match="importing takumi_py core loaded"):
+        smoke.main()
 
 
 def test_math_smoke_only_authorizes_the_isolated_worker_command(

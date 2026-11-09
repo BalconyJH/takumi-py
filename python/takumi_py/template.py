@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from takumi_py.document import Document, ResourceSet
 from takumi_py.options import (
     UNSET,
     DitheringAlgorithm,
@@ -21,6 +22,13 @@ if TYPE_CHECKING:
     from takumi_py.renderer import Renderer
 
 Filter: TypeAlias = Callable[..., Any]
+__all__ = [
+    "Filter",
+    "TemplateRenderer",
+    "create_environment",
+    "render_template_to_document",
+    "render_template_to_html",
+]
 
 
 def create_environment(
@@ -58,6 +66,38 @@ def render_template_to_html(
     return environment.get_template(template_name).render(**context)
 
 
+def render_template_to_document(
+    template_name: str,
+    context: Mapping[str, object],
+    *,
+    template_dir: str | Path | None = None,
+    filters: Mapping[str, Filter] | None = None,
+    environment: Environment | None = None,
+    resources: ResourceSet | Iterable[ImageResourceInput] = (),
+    stylesheets: Iterable[str] = (),
+    html_options: HtmlOptions | None = None,
+) -> Document:
+    """Render a Jinja template and snapshot the result as a ``Document``.
+
+    Template loading and rendering finish before document construction. The
+    returned document keeps only the rendered HTML, copied stylesheet inputs,
+    resource bytes, and parser options; it does not retain the Jinja environment.
+    """
+    html = render_template_to_html(
+        template_name,
+        context,
+        template_dir=template_dir,
+        filters=filters,
+        environment=environment,
+    )
+    return Document.from_html(
+        html,
+        resources=resources,
+        stylesheets=stylesheets,
+        html_options=html_options,
+    )
+
+
 def _resolve_environment(
     template_dir: str | Path | None,
     *,
@@ -85,11 +125,6 @@ class TemplateRenderer:
         renderer: Renderer | None = None,
         environment: Environment | None = None,
     ) -> None:
-        if renderer is None:
-            from takumi_py.renderer import Renderer
-
-            renderer = Renderer()
-
         self._renderer = renderer
         self._environment = _resolve_environment(
             template_dir,
@@ -101,13 +136,37 @@ class TemplateRenderer:
     def environment(self) -> Environment:
         return self._environment
 
+    def document(
+        self,
+        template_name: str,
+        context: Mapping[str, object],
+        *,
+        resources: ResourceSet | Iterable[ImageResourceInput] = (),
+        stylesheets: Iterable[str] = (),
+        html_options: HtmlOptions | None = None,
+    ) -> Document:
+        """Render a template into an immutable document for any renderer output.
+
+        This method uses the environment configured on this instance and does
+        not render or encode an image. Pass the returned document to
+        ``Renderer.render``, ``Renderer.measure``, or ``Renderer.render_svg``.
+        """
+        return render_template_to_document(
+            template_name,
+            context,
+            environment=self._environment,
+            resources=resources,
+            stylesheets=stylesheets,
+            html_options=html_options,
+        )
+
     def render(
         self,
         template_name: str,
         context: Mapping[str, object],
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -125,7 +184,12 @@ class TemplateRenderer:
         lang: str | UnsetType | None = UNSET,
     ) -> bytes:
         html = self._environment.get_template(template_name).render(**context)
-        return self._renderer.render_html(
+        renderer = self._renderer
+        if renderer is None:
+            from takumi_py.renderer import Renderer
+
+            renderer = self._renderer = Renderer()
+        return renderer.render_html(
             html,
             stylesheets=stylesheets,
             keyframes=keyframes,

@@ -1,6 +1,14 @@
 import pytest
 
-from takumi_py import CompiledNode, CompiledStyleSheet, Renderer, StyleSheetError, _core
+from takumi_py import (
+    CompiledNode,
+    CompiledStyleSheet,
+    ImageResource,
+    Renderer,
+    ResourceError,
+    StyleSheetError,
+    _core,
+)
 
 FREE_COMPILERS = (
     "compile_html",
@@ -8,6 +16,7 @@ FREE_COMPILERS = (
     "compile_node",
     "compile_stylesheet",
     "merge_stylesheets",
+    "parse_html",
 )
 
 
@@ -27,6 +36,27 @@ def test_free_compile_node_and_html_do_not_require_a_renderer() -> None:
     assert isinstance(html, CompiledNode)
 
 
+def test_free_parse_html_returns_node_and_ordered_style_sources() -> None:
+    node, stylesheets = _core.parse_html(
+        """
+        <style>.card { width: 10px; height: 6px; }</style>
+        <style media="screen">.card { width: 20px; }</style>
+        <div class="card">hello</div>
+        """
+    )
+
+    assert isinstance(node, CompiledNode)
+    assert len(stylesheets) == 2
+    assert ".card { width: 10px; height: 6px; }" in stylesheets[0]
+    assert stylesheets[1].startswith("@media screen {")
+    assert ".card { width: 20px; }" in stylesheets[1]
+
+    legacy = _core.compile_html(
+        '<style>.card { width: 99px; }</style><div class="card">hello</div>'
+    )
+    assert isinstance(legacy, CompiledNode)
+
+
 def test_free_compile_stylesheet_supports_strict_and_lossy_modes() -> None:
     with pytest.raises(StyleSheetError):
         _core.compile_stylesheet(".box { display: not-a-display-value; }")
@@ -37,6 +67,29 @@ def test_free_compile_stylesheet_supports_strict_and_lossy_modes() -> None:
     )
 
     assert isinstance(stylesheet, CompiledStyleSheet)
+
+
+def test_compile_keyframes_rejects_unsupported_values_without_crashing() -> None:
+    with pytest.raises(StyleSheetError, match="unsupported node input type"):
+        _core.compile_keyframes({"keyframes": {"fade": object()}})
+
+
+def test_compile_keyframes_rejects_cycles() -> None:
+    cyclic: dict[str, object] = {}
+    cyclic["fade"] = cyclic
+
+    with pytest.raises(StyleSheetError, match="cycle"):
+        _core.compile_keyframes({"keyframes": cyclic})
+
+
+def test_compile_resources_rejects_conflicting_duplicates() -> None:
+    with pytest.raises(ResourceError, match="conflicting image resources"):
+        _core.compile_resources(
+            [
+                ImageResource("memory://logo", b"first"),
+                ImageResource("memory://logo", b"second"),
+            ]
+        )
 
 
 def test_merged_stylesheet_preserves_cascade_when_merged_again() -> None:

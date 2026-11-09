@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from base64 import b64decode
 from importlib.util import find_spec
 from xml.etree import ElementTree as ET
 
@@ -72,15 +71,21 @@ def test_formula_block_centers_and_vector_keeps_svg_paths() -> None:
     image = measured.children[0]
     assert image.transform[4] == pytest.approx((300 - formula.width_px) / 2, abs=1 / 32)
     vector = ET.fromstring(renderer.render_svg(document, layout=layout))  # noqa: S314
-    embedded = list(vector.iter("{http://www.w3.org/2000/svg}image"))
-    assert len(embedded) == 1
-    uri = embedded[0].get("href") or embedded[0].get(
-        "{http://www.w3.org/1999/xlink}href"
+    namespace = "{http://www.w3.org/2000/svg}"
+    assert not list(vector.iter(f"{namespace}image"))
+    assert not list(vector.iter(f"{namespace}text"))
+
+    paths = list(vector.iter(f"{namespace}path"))
+    visible_paths = [path for path in paths if path.get("fill") is not None]
+    assert len(visible_paths) >= 3
+    assert all(path.get("d") for path in visible_paths)
+    assert any(
+        "c" not in path.get("d", "").lower()
+        and "h" in path.get("d", "").lower()
+        and "v" in path.get("d", "").lower()
+        for path in visible_paths
     )
-    assert uri is not None and uri.startswith("data:image/svg+xml;base64,")
-    svg = b64decode(uri.split(",", 1)[1])
-    assert b"<path" in svg and b"<text" not in svg
-    assert b"data:image/png" not in svg
+
     raw = renderer.render(
         document, layout=layout, output=RasterOptions(format="raw", scale=2)
     )

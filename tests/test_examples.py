@@ -11,6 +11,7 @@ def test_examples_run_successfully() -> None:
         "render_template.py",
         "render_options_measure.py",
         "render_resources.py",
+        "render_static.py",
         "render_animation.py",
     ]
 
@@ -24,6 +25,8 @@ def test_examples_run_successfully() -> None:
         "template.png",
         "options-measure.png",
         "resources.png",
+        "static.png",
+        "static.webp",
         "animation-frame.png",
         "animation.webp",
     ]

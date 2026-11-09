@@ -1,17 +1,20 @@
 //! Compiled node trees, decoded from Python mappings or parsed from HTML.
 
-use pyo3::{
-  Bound, Py, PyAny, PyResult, Python,
-  exceptions::PyValueError,
-  prelude::*,
-  types::{PyBytes, PyDict, PyList, PyTuple},
-};
+use std::sync::Arc;
+
+use pyo3::{Bound, PyAny, PyResult, Python, exceptions::PyValueError, prelude::*};
 use takumi::{
   from_html,
-  prelude::{DEFAULT_MAX_DEPTH, FromHtmlOptions, Node, StylePresets},
+  prelude::{DEFAULT_MAX_DEPTH, FromHtmlOptions, Node, NodeKind, StylePresets},
+};
+use takumi_core::html::parse_html as parse_html_source;
+
+use crate::{
+  errors::{HtmlParseError, NodeDecodeError},
+  pyvalue, stack,
 };
 
-use crate::errors::{HtmlParseError, NodeDecodeError};
+const DEEP_HTML_MARKER_COUNT: usize = stack::DEEP_NODE_DEPTH;
 
 /// Compiles a Python node mapping without constructing a renderer.
 #[pyfunction]
@@ -20,6 +23,9 @@ pub(crate) fn compile_node(node: Bound<'_, PyAny>) -> PyResult<CompiledNode> {
 }
 
 /// Compiles HTML into a node without constructing a renderer.
+///
+/// This compatibility entry point omits CSS from `<style>` elements. Use
+/// [`parse_html`] when the document styles are needed.
 #[pyfunction]
 #[pyo3(signature = (html, *, presets="chromium", tailwind_property=None, max_depth=None))]
 pub(crate) fn compile_html(
@@ -32,26 +38,60 @@ pub(crate) fn compile_html(
   CompiledNode::from_html(py, html, presets, tailwind_property, max_depth)
 }
 
+/// Parses HTML into a compiled node and the source text of its `<style>` elements.
+#[pyfunction]
+#[pyo3(signature = (html, *, presets="chromium", tailwind_property=None, max_depth=None))]
+pub(crate) fn parse_html(
+  py: Python<'_>,
+  html: &str,
+  presets: &str,
+  tailwind_property: Option<String>,
+  max_depth: Option<usize>,
+) -> PyResult<(CompiledNode, Vec<String>)> {
+  let source = html.to_owned();
+  let options = html_options(presets, tailwind_property, max_depth)?;
+  let parsed = py
+    .detach(move || {
+      let deep = source.bytes().filter(|byte| *byte == b'<').count() >= DEEP_HTML_MARKER_COUNT
+        || stack::nested_css(&source);
+      stack::run(deep, move || {
+        parse_html_source(&source, options).map_err(|error| error.to_string())
+      })
+    })
+    .map_err(HtmlParseError::new_err)?
+    .map_err(HtmlParseError::new_err)?;
+
+  let node = CompiledNode::from_native(parsed.node).map_err(HtmlParseError::new_err)?;
+  Ok((node, parsed.css))
+}
+
 #[pyclass(module = "takumi_py._core")]
 pub struct CompiledNode {
-  pub(crate) node: Node,
+  pub(crate) node: Arc<Node>,
+  pub(crate) deep: bool,
 }
 
 #[pymethods]
 impl CompiledNode {
-  pub fn resource_urls(&self) -> Vec<String> {
-    self.node.image_urls().map(str::to_owned).collect()
+  pub fn resource_urls(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    let node = Arc::clone(&self.node);
+    let deep = self.deep;
+    py.detach(move || {
+      stack::run(deep, move || -> Vec<String> {
+        node.image_urls().map(str::to_owned).collect()
+      })
+    })
+    .map_err(NodeDecodeError::new_err)
   }
 }
 
 impl CompiledNode {
   /// Decodes a Python node mapping with Takumi's serde node format.
   pub(crate) fn from_mapping(node: Bound<'_, PyAny>) -> PyResult<Self> {
-    let py = node.py();
-    let node = to_serde_input(py, node)?;
-    let node = serde_pyobject::from_pyobject(node.into_bound(py))
+    let max_depth = DEFAULT_MAX_DEPTH.saturating_mul(2).saturating_add(32);
+    let node = pyvalue::from_pyobject(&node, max_depth)
       .map_err(|error| NodeDecodeError::new_err(error.to_string()))?;
-    Ok(Self { node })
+    Self::from_native(node).map_err(NodeDecodeError::new_err)
   }
 
   /// Parses HTML with Takumi's Rust parser, outside the GIL.
@@ -65,51 +105,29 @@ impl CompiledNode {
     let source = html.to_owned();
     let options = html_options(presets, tailwind_property, max_depth)?;
     let node = py
-      .detach(move || from_html(&source, options).map_err(|error| error.to_string()))
+      .detach(move || {
+        let deep = source.bytes().filter(|byte| *byte == b'<').count() >= DEEP_HTML_MARKER_COUNT
+          || stack::nested_css(&source);
+        stack::run(deep, move || {
+          from_html(&source, options).map_err(|error| error.to_string())
+        })
+      })
+      .map_err(HtmlParseError::new_err)?
       .map_err(HtmlParseError::new_err)?;
-    Ok(Self { node })
-  }
-}
-
-/// Rewrites the input into the shapes serde-pyobject decodes: tuples and `bytes` become
-/// lists, so byte buffers deserialize as `serde_bytes` sequences.
-fn to_serde_input(py: Python<'_>, value: Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-  if let Ok(bytes) = value.cast::<PyBytes>() {
-    return Ok(
-      PyList::new(py, bytes.as_bytes().iter().copied())?
-        .into_any()
-        .unbind(),
-    );
+    Self::from_native(node).map_err(HtmlParseError::new_err)
   }
 
-  if let Ok(dict) = value.cast::<PyDict>() {
-    let normalized = PyDict::new(py);
-    for (key, item) in dict {
-      normalized.set_item(key, to_serde_input(py, item)?)?;
+  pub(crate) fn from_native(node: Node) -> Result<Self, String> {
+    let depth = node_depth(&node);
+    if depth > DEFAULT_MAX_DEPTH {
+      return Err(format!("nodes nest deeper than {DEFAULT_MAX_DEPTH} levels"));
     }
-    return Ok(normalized.into_any().unbind());
-  }
 
-  if let Ok(list) = value.cast::<PyList>() {
-    return Ok(to_serde_list(py, list.iter())?.into_any().unbind());
+    Ok(Self {
+      node: Arc::new(node),
+      deep: depth >= stack::DEEP_NODE_DEPTH,
+    })
   }
-
-  if let Ok(tuple) = value.cast::<PyTuple>() {
-    return Ok(to_serde_list(py, tuple.iter())?.into_any().unbind());
-  }
-
-  Ok(value.unbind())
-}
-
-fn to_serde_list<'py>(
-  py: Python<'py>,
-  items: impl Iterator<Item = Bound<'py, PyAny>>,
-) -> PyResult<Bound<'py, PyList>> {
-  let normalized = PyList::empty(py);
-  for item in items {
-    normalized.append(to_serde_input(py, item)?)?;
-  }
-  Ok(normalized)
 }
 
 fn html_options(
@@ -127,6 +145,11 @@ fn html_options(
     }
   };
   let max_depth = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
+  if max_depth > DEFAULT_MAX_DEPTH {
+    return Err(PyValueError::new_err(format!(
+      "max_depth cannot exceed {DEFAULT_MAX_DEPTH}"
+    )));
+  }
 
   Ok(match tailwind_property {
     Some(tailwind_property) => FromHtmlOptions::builder()
@@ -139,4 +162,18 @@ fn html_options(
       .max_depth(max_depth)
       .build(),
   })
+}
+
+fn node_depth(root: &Node) -> usize {
+  let mut deepest = 1;
+  let mut pending = vec![(root, 1)];
+
+  while let Some((node, depth)) = pending.pop() {
+    deepest = deepest.max(depth);
+    if let NodeKind::Container { children } = &node.kind {
+      pending.extend(children.iter().map(|child| (child, depth + 1)));
+    }
+  }
+
+  deepest
 }

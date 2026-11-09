@@ -44,7 +44,8 @@ def test_document_keeps_resources_across_compilation_and_renderers() -> None:
     )
     assert first == second
     assert bytes((255, 0, 0, 255)) in first
-    assert "data:image/svg+xml" in Renderer().render_svg(compiled, layout=layout)
+    svg = Renderer().render_svg(compiled, layout=layout)
+    assert 'fill="#f00"' in svg
 
 
 def test_document_canvas_uses_css_pixels_and_scale() -> None:

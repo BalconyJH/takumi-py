@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 from typing import Any, cast
+from xml.etree import ElementTree as ET
 
 import takumi_py
 from takumi_py import (
@@ -18,14 +19,12 @@ from takumi_py import (
     Fragment,
     ImageResource,
     LayoutOptions,
+    RasterImage,
     RasterOptions,
     Renderer,
     ResourceSet,
     compile_document,
 )
-
-if "py_mini_racer" in sys.modules:
-    raise SystemExit("importing takumi_py core loaded mini_racer eagerly")
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 SVG_1X1 = (
@@ -159,8 +158,9 @@ def smoke_document_resources(renderer: Renderer) -> None:
         raise SystemExit("compiled document did not deduplicate fragment resources")
 
     document_svg = renderer.render_svg(compiled, layout=layout)
-    if "data:image/svg+xml" not in document_svg:
-        raise SystemExit("compiled document SVG did not reuse its image resource")
+    root = ET.fromstring(document_svg)  # noqa: S314
+    if not list(root.iter("{http://www.w3.org/2000/svg}path")):
+        raise SystemExit("compiled document SVG did not preserve vector paths")
 
 
 def smoke_math(renderer: Renderer) -> None:
@@ -239,11 +239,62 @@ def smoke_math(renderer: Renderer) -> None:
     ):
         raise SystemExit("math Fragment did not rasterize currentColor pixels")
     vector = renderer.render_svg(compiled, layout=layout)
-    if "data:image/svg+xml" not in vector:
-        raise SystemExit("math Fragment did not render into vector output")
+    vector_root = ET.fromstring(vector)  # noqa: S314
+    paths = list(vector_root.iter("{http://www.w3.org/2000/svg}path"))
+    formula_root = ET.fromstring(result.data)  # noqa: S314
+    original_paths = list(formula_root.iter("{http://www.w3.org/2000/svg}path"))
+    if len(paths) < len(original_paths):
+        raise SystemExit("math Fragment lost paths in vector output")
+
+
+def smoke_static_bitmap(renderer: Renderer) -> None:
+    pixels = bytes((255, 0, 0, 255)) * 6
+    image = RasterImage.from_raw(pixels, width=3, height=2)
+    document = compile_document(Document.from_node(image.to_fragment()))
+    rendered = renderer.rasterize(
+        document, layout=LayoutOptions(width=None, height=None)
+    )
+    if rendered.size != (3, 2) or rendered.stride != 12 or rendered.data != pixels:
+        raise SystemExit("raw bitmap composition changed dimensions or pixels")
+    if not rendered.encode("png").startswith(PNG_SIGNATURE):
+        raise SystemExit("bitmap PNG encoding failed")
+    if rendered.encode("webp")[:4] != b"RIFF":
+        raise SystemExit("bitmap WebP encoding failed")
+    missing = compile_document(Document.from_html('<img src="memory://missing">'))
+    if missing.missing_resources() != ("memory://missing",):
+        raise SystemExit("compiled resource discovery failed")
+    attached = missing.with_resources([ImageResource("memory://missing", SVG_1X1)])
+    if attached.missing_resources() or attached.node is not missing.node:
+        raise SystemExit("compiled resource attachment did not reuse the native node")
+    renderer.rasterize(attached, layout=LayoutOptions(width=2, height=2))
+
+    styled = compile_document(
+        Document.from_html(
+            "<style>.box {width:3px;height:2px;background:blue}"
+            ".hidden {display:none}</style>"
+            '<div class="box"><img class="hidden" src="unused"></div>'
+        )
+    )
+    if renderer.needs(styled).images:
+        raise SystemExit("cascade-aware needs included a hidden image")
+    rendered = renderer.rasterize(styled, layout=LayoutOptions(width=3, height=2))
+    if rendered.data != bytes((0, 0, 255, 255)) * 6:
+        raise SystemExit("embedded HTML styles were not applied")
+    fonts = Document.from_html(
+        "<style>@font-face {font-family: Smoke;src:url(first),url(second)}</style>"
+        '<div style="font-family:Smoke">Hello</div>'
+    )
+    if renderer.needs(fonts).font_files != ("first",):
+        raise SystemExit("CSS font-file discovery failed")
+    fallback = renderer.needs(fonts, layout=LayoutOptions(failed_font_files=("first",)))
+    if fallback.font_files != ("second",):
+        raise SystemExit("per-operation CSS font fallback failed")
 
 
 def main() -> None:
+    if "py_mini_racer" in sys.modules:
+        raise SystemExit("importing takumi_py core loaded mini_racer eagerly")
+
     expected_version = os.environ.get("TAKUMI_PY_EXPECTED_VERSION")
     installed_version = version("takumi-py")
     if expected_version is not None and installed_version != expected_version:
@@ -263,6 +314,7 @@ def main() -> None:
 
     renderer = Renderer()
     smoke_core_math_optionality()
+    smoke_static_bitmap(renderer)
 
     png = renderer.render_html(
         '<div class="card">wheel smoke</div>',

@@ -1,6 +1,7 @@
 //! Native extension for takumi-py. `renderer` holds the Python-facing entry point;
 //! the other modules read its inputs and run Takumi's render pipeline.
 
+mod css_source;
 mod encode;
 mod errors;
 mod fonts;
@@ -9,8 +10,11 @@ mod measure;
 mod nodes;
 mod options;
 mod pipeline;
+mod pyvalue;
+mod raster;
 mod renderer;
 mod settings;
+mod stack;
 mod stylesheets;
 mod validate;
 
@@ -24,10 +28,14 @@ fn set_glyph_cache_max_bytes(max_bytes: usize) {
 #[pymodule]
 fn _core(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
   module.add_class::<renderer::NativeRenderer>()?;
+  module.add_class::<raster::RasterImage>()?;
+  module.add_class::<images::CompiledResources>()?;
+  module.add_function(wrap_pyfunction!(images::compile_resources, module)?)?;
   module.add_class::<nodes::CompiledNode>()?;
   module.add_class::<stylesheets::CompiledStyleSheet>()?;
   module.add_function(wrap_pyfunction!(nodes::compile_node, module)?)?;
   module.add_function(wrap_pyfunction!(nodes::compile_html, module)?)?;
+  module.add_function(wrap_pyfunction!(nodes::parse_html, module)?)?;
   module.add_function(wrap_pyfunction!(stylesheets::compile_stylesheet, module)?)?;
   module.add_function(wrap_pyfunction!(stylesheets::compile_keyframes, module)?)?;
   module.add_function(wrap_pyfunction!(stylesheets::merge_stylesheets, module)?)?;

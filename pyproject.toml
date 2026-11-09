@@ -11,6 +11,9 @@ license-files = [
     "LICENSES/mhchemparser-Apache-2.0.txt",
     "THIRD_PARTY_NOTICES.md",
     "takumilib/LICENSE-MIT",
+    "takumilib/takumi-core/LICENSE-CHROMIUM",
+    "takumilib/takumi-core/LICENSE-EMOJI-SEGMENTER",
+    "takumilib/takumi-core/LICENSE-ICU",
 ]
 authors = [
     { name = "BalconyJH", email = "balconyjh@gmail.com" }
@@ -57,6 +60,7 @@ python-packages = ["takumi_py"]
 python-source = "python"
 include = [
     { path = "takumilib/Cargo.toml", format = "sdist" },
+    { path = "takumilib/assets/fonts/geist/geist-latin-wght-300-800.ttf", format = "sdist" },
     { path = "takumilib/assets/fonts/geist/geist-latin-wght-300-800.woff2", format = "sdist" },
     { path = "python/takumi_py/math/assets/*", format = ["sdist", "wheel"] },
     { path = "tools/mathjax/package.json", format = "sdist" },

@@ -10,6 +10,7 @@ from warnings import warn
 
 from takumi_py import _core
 from takumi_py.document import CompiledDocument, Document, compile_document
+from takumi_py.html import parse_html
 from takumi_py.options import (
     UNSET,
     AnimationEncodeOptions,
@@ -26,6 +27,7 @@ from takumi_py.options import (
     UnsetType,
     native_render_settings,
 )
+from takumi_py.raster import RasterImage
 from takumi_py.template import render_template_to_html
 from takumi_py.types import (
     AnimationScene,
@@ -34,6 +36,7 @@ from takumi_py.types import (
     MeasuredNode,
     NodeInput,
     RawAnimationFrame,
+    RenderNeeds,
     measured_node_from_mapping,
     validate_node,
 )
@@ -43,9 +46,8 @@ from takumi_py.types import (
 class CompiledHtml:
     """A compiled HTML node together with its compiled stylesheets.
 
-    The current parser ignores ``<style>`` elements, so ``stylesheets`` is
-    empty. Compile document-level CSS explicitly before passing it to a
-    compiled rendering method.
+    The parser extracts ``<style>`` elements in document order and compiles their
+    CSS with the error-tolerant HTML parser. The stylesheets travel with the node.
 
     Attributes:
         node: The compiled root node.
@@ -133,24 +135,16 @@ class Renderer:
         The existing ``render_*`` entry points retain their original pixel units.
         """
         compiled = _compiled_document(document)
-        layout = LayoutOptions() if layout is None else layout
-        output = RasterOptions() if output is None else output
-        return self.render_compiled(
+        options = _document_options(layout, output)
+        return self._native.render_compiled(
             compiled.node,
-            stylesheets=compiled.stylesheets,
-            images=compiled.resources.images,
-            width=_raster_dimension(layout.width, output.scale),
-            height=_raster_dimension(layout.height, output.scale),
-            font_size=layout.font_size,
-            time_ms=layout.time_ms,
-            font_families=layout.font_families,
-            lang=layout.lang,
-            device_pixel_ratio=output.scale,
-            format=output.format,
-            quality=output.quality,
-            lossless=output.lossless,
-            dithering=output.dithering,
-            draw_debug_border=output.draw_debug_border,
+            list(compiled.stylesheets),
+            native_render_settings(
+                options,
+                resources=compiled._native_resources,
+                failed_font_files=() if layout is None else layout.failed_font_files,
+            ),
+            options,
         )
 
     def measure(
@@ -165,18 +159,56 @@ class Renderer:
         geometry, before raster output rounds painted boxes to whole pixels.
         """
         compiled = _compiled_document(document)
-        layout = LayoutOptions() if layout is None else layout
-        return self.measure_compiled(
-            compiled.node,
-            stylesheets=compiled.stylesheets,
-            images=compiled.resources.images,
-            width=layout.width,
-            height=layout.height,
-            font_size=layout.font_size,
-            time_ms=layout.time_ms,
-            font_families=layout.font_families,
-            lang=layout.lang,
-            device_pixel_ratio=1.0,
+        options = _document_options(layout)
+        return measured_node_from_mapping(
+            self._native.measure_compiled(
+                compiled.node,
+                list(compiled.stylesheets),
+                native_render_settings(
+                    options,
+                    resources=compiled._native_resources,
+                    failed_font_files=()
+                    if layout is None
+                    else layout.failed_font_files,
+                ),
+            )
+        )
+
+    def rasterize(
+        self,
+        document: Document | CompiledDocument,
+        *,
+        layout: LayoutOptions | None = None,
+        scale: float = 1.0,
+        dithering: DitheringAlgorithm = "none",
+        draw_debug_border: bool = False,
+    ) -> RasterImage:
+        """Draw once and retain a bitmap with its actual pixel dimensions.
+
+        Use ``image.encode()`` to export several formats without repeating
+        layout, resource decoding, or drawing. ``image.tobytes()`` exposes
+        straight-alpha RGBA8 together with ``size`` and ``stride``, including
+        when the canvas dimensions are inferred. Scale follows ``render``.
+        """
+        compiled = _compiled_document(document)
+        raster = RasterOptions(
+            scale=scale,
+            dithering=dithering,
+            draw_debug_border=draw_debug_border,
+        )
+        options = _document_options(layout, raster)
+        return RasterImage(
+            self._native.rasterize_compiled(
+                compiled.node,
+                list(compiled.stylesheets),
+                native_render_settings(
+                    options,
+                    resources=compiled._native_resources,
+                    failed_font_files=()
+                    if layout is None
+                    else layout.failed_font_files,
+                ),
+            )
         )
 
     def render_svg(
@@ -187,18 +219,62 @@ class Renderer:
     ) -> str:
         """Render a resource-owning document as SVG in CSS pixels."""
         compiled = _compiled_document(document)
-        layout = LayoutOptions() if layout is None else layout
-        return self.render_svg_compiled(
+        options = _document_options(layout)
+        return self._native.render_svg_compiled(
             compiled.node,
-            stylesheets=compiled.stylesheets,
-            images=compiled.resources.images,
-            width=layout.width,
-            height=layout.height,
-            font_size=layout.font_size,
-            time_ms=layout.time_ms,
-            font_families=layout.font_families,
-            lang=layout.lang,
+            list(compiled.stylesheets),
+            native_render_settings(
+                options,
+                resources=compiled._native_resources,
+                failed_font_files=() if layout is None else layout.failed_font_files,
+            ),
         )
+
+    def needs(
+        self,
+        document: Document | CompiledDocument,
+        *,
+        layout: LayoutOptions | None = None,
+        scale: float = 1.0,
+    ) -> RenderNeeds:
+        """Discover images and pending font files after applying the CSS cascade.
+
+        Hidden nodes and unmatched rules are excluded by Takumi. Image identifiers
+        include already supplied resources; font files are pending sources. Load
+        files explicitly, then query again to resolve fallback and SVG text needs.
+        Pass the same ``scale`` as raster output so resolution media queries and
+        viewport rounding agree. Measurement and SVG use the default scale of one.
+        This does not paint or access the network.
+        """
+        compiled = _compiled_document(document)
+        options = _document_options(layout, RasterOptions(scale=scale))
+        images, faces, font_files = self._native.needs_compiled(
+            compiled.node,
+            list(compiled.stylesheets),
+            native_render_settings(
+                options,
+                resources=compiled._native_resources,
+                failed_font_files=() if layout is None else layout.failed_font_files,
+            ),
+        )
+        return RenderNeeds(tuple(images), tuple(faces), tuple(font_files))
+
+    def load_font_file(self, url: str, data: bytes) -> None:
+        """Supply bytes for a CSS ``@font-face src`` URL without fetching it.
+
+        CSS supplies the family and face descriptors. The renderer owns loaded
+        files until ``forget_font_file`` or ``clear_fonts``; these files are
+        separate from the ``cache_font`` budget for manually registered families.
+        """
+        if not isinstance(url, str) or not url:
+            raise ValueError("url must be a non-empty string")
+        if not isinstance(data, bytes):
+            raise TypeError("font file data must be bytes")
+        self._native.load_font_file(url, data)
+
+    def forget_font_file(self, url: str) -> bool:
+        """Release a supplied CSS font file, so its URL is pending again."""
+        return self._native.forget_font_file(url)
 
     def compile_node(
         self,
@@ -505,7 +581,7 @@ class Renderer:
         node: NodeInput,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -529,7 +605,8 @@ class Renderer:
         Args:
             node: Node mapping accepted by Takumi.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
             height: Output viewport height, or ``None`` for intrinsic sizing.
@@ -557,10 +634,11 @@ class Renderer:
             UnsupportedFormatError: If the requested output cannot be encoded.
         """
         compiled = self.compile_node(node, validate=validate)
-        compiled_stylesheets = self._compile_stylesheets(stylesheets, keyframes)
+        compiled_stylesheets = self._compile_stylesheets(stylesheets)
         return self.render_compiled(
             compiled,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -582,7 +660,7 @@ class Renderer:
         node: NodeInput,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -603,7 +681,8 @@ class Renderer:
         Args:
             node: Node mapping accepted by Takumi.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: Layout viewport width, or ``None`` for intrinsic sizing.
             height: Layout viewport height, or ``None`` for intrinsic sizing.
@@ -627,10 +706,11 @@ class Renderer:
             RenderError: If layout or measurement fails.
         """
         compiled = self.compile_node(node, validate=validate)
-        compiled_stylesheets = self._compile_stylesheets(stylesheets, keyframes)
+        compiled_stylesheets = self._compile_stylesheets(stylesheets)
         return self.measure_compiled(
             compiled,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -658,21 +738,16 @@ class Renderer:
                 element depth. Defaults to ``HtmlOptions``.
 
         Returns:
-            The compiled root node and a stylesheet bundle. The current parser
-            returns an empty bundle because ``<style>`` elements are ignored.
+            The compiled root node and the embedded ``<style>`` stylesheet bundle.
 
         Raises:
             HtmlParseError: If the HTML cannot be parsed or exceeds configured
                 limits.
         """
-        resolved_html_options = html_options or HtmlOptions()
+        parsed = parse_html(html, options=html_options)
         return CompiledHtml(
-            node=self._native.compile_html(
-                html,
-                presets=resolved_html_options.presets,
-                tailwind_property=resolved_html_options.tailwind_property,
-                max_depth=resolved_html_options.max_depth,
-            )
+            node=parsed.node,
+            stylesheets=parsed.stylesheets,
         )
 
     def render_html(
@@ -680,7 +755,7 @@ class Renderer:
         html: str,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -706,7 +781,8 @@ class Renderer:
         Args:
             html: HTML fragment or document source.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
@@ -736,13 +812,13 @@ class Renderer:
             html,
             html_options=html_options,
         )
-        compiled_stylesheets = compiled.stylesheets + self._compile_html_stylesheets(
-            stylesheets,
-            keyframes,
+        compiled_stylesheets = (
+            self._compile_html_stylesheets(stylesheets) + compiled.stylesheets
         )
         return self.render_compiled(
             compiled.node,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -764,7 +840,7 @@ class Renderer:
         html: str,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -787,7 +863,8 @@ class Renderer:
         Args:
             html: HTML fragment or document source.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: Layout viewport width, or ``None`` for intrinsic sizing.
@@ -814,13 +891,13 @@ class Renderer:
             html,
             html_options=html_options,
         )
-        compiled_stylesheets = compiled.stylesheets + self._compile_html_stylesheets(
-            stylesheets,
-            keyframes,
+        compiled_stylesheets = (
+            self._compile_html_stylesheets(stylesheets) + compiled.stylesheets
         )
         return self.measure_compiled(
             compiled.node,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -841,7 +918,7 @@ class Renderer:
         *,
         template_dir: str | Path = ".",
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -869,7 +946,8 @@ class Renderer:
             context: Values exposed to the Jinja template.
             template_dir: Root directory used to load templates.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
@@ -982,7 +1060,7 @@ class Renderer:
         node: NodeInput,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -1000,7 +1078,8 @@ class Renderer:
         Args:
             node: Node mapping accepted by Takumi.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: SVG viewport width, or ``None`` for intrinsic sizing.
             height: SVG viewport height, or ``None`` for intrinsic sizing.
@@ -1021,10 +1100,11 @@ class Renderer:
             RenderError: If layout or SVG generation fails.
         """
         compiled = self.compile_node(node, validate=validate)
-        compiled_stylesheets = self._compile_stylesheets(stylesheets, keyframes)
+        compiled_stylesheets = self._compile_stylesheets(stylesheets)
         return self.render_svg_compiled(
             compiled,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -1040,7 +1120,7 @@ class Renderer:
         html: str,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -1060,7 +1140,8 @@ class Renderer:
         Args:
             html: HTML fragment or document source.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: SVG viewport width, or ``None`` for intrinsic sizing.
@@ -1083,13 +1164,13 @@ class Renderer:
             html,
             html_options=html_options,
         )
-        compiled_stylesheets = compiled.stylesheets + self._compile_html_stylesheets(
-            stylesheets,
-            keyframes,
+        compiled_stylesheets = (
+            self._compile_html_stylesheets(stylesheets) + compiled.stylesheets
         )
         return self.render_svg_compiled(
             compiled.node,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -1107,7 +1188,7 @@ class Renderer:
         *,
         template_dir: str | Path = ".",
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -1125,7 +1206,8 @@ class Renderer:
             context: Values exposed to the Jinja template.
             template_dir: Root directory used to load templates.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: SVG viewport width, or ``None`` for intrinsic sizing.
@@ -1168,7 +1250,7 @@ class Renderer:
         time_ms: int,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -1194,7 +1276,8 @@ class Renderer:
                 already be compiled.
             time_ms: Sequence sampling time in milliseconds.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
             height: Output viewport height, or ``None`` for intrinsic sizing.
@@ -1239,7 +1322,10 @@ class Renderer:
         return self._native.render_sequence_at_time_compiled(
             self._compile_animation_scenes(scenes, validate=validate),
             time_ms,
-            self._compile_stylesheets(stylesheets, render_options.keyframes),
+            self._with_keyframes(
+                self._compile_stylesheets(stylesheets),
+                render_options.keyframes,
+            ),
             native_render_settings(render_options, time_ms=0),
             render_options,
         )
@@ -1249,7 +1335,7 @@ class Renderer:
         scenes: Sequence[AnimationScene],
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         encode_options: AnimationEncodeOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -1280,7 +1366,8 @@ class Renderer:
             scenes: Ordered nodes and their durations in milliseconds. Nodes may
                 already be compiled.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration shared by every frame.
             encode_options: Base animation encoder configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
@@ -1342,7 +1429,10 @@ class Renderer:
         )
         return self._native.render_animation_compiled(
             self._compile_animation_scenes(scenes, validate=validate),
-            self._compile_stylesheets(stylesheets, render_options.keyframes),
+            self._with_keyframes(
+                self._compile_stylesheets(stylesheets),
+                render_options.keyframes,
+            ),
             native_render_settings(render_options, time_ms=0),
             fps,
             resolved_encode_options,
@@ -1401,26 +1491,20 @@ class Renderer:
     def _compile_stylesheets(
         self,
         stylesheets: Sequence[str] | None,
-        keyframes: KeyframesInput | None = None,
     ) -> tuple[CompiledStyleSheet, ...]:
-        """Strictly compile node CSS followed by optional keyframes."""
-        return self._with_keyframes(
-            [self.compile_stylesheet(stylesheet) for stylesheet in stylesheets or ()],
-            keyframes,
+        """Strictly compile node CSS."""
+        return tuple(
+            self.compile_stylesheet(stylesheet) for stylesheet in stylesheets or ()
         )
 
     def _compile_html_stylesheets(
         self,
         stylesheets: Sequence[str] | None,
-        keyframes: KeyframesInput | None = None,
     ) -> tuple[CompiledStyleSheet, ...]:
-        """Lossily compile HTML CSS followed by optional keyframes."""
-        return self._with_keyframes(
-            [
-                self.compile_stylesheet_lossy(stylesheet)
-                for stylesheet in stylesheets or ()
-            ],
-            keyframes,
+        """Lossily compile HTML CSS."""
+        return tuple(
+            self.compile_stylesheet_lossy(stylesheet)
+            for stylesheet in stylesheets or ()
         )
 
     def _with_keyframes(
@@ -1555,6 +1639,32 @@ def _raster_dimension(value: int | None, scale: float) -> int | None:
     if not math.isfinite(scaled) or scaled > 2**32 - 1:
         raise ValueError("scaled canvas dimension exceeds the native 32-bit limit")
     return math.ceil(scaled)
+
+
+def _document_options(
+    layout: LayoutOptions | None,
+    output: RasterOptions | None = None,
+) -> RenderOptions:
+    if layout is not None and not isinstance(layout, LayoutOptions):
+        raise TypeError("layout must be a LayoutOptions value or None")
+    if output is not None and not isinstance(output, RasterOptions):
+        raise TypeError("output must be a RasterOptions value or None")
+    layout = LayoutOptions() if layout is None else layout
+    output = RasterOptions() if output is None else output
+    return resolve_render_options(
+        width=_raster_dimension(layout.width, output.scale),
+        height=_raster_dimension(layout.height, output.scale),
+        font_size=layout.font_size,
+        time_ms=layout.time_ms,
+        font_families=layout.font_families,
+        lang=layout.lang,
+        device_pixel_ratio=output.scale,
+        format=output.format,
+        quality=output.quality,
+        lossless=output.lossless,
+        dithering=output.dithering,
+        draw_debug_border=output.draw_debug_border,
+    )
 
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
