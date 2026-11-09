@@ -9,6 +9,22 @@ contributors, and the release's section is published as its GitHub Release notes
 
 ## [Unreleased]
 
+### Fixed
+
+- Avoid native stack exhaustion while compiling, measuring, rendering, and releasing
+  deeply nested nodes on small Python worker stacks; reject cycles with binding errors.
+- Validate Python node trees and convert measured output iteratively, preserving the
+  supported depth without leaking Python recursion errors.
+- Honor omitted, cleared, and explicitly overridden keyframes consistently across
+  node, HTML, template, SVG, measurement, sequence, and animation entry points.
+- Preserve independent CSS source EOF recovery and the relative order of CSS and
+  structured keyframe rules when composing existing stylesheets.
+
+### Changed
+
+- Run maintenance-branch checks and installed-wheel regressions on eight platforms
+  in both debug and release profiles, retaining separate regression reports.
+
 ## [0.4.0] - 2026-11-07
 
 ### Added

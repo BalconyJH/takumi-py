@@ -47,6 +47,48 @@ The pytest suite lives in `tests/` and runs in parallel through `make test`:
 | `test_examples.py` | Every script in `examples/` runs and writes its output |
 | `test_typing_surface.py` | The documented public `Renderer` surface and native typing artifacts |
 | `test_repository_scripts.py` | The release, changelog, docs deployment, and docs translation scripts in `.github/scripts/` |
+| `test_native_stack.py`, `test_node_bytes.py` | Subprocess checks on 512 KiB and 1 MiB worker stacks, snapshot cleanup, and buffer fidelity |
+| `test_keyframe_options.py`, `test_stylesheet_composition.py` | Keyframe inheritance/clearing and ordered CSS source composition |
+
+## Maintenance branches { #maintenance-branches }
+
+`0.4.x` starts from `v0.4.0` and accepts fixes for the existing API. It keeps
+Takumi 2.17.1 and does not contain the document, math, or static raster APIs being
+prepared on `dev`. Backport individual fixes after verifying the release baseline;
+do not merge `dev` into the maintenance branch.
+
+Pushes to `0.4.x` run build, documentation, and lint checks. The wheel job covers
+eight platforms in both debug and release profiles. Each wheel runs the isolated
+`test_native_stack.py`, `test_node_bytes.py`, `test_render_node.py`,
+`test_keyframe_options.py`, and `test_stylesheet_composition.py` regressions through
+`.github/scripts/test-wheel.py`. Missing tests, skipped cases, crashes, and timeouts
+fail the job. Only release-profile wheels are uploaded as distribution artifacts.
+This configuration is not evidence that every remote platform has passed.
+
+The three Check workflows run independently. Within the build workflow, quality
+must pass before either distribution job, and the ABI checks consume release wheels:
+
+```text
+push / pull_request
++-- Check: Build and test
+|   +-- quality
+|       +-- sdist-smoke
+|       +-- wheel-smoke [8 platforms x debug/release]
+|           +-- abi3-smoke [Python 3.11-3.15]
++-- Check: Docs
++-- Check: Prek
+```
+
+The small-stack fix belongs in the binding: the old Python-to-native conversion
+recursed on the caller's stack before Takumi could enforce its node-depth limit.
+The replacement snapshots and releases Python value trees iteratively, detects
+cycles, and gives recursive native decoding, cloning, and rendering controlled
+stack headroom. Measured output conversion and cleanup are also iterative.
+Takumi still owns the schema and rendering behavior; this does not upgrade it.
+
+The automatic tag and publish gates remain restricted to the existing `main`
+release flow. Creating or pushing a maintenance branch does not authorize a release.
+The source-branch policy must be reviewed separately before publishing from `0.4.x`.
 
 ## Distribution contract
 

@@ -43,6 +43,43 @@ pytest 测试套件位于 `tests/`，通过 `make test` 并行运行：
 | `test_examples.py` | `examples/` 中的每个脚本都能运行并写出输出 |
 | `test_typing_surface.py` | 文档化的公共 `Renderer` 接口和原生类型文件 |
 | `test_repository_scripts.py` | `.github/scripts/` 中的发布、changelog、文档部署与文档翻译脚本 |
+| `test_native_stack.py`、`test_node_bytes.py` | 512 KiB 与 1 MiB 工作线程栈的子进程检查、快照清理与缓冲区数据保真 |
+| `test_keyframe_options.py`、`test_stylesheet_composition.py` | 关键帧继承/清除与 CSS 来源顺序组合 |
+
+## 维护分支 { #maintenance-branches }
+
+`0.4.x` 从 `v0.4.0` 建立，只接受现有 API 的缺陷修复。它保留 Takumi 2.17.1，
+不包含 `dev` 上准备中的 document、math 或静态 raster 新接口。先验证发布基线是否受影响，
+再回移植单项修复；不要把 `dev` 合并进维护分支。
+
+推送到 `0.4.x` 会运行构建、文档与 lint 检查。wheel job 覆盖八个平台的 debug 与
+release 两种配置，每个 wheel 都通过 `.github/scripts/test-wheel.py` 在隔离安装环境中
+运行 `test_native_stack.py`、`test_node_bytes.py`、`test_render_node.py`、
+`test_keyframe_options.py` 和 `test_stylesheet_composition.py` 回归。缺失测试、跳过、
+崩溃或超时均失败；只有 release 配置的 wheel 上传为分发制品。
+这些配置不表示每个远端平台都已通过。
+
+三个 Check 工作流独立运行。构建工作流内部，quality 通过后才运行两类分发检查，
+ABI 检查使用 release wheel：
+
+```text
+push / pull_request
++-- Check: Build and test
+|   +-- quality
+|       +-- sdist-smoke
+|       +-- wheel-smoke [8 platforms x debug/release]
+|           +-- abi3-smoke [Python 3.11-3.15]
++-- Check: Docs
++-- Check: Prek
+```
+
+小栈问题需要在 binding 修复：旧的 Python 到原生值转换在 Takumi 检查节点深度之前，
+就已经递归消耗调用线程的栈。新的实现迭代构建和释放 Python 值快照，检测循环引用，
+并为仍然递归的原生解码、克隆和渲染提供受控栈空间。测量结果的转换与清理也改为迭代。
+schema 和渲染行为仍由 Takumi 决定，这项修复不升级 Takumi。
+
+自动打标签与发布门禁仍限于既有 `main` 发布流程。创建或推送维护分支不代表授权发布，
+从 `0.4.x` 发布之前还需要单独审查发布来源分支策略。
 
 ## 分发约定 { #distribution-contract }
 
