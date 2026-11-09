@@ -1,6 +1,7 @@
 //! Native extension for takumi-py. `renderer` holds the Python-facing entry point;
 //! the other modules read its inputs and run Takumi's render pipeline.
 
+mod css_source;
 mod encode;
 mod errors;
 mod fonts;
@@ -9,8 +10,10 @@ mod measure;
 mod nodes;
 mod options;
 mod pipeline;
+mod pyvalue;
 mod renderer;
 mod settings;
+mod stack;
 mod stylesheets;
 mod validate;
 

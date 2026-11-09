@@ -1020,17 +1020,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-pyobject"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5614e792b7c36d3feeb45b8287ea2dc615f063896e59258d11ef5015c18bdf6a"
-dependencies = [
- "log",
- "pyo3",
- "serde",
-]
-
-[[package]]
 name = "serde_bytes"
 version = "0.11.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1332,10 +1321,10 @@ dependencies = [
 name = "takumi_py"
 version = "0.4.0"
 dependencies = [
+ "cssparser",
  "image",
  "pyo3",
  "serde",
- "serde-pyobject",
  "takumi",
  "takumi-bindings-common",
  "takumi-core",
