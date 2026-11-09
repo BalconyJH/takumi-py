@@ -107,7 +107,7 @@ class TemplateRenderer:
         context: Mapping[str, object],
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,

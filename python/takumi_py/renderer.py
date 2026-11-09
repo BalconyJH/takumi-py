@@ -419,7 +419,7 @@ class Renderer:
         node: NodeInput,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -443,7 +443,8 @@ class Renderer:
         Args:
             node: Node mapping accepted by Takumi.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
             height: Output viewport height, or ``None`` for intrinsic sizing.
@@ -471,10 +472,11 @@ class Renderer:
             UnsupportedFormatError: If the requested output cannot be encoded.
         """
         compiled = self.compile_node(node, validate=validate)
-        compiled_stylesheets = self._compile_stylesheets(stylesheets, keyframes)
+        compiled_stylesheets = self._compile_stylesheets(stylesheets)
         return self.render_compiled(
             compiled,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -496,7 +498,7 @@ class Renderer:
         node: NodeInput,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -517,7 +519,8 @@ class Renderer:
         Args:
             node: Node mapping accepted by Takumi.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: Layout viewport width, or ``None`` for intrinsic sizing.
             height: Layout viewport height, or ``None`` for intrinsic sizing.
@@ -541,10 +544,11 @@ class Renderer:
             RenderError: If layout or measurement fails.
         """
         compiled = self.compile_node(node, validate=validate)
-        compiled_stylesheets = self._compile_stylesheets(stylesheets, keyframes)
+        compiled_stylesheets = self._compile_stylesheets(stylesheets)
         return self.measure_compiled(
             compiled,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -594,7 +598,7 @@ class Renderer:
         html: str,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -620,7 +624,8 @@ class Renderer:
         Args:
             html: HTML fragment or document source.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
@@ -652,11 +657,11 @@ class Renderer:
         )
         compiled_stylesheets = compiled.stylesheets + self._compile_html_stylesheets(
             stylesheets,
-            keyframes,
         )
         return self.render_compiled(
             compiled.node,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -678,7 +683,7 @@ class Renderer:
         html: str,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -701,7 +706,8 @@ class Renderer:
         Args:
             html: HTML fragment or document source.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: Layout viewport width, or ``None`` for intrinsic sizing.
@@ -730,11 +736,11 @@ class Renderer:
         )
         compiled_stylesheets = compiled.stylesheets + self._compile_html_stylesheets(
             stylesheets,
-            keyframes,
         )
         return self.measure_compiled(
             compiled.node,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -755,7 +761,7 @@ class Renderer:
         *,
         template_dir: str | Path = ".",
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -783,7 +789,8 @@ class Renderer:
             context: Values exposed to the Jinja template.
             template_dir: Root directory used to load templates.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
@@ -896,7 +903,7 @@ class Renderer:
         node: NodeInput,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -914,7 +921,8 @@ class Renderer:
         Args:
             node: Node mapping accepted by Takumi.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: SVG viewport width, or ``None`` for intrinsic sizing.
             height: SVG viewport height, or ``None`` for intrinsic sizing.
@@ -935,10 +943,11 @@ class Renderer:
             RenderError: If layout or SVG generation fails.
         """
         compiled = self.compile_node(node, validate=validate)
-        compiled_stylesheets = self._compile_stylesheets(stylesheets, keyframes)
+        compiled_stylesheets = self._compile_stylesheets(stylesheets)
         return self.render_svg_compiled(
             compiled,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -954,7 +963,7 @@ class Renderer:
         html: str,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -974,7 +983,8 @@ class Renderer:
         Args:
             html: HTML fragment or document source.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: SVG viewport width, or ``None`` for intrinsic sizing.
@@ -999,11 +1009,11 @@ class Renderer:
         )
         compiled_stylesheets = compiled.stylesheets + self._compile_html_stylesheets(
             stylesheets,
-            keyframes,
         )
         return self.render_svg_compiled(
             compiled.node,
             stylesheets=compiled_stylesheets,
+            keyframes=keyframes,
             options=options,
             width=width,
             height=height,
@@ -1021,7 +1031,7 @@ class Renderer:
         *,
         template_dir: str | Path = ".",
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         html_options: HtmlOptions | None = None,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -1039,7 +1049,8 @@ class Renderer:
             context: Values exposed to the Jinja template.
             template_dir: Root directory used to load templates.
             stylesheets: Additional CSS source strings applied in order.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             html_options: HTML parsing configuration.
             options: Base render configuration.
             width: SVG viewport width, or ``None`` for intrinsic sizing.
@@ -1082,7 +1093,7 @@ class Renderer:
         time_ms: int,
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         width: int | UnsetType | None = UNSET,
         height: int | UnsetType | None = UNSET,
@@ -1108,7 +1119,8 @@ class Renderer:
                 already be compiled.
             time_ms: Sequence sampling time in milliseconds.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
             height: Output viewport height, or ``None`` for intrinsic sizing.
@@ -1163,7 +1175,7 @@ class Renderer:
         scenes: Sequence[AnimationScene],
         *,
         stylesheets: Sequence[str] | None = None,
-        keyframes: KeyframesInput | None = None,
+        keyframes: KeyframesInput | UnsetType | None = UNSET,
         options: RenderOptions | None = None,
         encode_options: AnimationEncodeOptions | None = None,
         width: int | UnsetType | None = UNSET,
@@ -1194,7 +1206,8 @@ class Renderer:
             scenes: Ordered nodes and their durations in milliseconds. Nodes may
                 already be compiled.
             stylesheets: CSS source strings compiled with strict parsing.
-            keyframes: Structured animation rules appended after ``stylesheets``.
+            keyframes: Structured animation rules, ``None`` to clear them, or
+                ``UNSET`` to inherit ``options.keyframes``.
             options: Base render configuration shared by every frame.
             encode_options: Base animation encoder configuration.
             width: Output viewport width, or ``None`` for intrinsic sizing.
