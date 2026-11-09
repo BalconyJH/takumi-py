@@ -137,7 +137,7 @@ jobs:
           retention-days: 14
 
   wheel-smoke:
-    name: Build and smoke-test wheel (${{ matrix.platform.name }})
+    name: Build and test wheel (${{ matrix.platform.name }}, ${{ matrix.profile }})
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 45
     needs:
@@ -145,6 +145,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        profile: [debug, release]
         platform:
           - name: linux-x86_64
             runner: ubuntu-latest
@@ -203,7 +204,7 @@ jobs:
           maturin-version: v1.15.0
           target: ${{ matrix.platform.target }}
           manylinux: ${{ matrix.platform.manylinux || 'auto' }}
-          args: --release --locked --out dist --compatibility pypi
+          args: ${{ matrix.profile == 'release' && '--release' || '--profile dev' }} --locked --out dist --compatibility pypi
           sccache: true
 
       - name: Verify wheel in isolation
@@ -234,7 +235,41 @@ jobs:
                 --uv uv
             '
 
+      - name: Run installed-wheel regression tests
+        if: ${{ !matrix.platform.container }}
+        shell: bash
+        run: >-
+          python .github/scripts/test-wheel.py dist
+          --python "$(cat .python-version)"
+          --uv uv
+          --junit-xml reports/regressions.xml
+
+      - name: Run installed-wheel regressions in Alpine
+        if: ${{ matrix.platform.container }}
+        shell: bash
+        env:
+          CONTAINER_IMAGE: ${{ matrix.platform.container }}
+        run: |
+          docker run --rm --volume "${PWD}:/work" --workdir /work \
+            "${CONTAINER_IMAGE}" sh -euc '
+              pip install --quiet --root-user-action=ignore uv==0.12.1
+              python .github/scripts/test-wheel.py dist \
+                --python "$(cat .python-version)" \
+                --uv uv \
+                --junit-xml reports/regressions.xml
+            '
+
+      - name: Upload regression results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-regressions-${{ matrix.platform.name }}-${{ matrix.profile }}
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload wheel
+        if: ${{ matrix.profile == 'release' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-wheel-${{ matrix.platform.name }}
@@ -281,6 +316,7 @@ jobs:
         run: >-
           python3 .github/scripts/verify-distributions.py dist
           --wheel-only
+          --math
           --expected-version "$(uv version --short)"
           --python "${PYTHON_VERSION}"
           --uv uv

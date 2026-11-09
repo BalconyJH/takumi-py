@@ -691,3 +691,331 @@ def test_math_smoke_installs_extra_and_sets_environment(
     assert calls[3][0][-1] == f"{wheel.resolve()}[math]"
     assert calls[4][1]["TAKUMI_PY_MATH_SMOKE"] == "1"
     assert calls[4][1]["PATH"] == ""
+
+
+@pytest.fixture(scope="module")
+def wheel_tester() -> ModuleType:
+    return load_script("test-wheel")
+
+
+def test_test_wheel_arguments_accept_artifact_directory_and_report(
+    wheel_tester: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "test-wheel.py",
+            str(tmp_path),
+            "--junit-xml",
+            "reports/regressions.xml",
+            "--python",
+            "3.13",
+            "--uv",
+            "custom-uv",
+        ],
+    )
+
+    args = wheel_tester.parse_args()
+
+    assert args.wheel_or_directory == tmp_path
+    assert args.junit_xml == Path("reports/regressions.xml")
+    assert args.python == "3.13"
+    assert args.uv == "custom-uv"
+
+
+def test_test_wheel_resolves_one_wheel_from_a_file_or_directory(
+    wheel_tester: ModuleType,
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "takumi_py-0.4.0-cp311-abi3-test.whl"
+    wheel.touch()
+
+    assert wheel_tester.resolve_wheel(wheel) == wheel.resolve()
+    assert wheel_tester.resolve_wheel(tmp_path) == wheel.resolve()
+
+    (tmp_path / "takumi_py-0.4.1-cp311-abi3-test.whl").touch()
+    with pytest.raises(wheel_tester.WheelTestError, match="exactly one wheel"):
+        wheel_tester.resolve_wheel(tmp_path)
+
+
+def test_test_wheel_uses_the_explicit_regression_suite(
+    wheel_tester: ModuleType,
+) -> None:
+    assert wheel_tester.REGRESSION_TESTS == (
+        "test_native_stack.py",
+        "test_node_bytes.py",
+        "test_native_compile.py",
+        "test_stylesheet_composition.py",
+        "test_keyframe_options.py",
+        "test_render_node.py",
+        "test_math.py",
+        "test_math_validation.py",
+        "test_math_process.py",
+        "test_math_layout.py",
+        "test_math_integration.py",
+    )
+
+
+def test_test_wheel_environment_removes_inherited_import_configuration(
+    wheel_tester: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATH", "/test/bin")
+    for name in (
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTEST_ADDOPTS",
+        "PYTEST_PLUGINS",
+        "UV_PROJECT_ENVIRONMENT",
+        "VIRTUAL_ENV",
+    ):
+        monkeypatch.setenv(name, "/checkout/shadow")
+
+    env = wheel_tester.isolated_environment()
+
+    assert env["PATH"] == "/test/bin"
+    assert env["PYTHONNOUSERSITE"] == "1"
+    assert env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+    assert env["UV_NO_PROGRESS"] == "1"
+    for name in (
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTEST_ADDOPTS",
+        "PYTEST_PLUGINS",
+        "UV_PROJECT_ENVIRONMENT",
+        "VIRTUAL_ENV",
+    ):
+        assert name not in env
+
+
+def test_test_wheel_installs_and_runs_only_the_selected_suite(
+    wheel_tester: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "takumi_py-0.4.0-cp311-abi3-test.whl"
+    wheel.touch()
+    report = tmp_path / "reports" / "regressions.xml"
+    uv_calls: list[tuple[list[str], Path, dict[str, str]]] = []
+    probes: list[tuple[list[str], Path, dict[str, str]]] = []
+    pytest_calls: list[tuple[Path, Path, Path, dict[str, str]]] = []
+
+    def record_run(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        label: str,
+    ) -> None:
+        assert label
+        assert cwd.is_dir()
+        uv_calls.append((command, cwd, env))
+
+    def record_probe(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        label: str,
+    ) -> None:
+        assert label
+        assert cwd.is_dir()
+        probes.append((command, cwd, env))
+
+    def record_pytest(
+        *,
+        python: Path,
+        suite_dir: Path,
+        junit_xml: Path,
+        env: dict[str, str],
+    ) -> int:
+        repository_root = SCRIPTS.parents[1]
+        assert not suite_dir.is_relative_to(repository_root)
+        assert sorted(path.name for path in suite_dir.iterdir()) == sorted(
+            (*wheel_tester.REGRESSION_TESTS, "pytest.ini")
+        )
+        assert not (suite_dir / "pyproject.toml").exists()
+        assert (suite_dir / "pytest.ini").read_text(encoding="utf-8") == "[pytest]\n"
+        pytest_calls.append((python, suite_dir, junit_xml, env))
+        return 11
+
+    monkeypatch.setattr(wheel_tester, "run", record_run)
+    monkeypatch.setattr(wheel_tester, "run_probe", record_probe)
+    monkeypatch.setattr(wheel_tester, "run_pytest", record_pytest)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "test-wheel.py",
+            str(wheel),
+            "--junit-xml",
+            str(report),
+            "--python",
+            "3.12",
+            "--uv",
+            "custom-uv",
+        ],
+    )
+
+    wheel_tester.main()
+
+    assert len(uv_calls) == 2
+    venv_command = uv_calls[0][0]
+    assert venv_command[:5] == [
+        "custom-uv",
+        "venv",
+        "--no-project",
+        "--python",
+        "3.12",
+    ]
+    venv = Path(venv_command[-1])
+    install_command = uv_calls[1][0]
+    assert install_command == [
+        "custom-uv",
+        "pip",
+        "install",
+        "--python",
+        str(wheel_tester.venv_python(venv)),
+        f"{wheel.resolve()}[math]",
+        "pytest==9.1.1",
+    ]
+    assert all("pytest-cov" not in argument for argument in install_command)
+    assert all("pytest-xdist" not in argument for argument in install_command)
+
+    expected_python = wheel_tester.venv_python(venv)
+    (python, suite_dir, junit_xml, env) = pytest_calls[0]
+    assert python == expected_python
+    assert junit_xml == report.resolve()
+    assert env["PYTHONNOUSERSITE"] == "1"
+    assert "PYTHONPATH" not in env
+    assert probes[0][0] == [
+        str(expected_python),
+        "-I",
+        "-c",
+        wheel_tester.WHEEL_PROBE,
+    ]
+    assert suite_dir.name == "tests"
+
+
+def test_test_wheel_rejects_skipped_junit_cases(
+    wheel_tester: ModuleType,
+    tmp_path: Path,
+) -> None:
+    report = tmp_path / "regressions.xml"
+    report.write_text(
+        """\
+<testsuites>
+  <testsuite tests="2" skipped="1">
+    <testcase classname="tests.test_math" name="test_typeset" />
+    <testcase classname="tests.test_math_layout" name="test_layout">
+      <skipped message="math extra is not installed" />
+    </testcase>
+  </testsuite>
+</testsuites>
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(wheel_tester.WheelTestError, match="tests were skipped"):
+        wheel_tester.check_junit(report)
+
+
+def test_test_wheel_preserves_junit_when_pytest_fails(
+    wheel_tester: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    python = tmp_path / "venv" / "bin" / "python"
+    suite_dir = tmp_path / "tests"
+    suite_dir.mkdir()
+    report = tmp_path / "regressions.xml"
+
+    def failed_pytest(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        check: bool,
+        stdout: Any,
+        stderr: int,
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == suite_dir
+        assert check is False
+        assert env == {}
+        assert stderr == subprocess.STDOUT
+        assert timeout == wheel_tester.PYTEST_TIMEOUT_SECONDS
+        stdout.write("collected selected regressions\n")
+        report.write_text(
+            """\
+<testsuites>
+  <testsuite tests="1" failures="1">
+    <testcase classname="tests.test_math" name="test_typeset">
+      <failure message="failed" />
+    </testcase>
+  </testsuite>
+</testsuites>
+""",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 1)
+
+    monkeypatch.setattr(wheel_tester.subprocess, "run", failed_pytest)
+
+    with pytest.raises(wheel_tester.WheelTestError, match="failed with exit code 1"):
+        wheel_tester.run_pytest(
+            python=python,
+            suite_dir=suite_dir,
+            junit_xml=report,
+            env={},
+        )
+
+    assert report.is_file()
+    assert "<failure" in report.read_text(encoding="utf-8")
+    log_path = report.with_suffix(".log")
+    assert "collected selected regressions" in log_path.read_text(encoding="utf-8")
+
+
+def test_test_wheel_preserves_log_when_pytest_times_out(
+    wheel_tester: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    python = tmp_path / "venv" / "bin" / "python"
+    suite_dir = tmp_path / "tests"
+    suite_dir.mkdir()
+    report = tmp_path / "regressions.xml"
+
+    def timed_out_pytest(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        check: bool,
+        stdout: Any,
+        stderr: int,
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == suite_dir
+        assert check is False
+        assert env == {}
+        assert stderr == subprocess.STDOUT
+        stdout.write("partial regression output\n")
+        raise subprocess.TimeoutExpired(command, timeout)
+
+    monkeypatch.setattr(wheel_tester.subprocess, "run", timed_out_pytest)
+
+    with pytest.raises(wheel_tester.WheelTestError, match="exceeded 900 seconds"):
+        wheel_tester.run_pytest(
+            python=python,
+            suite_dir=suite_dir,
+            junit_xml=report,
+            env={},
+        )
+
+    log = report.with_suffix(".log").read_text(encoding="utf-8")
+    assert "partial regression output" in log
+    assert "exceeded 900 seconds" in log
