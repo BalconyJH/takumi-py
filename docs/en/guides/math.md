@@ -34,12 +34,18 @@ musllinux 1.2, macOS Intel 10.9 and arm64 11, and Windows x64 and arm64 targets.
 These are runtime wheel targets, not completed execution claims; CI still needs to
 verify each platform.
 
-On Alpine Linux, install the GCC and C++ runtime libraries before using the math
-extra. The minimal Python Alpine image does not include these MiniRacer dependencies:
+On Alpine Linux, MiniRacer requires the GCC runtime and the `gcompat` glibc
+compatibility layer. Install them, then preload the system shim when running Python:
 
 ```bash
-apk add --no-cache libgcc libstdc++
+apk add --no-cache libgcc gcompat
+LD_PRELOAD=/lib/libgcompat.so.0 python your_app.py
 ```
+
+Apply `LD_PRELOAD` to the Python application, not to `uv`: preloading `gcompat`
+can make `uv` identify musl as glibc and select incompatible wheels. On Linux, the
+supervised math worker preserves only this exact `/lib/libgcompat.so.0` preload;
+arbitrary paths and lists of libraries are removed from its environment.
 
 The pinned MathJax `4.1.3` runtime and local SVG font data are bundled with every core
 wheel, including installations that do not use the math extra. Those assets are about

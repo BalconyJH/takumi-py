@@ -9,6 +9,7 @@ import sys
 from threading import Event
 from time import monotonic, sleep
 from typing import Any, Callable, cast
+from unittest.mock import Mock
 
 import pytest
 
@@ -292,6 +293,83 @@ def test_abandon_start_cannot_leave_a_finished_attempt_as_a_tombstone(
 
     assert instance._abandon_start(attempt) is None
     assert instance._starting is None
+
+
+@pytest.mark.parametrize(
+    ("platform", "preload", "expected_preload"),
+    [
+        pytest.param(
+            "linux",
+            "/lib/libgcompat.so.0",
+            "/lib/libgcompat.so.0",
+            id="linux-gcompat",
+        ),
+        pytest.param("linux", "/opt/libgcompat.so.0", None, id="linux-other-path"),
+        pytest.param(
+            "linux",
+            "/lib/libgcompat.so.0:/tmp/libother.so.0 /tmp/libspace.so.0",
+            None,
+            id="linux-list-or-space",
+        ),
+        pytest.param("linux", "libgcompat.so.0", None, id="linux-relative"),
+        pytest.param(
+            "darwin",
+            "/lib/libgcompat.so.0",
+            None,
+            id="darwin-gcompat-path",
+        ),
+        pytest.param(
+            "win32",
+            "/lib/libgcompat.so.0",
+            None,
+            id="windows-gcompat-path",
+        ),
+        pytest.param("linux", None, None, id="linux-absent"),
+    ],
+)
+def test_start_scrubs_process_environment_except_linux_gcompat(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    preload: str | None,
+    expected_preload: str | None,
+) -> None:
+    from takumi_py.math import _process
+
+    if preload is None:
+        monkeypatch.delenv("LD_PRELOAD", raising=False)
+    else:
+        monkeypatch.setenv("LD_PRELOAD", preload)
+    for name in (
+        "DYLD_INSERT_LIBRARIES",
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+        "PYTHONINSPECT",
+    ):
+        monkeypatch.setenv(name, f"unsafe-{name.lower()}")
+    monkeypatch.setenv("TAKUMI_MATH_ORDINARY_ENV", "inherited")
+    monkeypatch.setattr(_process.sys, "platform", platform)
+    popen = Mock()
+    monkeypatch.setattr(_process.subprocess, "Popen", popen)
+
+    ProcessRuntime("unused")._start()
+
+    popen.assert_called_once()
+    environment = popen.call_args.kwargs["env"]
+    assert isinstance(environment, dict)
+    if expected_preload is None:
+        assert "LD_PRELOAD" not in environment
+    else:
+        assert environment["LD_PRELOAD"] == expected_preload
+    for name in (
+        "DYLD_INSERT_LIBRARIES",
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+        "PYTHONINSPECT",
+    ):
+        assert name not in environment
+    assert environment["TAKUMI_MATH_ORDINARY_ENV"] == "inherited"
 
 
 def test_stopping_a_process_is_idempotent_under_concurrency() -> None:

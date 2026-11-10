@@ -106,6 +106,13 @@ def isolated_environment() -> dict[str, str]:
     return env
 
 
+def installer_environment(runtime_env: dict[str, str]) -> dict[str, str]:
+    """Keep gcompat from making uv identify musl as glibc."""
+    env = runtime_env.copy()
+    env.pop("LD_PRELOAD", None)
+    return env
+
+
 def run(
     command: list[str],
     *,
@@ -275,6 +282,7 @@ def main() -> None:
     junit_xml.parent.mkdir(parents=True, exist_ok=True)
     repository_root = Path(__file__).resolve().parents[2]
     env = isolated_environment()
+    installer_env = installer_environment(env)
 
     with TemporaryDirectory(prefix="takumi-py-wheel-tests-") as temporary:
         root = Path(temporary).resolve()
@@ -290,7 +298,7 @@ def main() -> None:
         run(
             [args.uv, "venv", "--no-project", "--python", args.python, str(venv)],
             cwd=run_dir,
-            env=env,
+            env=installer_env,
             label=f"Create isolated Python {args.python} environment",
         )
         python = venv_python(venv)
@@ -305,7 +313,7 @@ def main() -> None:
                 PYTEST_REQUIREMENT,
             ],
             cwd=run_dir,
-            env=env,
+            env=installer_env,
             label=f"Install {wheel.name} with math extra and {PYTEST_REQUIREMENT}",
         )
         run_probe(

@@ -353,6 +353,7 @@ class ProcessRuntime:
 
     def _start(self) -> subprocess.Popen[bytes]:
         environment = os.environ.copy()
+        preload = environment.get("LD_PRELOAD")
         for name in (
             "PYTHONPATH",
             "PYTHONHOME",
@@ -362,6 +363,10 @@ class ProcessRuntime:
             "DYLD_INSERT_LIBRARIES",
         ):
             environment.pop(name, None)
+        # MiniRacer's musllinux wheel requires Alpine's system glibc shim.
+        # Keep arbitrary libraries and preload lists out of the worker.
+        if sys.platform == "linux" and preload == "/lib/libgcompat.so.0":
+            environment["LD_PRELOAD"] = preload
         try:
             return subprocess.Popen(  # noqa: S603
                 [self._executable, "-I", "-u", "-m", self._worker_module],

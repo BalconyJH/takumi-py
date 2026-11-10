@@ -65,6 +65,13 @@ def path_without_node(path_value: str | None) -> str:
     return os.pathsep.join(entries)
 
 
+def installer_environment(runtime_env: dict[str, str]) -> dict[str, str]:
+    """Keep gcompat from making uv identify musl as glibc."""
+    env = runtime_env.copy()
+    env.pop("LD_PRELOAD", None)
+    return env
+
+
 def check_archives(
     paths: list[Path],
     *,
@@ -101,11 +108,12 @@ def smoke_wheel(
 ) -> None:
     venv = root / name
     run_dir = root / f"{name}-run"
+    installer_env = installer_environment(env)
     run_dir.mkdir()
     run(
         [uv, "venv", "--no-project", "--python", python_version, str(venv)],
         cwd=run_dir,
-        env=env,
+        env=installer_env,
         label=f"Create isolated {name} environment",
     )
     python = venv_python(venv)
@@ -113,7 +121,7 @@ def smoke_wheel(
     run(
         [uv, "pip", "install", "--python", str(python), core_wheel],
         cwd=run_dir,
-        env=env,
+        env=installer_env,
         label=f"Install {wheel.name} without optional extras in isolation",
     )
     core_smoke_env = env | {"TAKUMI_PY_REPOSITORY_ROOT": str(repository_root)}
@@ -129,7 +137,7 @@ def smoke_wheel(
     run(
         [uv, "pip", "install", "--python", str(python), f"{core_wheel}[math]"],
         cwd=run_dir,
-        env=env,
+        env=installer_env,
         label=f"Install the math extra for {wheel.name} in the same environment",
     )
     math_smoke_env = core_smoke_env | {
@@ -157,6 +165,7 @@ def rebuild_and_smoke_sdist(
 ) -> None:
     wheel_dir = root / "from-sdist"
     run_dir = root / "sdist-build"
+    installer_env = installer_environment(env)
     run_dir.mkdir()
     run(
         [
@@ -168,7 +177,7 @@ def rebuild_and_smoke_sdist(
             str(wheel_dir),
         ],
         cwd=run_dir,
-        env=env,
+        env=installer_env,
         label=f"Build a wheel from {sdist.name}",
     )
     wheel = only_artifact(list(wheel_dir.glob("*.whl")), "sdist-built wheel")

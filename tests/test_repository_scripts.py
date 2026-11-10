@@ -674,6 +674,12 @@ def test_math_smoke_installs_extra_and_sets_environment(
     root.mkdir()
     (repository_root / ".github" / "scripts").mkdir(parents=True)
     (repository_root / ".github" / "scripts" / "smoke-wheel.py").touch()
+    runtime_env = {
+        "PATH": "",
+        "LD_PRELOAD": "/lib/libgcompat.so.0",
+        "TEST_ORDINARY_ENV": "runtime-value",
+    }
+    original_env = runtime_env.copy()
 
     verify_distributions.smoke_wheel(
         wheel,
@@ -682,15 +688,91 @@ def test_math_smoke_installs_extra_and_sets_environment(
         uv="uv",
         root=root,
         repository_root=repository_root,
-        env={"PATH": ""},
+        env=runtime_env,
         math_smoke=True,
     )
 
+    assert runtime_env == original_env
+    for index in (0, 1, 3):
+        assert "LD_PRELOAD" not in calls[index][1]
+        assert calls[index][1]["PATH"] == ""
+        assert calls[index][1]["TEST_ORDINARY_ENV"] == "runtime-value"
     assert calls[1][0][-1] == str(wheel.resolve())
+    for index in (2, 4):
+        assert calls[index][1]["LD_PRELOAD"] == "/lib/libgcompat.so.0"
+        assert calls[index][1]["TEST_ORDINARY_ENV"] == "runtime-value"
     assert "TAKUMI_PY_MATH_SMOKE" not in calls[2][1]
     assert calls[3][0][-1] == f"{wheel.resolve()}[math]"
     assert calls[4][1]["TAKUMI_PY_MATH_SMOKE"] == "1"
     assert calls[4][1]["PATH"] == ""
+
+
+def test_sdist_uv_build_uses_installer_environment(
+    verify_distributions: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[list[str], dict[str, str]]] = []
+    checked: list[dict[str, str]] = []
+    smoked: list[dict[str, str]] = []
+
+    def record_run(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        label: str,
+    ) -> None:
+        assert cwd.is_dir()
+        assert label
+        calls.append((command, env))
+        output = Path(command[command.index("--out-dir") + 1])
+        output.mkdir()
+        (output / "takumi_py.whl").touch()
+
+    def record_check(*args: Any, env: dict[str, str], **kwargs: Any) -> None:
+        assert args
+        assert kwargs
+        checked.append(env)
+
+    def record_smoke(*args: Any, env: dict[str, str], **kwargs: Any) -> None:
+        assert args
+        assert kwargs
+        smoked.append(env)
+
+    monkeypatch.setattr(verify_distributions, "run", record_run)
+    monkeypatch.setattr(verify_distributions, "check_archives", record_check)
+    monkeypatch.setattr(verify_distributions, "smoke_wheel", record_smoke)
+    sdist = tmp_path / "takumi_py-0.4.0.tar.gz"
+    sdist.touch()
+    root = tmp_path / "root"
+    root.mkdir()
+    runtime_env = {
+        "PATH": "/runtime/bin",
+        "LD_PRELOAD": "/lib/libgcompat.so.0",
+        "PYTHONNOUSERSITE": "1",
+        "TEST_ORDINARY_ENV": "runtime-value",
+    }
+    original_env = runtime_env.copy()
+
+    verify_distributions.rebuild_and_smoke_sdist(
+        sdist,
+        expected_version="0.4.0",
+        python_version="3.11",
+        uv="uv",
+        root=root,
+        repository_root=tmp_path,
+        env=runtime_env,
+        math_smoke=True,
+    )
+
+    assert runtime_env == original_env
+    assert calls[0][0][:2] == ["uv", "build"]
+    assert "LD_PRELOAD" not in calls[0][1]
+    assert calls[0][1]["PATH"] == "/runtime/bin"
+    assert calls[0][1]["TEST_ORDINARY_ENV"] == "runtime-value"
+    assert checked == [runtime_env]
+    assert smoked == [runtime_env]
 
 
 @pytest.fixture(scope="module")
@@ -791,6 +873,29 @@ def test_test_wheel_environment_removes_inherited_import_configuration(
         assert name not in env
 
 
+@pytest.mark.parametrize("script_fixture", ["verify_distributions", "wheel_tester"])
+def test_installer_environment_removes_preload_from_runtime_copy(
+    request: pytest.FixtureRequest,
+    script_fixture: str,
+) -> None:
+    script = request.getfixturevalue(script_fixture)
+    runtime_env = {
+        "LD_PRELOAD": "/lib/libgcompat.so.0",
+        "PATH": "/runtime/bin",
+        "TEST_ORDINARY_ENV": "runtime-value",
+    }
+    original_env = runtime_env.copy()
+
+    installer_env = script.installer_environment(runtime_env)
+
+    assert installer_env == {
+        "PATH": "/runtime/bin",
+        "TEST_ORDINARY_ENV": "runtime-value",
+    }
+    assert installer_env is not runtime_env
+    assert runtime_env == original_env
+
+
 def test_test_wheel_installs_and_runs_only_the_selected_suite(
     wheel_tester: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
@@ -845,6 +950,14 @@ def test_test_wheel_installs_and_runs_only_the_selected_suite(
     monkeypatch.setattr(wheel_tester, "run", record_run)
     monkeypatch.setattr(wheel_tester, "run_probe", record_probe)
     monkeypatch.setattr(wheel_tester, "run_pytest", record_pytest)
+    runtime_env = {
+        "PATH": "/runtime/bin",
+        "LD_PRELOAD": "/lib/libgcompat.so.0",
+        "PYTHONNOUSERSITE": "1",
+        "TEST_ORDINARY_ENV": "runtime-value",
+    }
+    original_env = runtime_env.copy()
+    monkeypatch.setattr(wheel_tester, "isolated_environment", lambda: runtime_env)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -884,6 +997,11 @@ def test_test_wheel_installs_and_runs_only_the_selected_suite(
     ]
     assert all("pytest-cov" not in argument for argument in install_command)
     assert all("pytest-xdist" not in argument for argument in install_command)
+    assert runtime_env == original_env
+    for _command, _cwd, env in uv_calls:
+        assert "LD_PRELOAD" not in env
+        assert env["PATH"] == "/runtime/bin"
+        assert env["TEST_ORDINARY_ENV"] == "runtime-value"
 
     expected_python = wheel_tester.venv_python(venv)
     (python, suite_dir, junit_xml, env) = pytest_calls[0]
@@ -891,12 +1009,16 @@ def test_test_wheel_installs_and_runs_only_the_selected_suite(
     assert junit_xml == report.resolve()
     assert env["PYTHONNOUSERSITE"] == "1"
     assert "PYTHONPATH" not in env
+    assert env["LD_PRELOAD"] == "/lib/libgcompat.so.0"
+    assert env["TEST_ORDINARY_ENV"] == "runtime-value"
     assert probes[0][0] == [
         str(expected_python),
         "-I",
         "-c",
         wheel_tester.WHEEL_PROBE,
     ]
+    assert probes[0][2]["LD_PRELOAD"] == "/lib/libgcompat.so.0"
+    assert probes[0][2]["TEST_ORDINARY_ENV"] == "runtime-value"
     assert suite_dir.name == "tests"
 
 

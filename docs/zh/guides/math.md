@@ -30,12 +30,18 @@ MiniRacer wheel 要求 glibc 2.27，而 core wheel 的基线是 glibc 2.17。数
 musllinux 1.2、macOS Intel 10.9 与 arm64 11、Windows x64 与 arm64 目标。这些只是运行时
 wheel 目标，不代表执行验证已经完成；每个平台仍需通过 CI。
 
-在 Alpine Linux 上，使用数学 extra 前需要安装 GCC 和 C++ 运行时库。最小 Python
-Alpine 镜像不包含这些 MiniRacer 依赖：
+在 Alpine Linux 上，MiniRacer 需要 GCC 运行时和 `gcompat` glibc 兼容层。
+安装这些依赖后，运行 Python 时预加载系统兼容库：
 
 ```bash
-apk add --no-cache libgcc libstdc++
+apk add --no-cache libgcc gcompat
+LD_PRELOAD=/lib/libgcompat.so.0 python your_app.py
 ```
+
+只对 Python 应用设置 `LD_PRELOAD`，不要对 `uv` 设置：预加载 `gcompat` 会让
+`uv` 将 musl 识别为 glibc，进而选择不兼容的 wheel。在 Linux 上，受监督的数学
+worker 仅保留值恰好为 `/lib/libgcompat.so.0` 的预加载设置；其他路径和库列表
+仍会从 worker 环境中移除。
 
 固定的 MathJax `4.1.3` 运行时和本地 SVG 字体数据随每个 core wheel 一同分发，即使安装
 时没有选择数学 extra 也是如此。这些资源未压缩时约 11.5 MB，对压缩后 wheel 的体积贡献
