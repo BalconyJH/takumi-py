@@ -181,9 +181,14 @@ def smoke_math(renderer: Renderer) -> None:
         r"\begin{pmatrix}\frac{a}{b}&1\\0&\binom{n}{k}\end{pmatrix}"
         r"+\ce{2H2 -> 2H2O}"
     )
+    # Verify packaging, not cold-start latency on shared CI runners. Keep a
+    # finite budget; the process regressions separately exercise hard deadlines.
     with (
         restrict_runtime_launches(),
-        math_api.MathTypesetter(extensions=("mhchem",)) as typesetter,
+        math_api.MathTypesetter(
+            extensions=("mhchem",),
+            limits=math_api.MathLimits(timeout_ms=30_000),
+        ) as typesetter,
     ):
         result = typesetter.typeset(expression, options=options)
         second = typesetter.typeset(
