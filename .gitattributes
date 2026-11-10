@@ -1,0 +1,6 @@
+# Byte-hashed MathJax inputs must keep their committed line endings on checkout.
+/python/takumi_py/math/assets/mathjax.bundle.js -text
+/tools/mathjax/build.mjs -text
+/tools/mathjax/bun.lock -text
+/tools/mathjax/mathjax-entry.mjs -text
+/tools/mathjax/package.json -text
