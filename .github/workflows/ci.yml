@@ -230,6 +230,7 @@ jobs:
         run: |
           docker run --rm --volume "${PWD}:/work" --workdir /work \
             --env EXPECTED_VERSION="$(uv version --short)" "${CONTAINER_IMAGE}" sh -euc '
+              apk add --no-cache libgcc libstdc++
               pip install --quiet --root-user-action=ignore uv==0.12.1
               python .github/scripts/verify-distributions.py dist \
                 --wheel-only \
@@ -256,6 +257,7 @@ jobs:
         run: |
           docker run --rm --volume "${PWD}:/work" --workdir /work \
             "${CONTAINER_IMAGE}" sh -euc '
+              apk add --no-cache libgcc libstdc++
               pip install --quiet --root-user-action=ignore uv==0.12.1
               python .github/scripts/test-wheel.py dist \
                 --python "$(cat .python-version)" \

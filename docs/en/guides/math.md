@@ -34,6 +34,13 @@ musllinux 1.2, macOS Intel 10.9 and arm64 11, and Windows x64 and arm64 targets.
 These are runtime wheel targets, not completed execution claims; CI still needs to
 verify each platform.
 
+On Alpine Linux, install the GCC and C++ runtime libraries before using the math
+extra. The minimal Python Alpine image does not include these MiniRacer dependencies:
+
+```bash
+apk add --no-cache libgcc libstdc++
+```
+
 The pinned MathJax `4.1.3` runtime and local SVG font data are bundled with every core
 wheel, including installations that do not use the math extra. Those assets are about
 11.5 MB uncompressed; their contribution to the compressed wheel is smaller. The extra

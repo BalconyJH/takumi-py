@@ -30,6 +30,13 @@ MiniRacer wheel 要求 glibc 2.27，而 core wheel 的基线是 glibc 2.17。数
 musllinux 1.2、macOS Intel 10.9 与 arm64 11、Windows x64 与 arm64 目标。这些只是运行时
 wheel 目标，不代表执行验证已经完成；每个平台仍需通过 CI。
 
+在 Alpine Linux 上，使用数学 extra 前需要安装 GCC 和 C++ 运行时库。最小 Python
+Alpine 镜像不包含这些 MiniRacer 依赖：
+
+```bash
+apk add --no-cache libgcc libstdc++
+```
+
 固定的 MathJax `4.1.3` 运行时和本地 SVG 字体数据随每个 core wheel 一同分发，即使安装
 时没有选择数学 extra 也是如此。这些资源未压缩时约 11.5 MB，对压缩后 wheel 的体积贡献
 更小。extra 只安装运行时，不会在首次使用时下载 MathJax 或字体。
